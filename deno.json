@@ -1,0 +1,67 @@
+{
+  "tasks": {
+    "dev": "deno task web:dev & deno task api:dev",
+    "api:dev": "deno run -A --watch apps/api/index.ts",
+    "web:dev": "deno run -A --node-modules-dir npm:vite apps/web",
+    "web:build": "deno run -A --node-modules-dir npm:vite build apps/web",
+    "db:migrate": "deno run -A --env-file=.env libs/server/db/migrate.ts",
+    "deploy": {
+      "command": "deno run -R=./infra --allow-run=rsync,ssh ./infra/scripts/deploy.ts",
+      "dependencies": ["web:build"]
+    },
+    "check": "deno fmt --check && deno lint && deno check **/*.ts",
+    "fix": "deno fmt && deno lint --fix"
+  },
+  "imports": {
+    "@shared/types": "./libs/shared/types/+index.ts",
+    "@shared/helpers/": "./libs/shared/helpers/",
+    "@shared/cqrs/": "./libs/shared/cqrs/",
+    "@server/db": "./libs/server/db/+index.ts",
+
+    "hono": "jsr:@hono/hono@^4.7.7",
+    "hono/cookie": "jsr:@hono/hono@^4.7.7/cookie",
+    "hono/cors": "jsr:@hono/hono@^4.7.7/cors",
+    "@db/sqlite": "jsr:@db/sqlite@^0.13.0",
+
+    "preact": "npm:preact@^10.26.2",
+    "preact/": "npm:/preact@10.26.2/",
+    "@preact/signals": "npm:@preact/signals@^2.2.0",
+    "@preact/signals-core": "npm:@preact/signals-core@^1.9.0",
+    "wouter-preact": "npm:wouter-preact@^3.7.1",
+
+    "vite": "npm:vite@^6.1.1",
+    "@deno/vite-plugin": "npm:@deno/vite-plugin@^1.0.4",
+    "@preact/preset-vite": "npm:@preact/preset-vite@^2.10.1",
+    "tailwindcss": "npm:tailwindcss@4.1.8",
+    "@tailwindcss/vite": "npm:@tailwindcss/vite@4.1.8",
+
+    "@std/path": "jsr:@std/path@^1.0.3",
+    "@std/encoding": "jsr:@std/encoding@^1.0.5",
+    "@std/expect": "jsr:@std/expect@^1.0.15"
+  },
+  "exclude": [
+    "**/dist/*",
+    "**/node_modules/*",
+    ".git",
+    "*.lock"
+  ],
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["require-await"]
+    }
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "singleQuote": false,
+    "proseWrap": "preserve",
+    "semiColons": false
+  },
+  "compilerOptions": {
+    "lib": ["ES2020", "DOM", "DOM.Iterable", "deno.ns"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
+  }
+}

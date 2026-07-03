@@ -1,0 +1,8 @@
+apps/***
+libs/***
+infra/***
+compose.yml
+Dockerfile
+deno.json
+deno.lock
+.gitignore

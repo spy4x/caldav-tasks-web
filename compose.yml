@@ -1,0 +1,33 @@
+services:
+  todoapp:
+    container_name: todoapp
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data:z
+    environment:
+      - ENV=prod
+      - PORT=8080
+      - DB_PATH=/app/data/todoapp.db
+      - AUTH_PEPPER=${AUTH_PEPPER}
+      - AUTH_COOKIE_SECRET=${AUTH_COOKIE_SECRET}
+      - ENCRYPTION_SECRET=${ENCRYPTION_SECRET}
+      - CORS_ORIGIN=https://todos.${DOMAIN}
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.services.todoapp.loadbalancer.server.port=8080"
+      - "traefik.http.routers.todoapp.rule=Host(`todos.${DOMAIN}`)"
+      - "traefik.http.routers.todoapp.entrypoints=websecure"
+      - "traefik.http.routers.todoapp.tls=true"
+      - "traefik.http.routers.todoapp.tls.certresolver=myresolver"
+
+networks:
+  proxy:
+    external: true

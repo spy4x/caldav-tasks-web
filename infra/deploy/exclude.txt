@@ -1,0 +1,6 @@
+apps/web/node_modules/
+apps/web/.vite/
+data/
+.volumes/
+.git/
+node_modules/
