@@ -73,8 +73,6 @@ server should work.
 
 ![Settings page — server credentials, profile, encryption keys](./docs/screenshots/04-settings.png)
 
-![Animated showcase cycling through login, dashboard, kanban, settings, mobile](./docs/screenshots/showcase.svg)
-
 ## Quick start (local)
 
 ```bash
