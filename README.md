@@ -1,9 +1,10 @@
 # TodoApp — CalDAV Task Manager PWA
 
-Web-based task manager that talks to any CalDAV server (Radicale, Nextcloud, Baikal).\
+Web-based task manager that talks to any CalDAV server (Radicale, Stalwart, Nextcloud, Baikal).\
 Inspired by Tasks.org having no web UI.
 
 **Live at** https://todos.antonshubin.com
+**Public repo:** https://github.com/spy4x/caldav-tasks-web
 
 ---
 

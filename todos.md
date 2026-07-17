@@ -2,6 +2,8 @@
 
 Everything we know, everything planned. Updated as changes are made.
 
+**Public repo:** https://github.com/spy4x/caldav-tasks-web
+
 ## Legend
 
 - [x] Done

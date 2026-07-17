@@ -5,6 +5,8 @@
 TodoApp is a CalDAV task manager PWA (Deno + Hono + Vite/Preact + SQLite).
 Deployed at https://todos.antonshubin.com via `deno task deploy`.
 
+**Public repo:** https://github.com/spy4x/caldav-tasks-web
+
 ## Core Rules
 
 - **Deno-only.** No Node.js/bun. No npm except via `--node-modules-dir`.
