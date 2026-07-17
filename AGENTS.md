@@ -5,6 +5,8 @@
 TodoApp is a CalDAV task manager PWA (Deno + Hono + Vite/Preact + SQLite).
 Deployed at https://todos.antonshubin.com via `deno task deploy`.
 
+**Public repo:** https://github.com/spy4x/caldav-tasks-web
+
 ## Core Rules
 
 - **Deno-only.** No Node.js/bun. No npm except via `--node-modules-dir`.
@@ -53,7 +55,7 @@ See `README.md` for quick start, `docs/1.overview.md` for architecture and statu
 
 - **Username ≠ Email**: `user_keys.identification` = login (any string). `users.email` = contact. Separate endpoints for changing each.
 - **CalDAV todos**: VTODO data is fetched via GET on each `.ics` file (not inline in PROPFIND). Some servers (like Radicale) return 404 for `calendar-data` in PROPFIND.
-- **XML namespace**: Radicale uses default namespace (no `d:` prefix). All regex parsers use `(?:d:)?` and `(?:[^:]*:)?` to handle both prefixed and unprefixed tags.
+- **XML namespace**: Radicale uses default namespace (no `d:` prefix). Stalwart uses uppercase `D:` and `A:` prefixes. All regex parsers use `(?:[^:]*:)?response` with `i` flag to handle any prefix and any case. Bare `d:href`-style arg names in `extractXml` calls would silently miss Stalwart's `<D:href>`.
 - **URL-first state**: Filters, search, sort, selected collection stored in URL query params. Restored on page load.
 - **Collection colors**: Parsed from `<ICAL:calendar-color>` in PROPFIND response.
 - **Encryption at rest**: Server passwords encrypted with AES-GCM using `ENCRYPTION_SECRET` env var.
@@ -64,5 +66,5 @@ See `README.md` for quick start, `docs/1.overview.md` for architecture and statu
 - **manifest.json error in console:** Files are in `apps/web/static/`, Vite's `publicDir` is set to `static/` in vite.config.ts.
 - **Container won't start:** `@db/sqlite` needs SQLite shared lib. Debian image has it via `apt-get install libsqlite3-dev`.
 - **CalDAV returns empty:** Radicale returns VTODO data via GET on `.ics` files, not inline in PROPFIND. The function `caldavGetTodos` first lists .ics files then fetches each individually.
-- **XML parsing fails:** Radicale uses default XML namespace (no `d:` prefix). All regex parsers use `(?:d:)?` to handle both.
+- **XML parsing fails / empty calendar list on Stalwart:** Stalwart emits `<D:response>` / `<A:response>` with capital prefixes and returns 404 propstats for `<supported-calendar-component-set/>` + `<calendar-color/>` on the user's principal home. Parser regex must accept any prefix with `i` flag, and must filter calendars by `<(prefix:)?calendar/>` inside `resourcetype` — substring "calendar" alone matches the user's home too. See branch `fix/stalwart-calendar-parsing`.
 - **Sidebar not showing on Settings:** Ensure Sidebar component is rendered inside Layout (not per-page). It should be in Layout.tsx, not Dashboard.tsx.

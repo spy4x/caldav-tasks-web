@@ -3,4 +3,7 @@ data/
 dist/
 *.lock
 .env
+.env.*
+!.env.example
+!.env.prod.example
 .volumes/
