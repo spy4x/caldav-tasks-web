@@ -10,7 +10,7 @@ your tasks in the browser the same way you do on Android with
 [Live demo](https://todos.antonshubin.com) ·
 [Repository](https://github.com/spy4x/caldav-tasks-web)
 
-![Desktop dashboard showing the Work calendar with 7 priority-coded todos in the sidebar, all under a single Stalwart server](./docs/screenshots/desktop-dashboard.png)
+![Desktop dashboard showing 6 unique calendars in the sidebar under one Stalwart server, NeatSoft calendar selected with 7 todos including priorities, due dates, and categories](./docs/screenshots/02-dashboard-desktop.png)
 
 ---
 
@@ -67,11 +67,11 @@ server should work.
 
 ## Screenshots
 
-![Kanban view — Needs Action, In Progress, Completed, Cancelled columns](./docs/screenshots/desktop-kanban.png)
+![Kanban view — Needs Action, In Progress, Completed, Cancelled columns, drag todos between statuses](./docs/screenshots/03-kanban.png)
 
-![Mobile sidebar with collections drawer over the dashboard](./docs/screenshots/mobile-dashboard.png)
+![Mobile sidebar drawer with the same 6 unique collections over the dashboard](./docs/screenshots/10-mobile-dashboard.png)
 
-![Settings page — server credentials, profile, encryption keys](./docs/screenshots/desktop-settings.png)
+![Settings page — server credentials, profile, encryption keys](./docs/screenshots/04-settings.png)
 
 ![Animated showcase cycling through login, dashboard, kanban, settings, mobile](./docs/screenshots/showcase.svg)
 
