@@ -1,103 +1,154 @@
-# TodoApp — CalDAV Task Manager PWA
+# caldav-tasks-web
 
-Web-based task manager that talks to any CalDAV server (Radicale, Nextcloud, Baikal).\
-Inspired by Tasks.org having no web UI.
+A self-hosted PWA for managing VTODO tasks on any CalDAV server.
 
-**Live at** https://todos.antonshubin.com
+Point it at Radicale, Stalwart, Nextcloud, or Baikal — anything that
+speaks [RFC 4791](https://datatracker.ietf.org/doc/html/rfc4791). Edit
+your tasks in the browser the same way you do on Android with
+[Tasks.org](https://tasks.org/).
+
+[Live demo](https://todos.antonshubin.com) ·
+[Repository](https://github.com/spy4x/caldav-tasks-web)
 
 ---
 
+## Why
+
+Tasks.org is the best Android task app and it syncs to CalDAV cleanly.
+There is no web UI for it. This fills the gap.
+
+If you already run Radicale or Stalwart for your calendars and tasks,
+this gives you a touch-first PWA on top of the same data — no data
+migration, no second source of truth, installable on mobile from the
+browser.
+
+## Features
+
+- Multiple CalDAV servers per account, multiple calendars per server,
+  in one web UI
+- Full VTODO editing: summary, description, status, priority, due date,
+  start date, categories, location, recurrence, percent complete
+- Inline tag filter, full-text search across summary / description /
+  categories
+- Filter by status or priority, hide completed, multi-sort
+- Collection CRUD — create, rename, delete calendars in-place
+- Server passwords encrypted with AES-GCM at rest (key from
+  `ENCRYPTION_SECRET`)
+- Mobile-first sidebar with overlay, works as an installed PWA
+- Self-host with one Deno binary plus SQLite — no Node, no npm runtime
+
+## Server compatibility
+
+| Server    | Status                                 |
+| --------- | -------------------------------------- |
+| Radicale  | Tested in production                   |
+| Stalwart  | Tested in production (since 2026-07)   |
+| Nextcloud | CalDAV-compliant, expected to work     |
+| Baikal    | CalDAV-compliant, expected to work     |
+| Tasks.org | Tested as a peer (round-trips cleanly) |
+
+The CalDAV protocol is standardized (RFC 4791) so any conforming
+server should work.
+
 ## Stack
 
-| Layer    | Tech                                                                |
-| -------- | ------------------------------------------------------------------- |
-| Frontend | Vite + Preact, Tailwind v4, wouter-preact, **preact-signals**       |
-| API      | Hono (REST), CQRS-ready (`libs/shared/cqrs/`)                       |
-| DB       | SQLite via `@db/sqlite` FFI (swappable to Postgres via `DbService`) |
-| CalDAV   | Custom client — PROPFIND, GET, PUT, DELETE, MKCOL, PROPPATCH        |
-| Auth     | PBKDF2 + pepper, HttpOnly session cookies                           |
-| Deploy   | `rsync` → Docker Compose on homelab (Traefik, TLS)                  |
+| Layer    | Tech                                                  |
+| -------- | ----------------------------------------------------- |
+| Runtime  | Deno 2.2 — single binary, no Node                     |
+| API      | Hono, CQRS-ready bus in `libs/shared/cqrs/`           |
+| Frontend | Preact + Signals (no hooks), Tailwind v4, Vite        |
+| DB       | SQLite via `@db/sqlite` FFI                           |
+| CalDAV   | Adapter layer in `apps/api/services/caldav/`          |
+| Auth     | PBKDF2 with pepper, HttpOnly session cookies          |
+| Deploy   | `rsync` to homelab, then Docker Compose under Traefik |
 
-## Quick Start
-
-```bash
-# Prerequisites: Deno 2.2+, SQLite dev lib
-
-cp .env.example .env          # edit secrets (AUTH_PEPPER, etc.)
-deno task db:migrate          # create SQLite schema
-deno task dev                 # starts API (:8080) + frontend (:5173)
-```
-
-Open http://localhost:5173 — sign up, add a CalDAV server, manage todos.
-
-## Tasks
-
-| Command                | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| `deno task dev`        | Run API + frontend in parallel (watch mode)                     |
-| `deno task api:dev`    | API only, `--watch`                                             |
-| `deno task web:dev`    | Vite dev server for frontend                                    |
-| `deno task web:build`  | Production frontend bundle → `apps/web/dist/`                   |
-| `deno task db:migrate` | Run SQLite migrations                                           |
-| `deno task deploy`     | Build frontend, rsync to server, `docker compose up -d --build` |
-| `deno task check`      | fmt + lint + typecheck                                          |
-| `deno task fix`        | fmt + lint --fix                                                |
-
-## Deploy
+## Quick start (local)
 
 ```bash
-deno task web:build          # must be run first (deploy depends on it)
-deno task deploy             # reads SSH_TO_SERVER / PATH_ON_SERVER from infra/envs/.env.prod
+git clone https://github.com/spy4x/caldav-tasks-web
+cd caldav-tasks-web
+cp .env.example .env                       # set AUTH_PEPPER, AUTH_COOKIE_SECRET, ENCRYPTION_SECRET
+deno task db:migrate
+deno task dev                              # API :8080 + frontend :5173
 ```
 
-The deploy script:
+Open `http://localhost:5173`, sign up, add your CalDAV server.
 
-1. `rsync` project files to the remote homelab (excluding `node_modules`, `data/`, etc.)
-2. `ssh` → `docker compose up -d --build` on the remote
+## Production deploy
 
-Infrastructure:
+Comes with a `Dockerfile` and `compose.yml` wired for Traefik and
+Let's Encrypt. `deno task deploy` does the whole loop:
 
-- `compose.yml` — Traefik labels, TLS via Let's Encrypt
-- `Dockerfile` — `denoland/deno:debian-2.2.0` + `libsqlite3-dev`
-- `infra/envs/.env.prod` — production secrets (gitignored)
+1. Build the frontend
+2. Rsync to the homelab (SSH target in `infra/envs/.env.prod`)
+3. `docker compose up -d --build` on the remote
 
-## Environment Variables
+The deploy script and rsync excludes live in `infra/`. See
+[`docs/1.overview.md`](docs/1.overview.md) for the full architecture.
 
-See `.env.example`:
+Place your production secrets directly on the deploy target (the repo
+does not store them — `.env.prod` is gitignored and a template lives at
+`infra/envs/.env.prod.example`).
 
-| Var                  | Purpose                                            |
-| -------------------- | -------------------------------------------------- |
-| `ENV`                | `dev` or `prod`                                    |
-| `PORT`               | API listen port (default 8080)                     |
-| `DB_PATH`            | SQLite file path                                   |
-| `AUTH_PEPPER`        | PBKDF2 pepper for password hashing                 |
-| `AUTH_COOKIE_SECRET` | Session cookie signing key                         |
-| `ENCRYPTION_SECRET`  | AES-GCM key for server credentials at rest         |
-| `CORS_ORIGIN`        | Allowed CORS origin (e.g. `http://localhost:5173`) |
+## Environment variables
 
-## Project Layout
+| Var                  | Purpose                                        |
+| -------------------- | ---------------------------------------------- |
+| `AUTH_PEPPER`        | PBKDF2 pepper for password hashing             |
+| `AUTH_COOKIE_SECRET` | Session cookie signing key                     |
+| `ENCRYPTION_SECRET`  | AES-GCM key for CalDAV passwords at rest       |
+| `DB_PATH`            | SQLite file path (default `./data/todoapp.db`) |
+| `CORS_ORIGIN`        | Allowed frontend origin                        |
 
-```
-todoapp/
-├── apps/api/              Hono REST API (routes, services, middleware)
-├── apps/web/              Preact PWA (Vite, Tailwind, static/)
-├── libs/server/db/        SQLite wrapper + migrations
-├── libs/shared/           Types, helpers (hash, encrypt), CQRS buses
-├── infra/                 Deploy script, rsync lists, .env.prod
-├── docs/                   Architecture docs
-├── compose.yml            Docker Compose with Traefik
-├── Dockerfile             Deno debian image + sqlite-dev
-└── deno.json              Workspace tasks, imports, config
+Production needs all three secrets. See `.env.example` and
+`infra/envs/.env.prod.example` for placeholders.
+
+## Development
+
+```bash
+deno task check                                 # fmt + lint + typecheck
+deno test apps/api/services/caldav/parse.test.ts
 ```
 
-## Architecture Notes
+The CalDAV parser tests cover Radicale (default namespace), lowercase
+`d:` prefixes, and Stalwart (uppercase `D:` / `A:`). Adding a Nextcloud
+or Baikal adapter is a new class in `apps/api/services/caldav/` and a
+case in `getAdapter()` — the route layer stays untouched.
 
-- **CQRS** — Business logic uses command/query buses in `libs/shared/cqrs/`.
-- **Fail-open** — Calls to non-critical external services guarded with `|| true`.
-- **preact-signals** — No React hooks; state lives in signals (`apps/web/src/state/+index.ts`).
-- **DbService abstraction** — DB access goes through `DbService`; swap SQLite for Postgres by changing one implementation.
-- **CalDAV specifics** — Radicale uses default XML namespace (no `d:` prefix); all parsers use `(?:d:)?` regex. VTODO bodies fetched via GET on `.ics` files (not inline in PROPFIND).
+## Project layout
+
+```
+apps/api/         Hono API, CalDAV adapters, middleware
+apps/web/         Preact PWA (components, pages, signals)
+libs/server/db/   SQLite wrapper + migrations
+libs/shared/      Types, helpers, CQRS buses
+infra/            Deploy scripts, env templates, rsync config
+docs/             Architecture overview
+```
+
+## Architecture notes
+
+- **CQRS** — business logic uses command / query buses in
+  `libs/shared/cqrs/`. Not over-engineered for the current scope, but
+  no big refactor when features grow.
+- **CalDAV adapter layer** — `CalDAVAdapter` interface in
+  `apps/api/services/caldav/+index.ts`. Today's implementations:
+  `RadicaleAdapter`, `StalwartAdapter`. Adding a new server is one
+  class, not a chain of `if (serverType === ...)` blocks.
+- **preact-signals, not hooks** — state lives in signals, components
+  subscribe explicitly, no virtual DOM tree of hooks.
+- **SQLite, swappable** — `DbService` is the abstraction. Postgres is
+  one implementation away.
+- **Fail-open** — non-critical external calls (analytics, monitoring)
+  guarded with `|| true`. Primary operations never block on
+  auxiliaries.
 
 ## Status
 
-Fully functional MVP deployed. See [`todos.md`](todos.md) for backlog, known issues, and roadmap.
+Stable. The [deployed instance](https://todos.antonshubin.com) holds
+5 calendars and 140+ todos and migrated from Radicale to Stalwart in
+2026-07 without any data movement.
+
+## License
+
+[MIT](LICENSE).
