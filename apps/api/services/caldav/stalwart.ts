@@ -137,13 +137,15 @@ export class StalwartAdapter implements CalDAVAdapter {
     const uuid = crypto.randomUUID()
     const href = `${userPath}${uuid}/`
     const url = `${base}${href}`
+    // Stalwart rejects <cs:getctag> on MKCOL with 409 ("Property cannot be
+    // modified") — CalDAV servers compute ctags themselves, the client must
+    // not set one. Radicale tolerates it. Drop it here for Stalwart only.
     const body = `<?xml version="1.0" encoding="utf-8"?>
-<d:mkcol xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">
+<d:mkcol xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
 <d:set><d:prop>
 <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>
 <d:displayname>${displayName}</d:displayname>
 <c:supported-calendar-component-set><c:comp name="VTODO"/></c:supported-calendar-component-set>
-<cs:getctag>0</cs:getctag>
 </d:prop></d:set>
 </d:mkcol>`
     const res = await fetch(url, {
