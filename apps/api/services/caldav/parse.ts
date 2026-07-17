@@ -191,16 +191,25 @@ export function buildNewVtodo(
   )
 }
 
+// Match <response> open tag with optional namespace prefix, any case.
+// Stalwart uses <D:response> and <A:response>; Radicale uses <response>;
+// some servers use <d:response>. The case-insensitive flag covers Stalwart's
+// capital prefix while leaving the local-name match correct for CalDAV.
+const RESPONSE_RE = /<(?:[^:]*:)?response>([\s\S]*?)<\/(?:[^:]*:)?response>/gi
+
+// Match <calendar/> inside <resourcetype>, with optional prefix.
+// Used to distinguish calendar collections from user principal homes.
+const CALENDAR_RT_RE = /<(?:[^:]*:)?calendar\s*\/?>/i
+
 export function parseMultistatus(xml: string): { hrefs: string[]; etagMap: Map<string, string> } {
   const hrefs: string[] = []
   const etagMap = new Map<string, string>()
-  const responseRegex = /<(?:d:)?response>([\s\S]*?)<\/(?:d:)?response>/g
   let match: RegExpExecArray | null
-  while ((match = responseRegex.exec(xml)) !== null) {
+  while ((match = RESPONSE_RE.exec(xml)) !== null) {
     const response = match[1]
-    const href = extractXml(response, "d:href") || extractXml(response, "href")
+    const href = extractXml(response, "href")
     if (href) hrefs.push(href)
-    const etag = extractXml(response, "d:getetag") || extractXml(response, "getetag")
+    const etag = extractXml(response, "getetag")
     const uid = extractUidFromHref(href)
     if (uid && etag) etagMap.set(uid, etag)
   }
@@ -211,24 +220,27 @@ export function parseCalendars(
   xml: string,
 ): { href: string; displayName: string; color?: string }[] {
   const calendars: { href: string; displayName: string; color?: string }[] = []
-  const responseRegex = /<(?:d:)?response>([\s\S]*?)<\/(?:d:)?response>/g
   let match: RegExpExecArray | null
-  while ((match = responseRegex.exec(xml)) !== null) {
+  while ((match = RESPONSE_RE.exec(xml)) !== null) {
     const response = match[1]
-    const href = extractXml(response, "d:href") || extractXml(response, "href")
+    const href = extractXml(response, "href")
     if (!href) continue
-    if (!response.includes("calendar")) continue
-    const compXml = extractXml(response, "c:supported-calendar-component-set") ||
-      extractXml(response, "supported-calendar-component-set")
-    if (compXml) {
-      const hasVtodo = /<(?:[^:]*:)?comp\s+name="VTODO"/.test(compXml)
-      if (!hasVtodo) continue
-    }
-    const displayName = extractXml(response, "d:displayname") ||
-      extractXml(response, "displayname") ||
+
+    // Require <resourcetype> to contain <calendar/> (with any prefix).
+    // Substring "calendar" alone is too lax — it matches unrelated props
+    // like <calendar-color> and <supported-calendar-component-set> even on
+    // the user's principal home collection (Stalwart returns these as 404
+    // for non-calendar resources, but they still appear in the XML body).
+    const resourcetype = extractXml(response, "resourcetype")
+    if (!resourcetype || !CALENDAR_RT_RE.test(resourcetype)) continue
+
+    // Only calendars supporting VTODO are useful for this app.
+    const compXml = extractXml(response, "supported-calendar-component-set")
+    if (compXml && !/<(?:[^:]*:)?comp\s+name="VTODO"/.test(compXml)) continue
+
+    const displayName = extractXml(response, "displayname") ||
       href.split("/").filter(Boolean).pop() || href
-    const color = extractXml(response, "ICAL:calendar-color") ||
-      extractXml(response, "calendar-color") || ""
+    const color = extractXml(response, "calendar-color") || ""
     calendars.push({ href, displayName, color })
   }
   return calendars
