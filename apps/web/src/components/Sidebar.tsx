@@ -26,11 +26,13 @@ export function Sidebar() {
 
   const loadCollections = async () => {
     loadingCollections.value = true
-    collections.value = []
+    const seen = new Set<string>()
     for (const s of servers.value) {
       try {
         const data = await api.getCalendars(s.id)
         for (const cal of data.calendars) {
+          if (seen.has(cal.href)) continue
+          seen.add(cal.href)
           const color = (cal as any).color || ""
           collections.value = [...collections.value, { ...cal, color, serverId: s.id }]
         }
