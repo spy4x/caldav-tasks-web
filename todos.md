@@ -127,6 +127,13 @@ _No open bugs. All resolved._
 - [x] **User paths** — Radicale: `/<username>/`, Stalwart: `/dav/cal/<email>/`.
 - **Tradeoff:** Adapter code is nearly identical for now (both use same CalDAV protocol). Abstraction is for future divergence (different auth, namespace handling, path structures). Minimal duplication justified by clean separation.
 
+### v3.5.1 — Stalwart XML Compatibility (2026-07-17)
+
+- [!] **Calendar discovery returns empty list on Stalwart** — `parseMultistatus` and `parseCalendars` used `/<(?:d:)?response>/g` which only matched lowercase `d:` prefix or no prefix. Stalwart emits `<D:response>` and `<A:response>` with capital prefixes — every `<D:response>` block failed to match, so `parseMultistatus` returned `{ hrefs: [], etagMap: Map {} }` and `parseCalendars` returned `[]`. **Fix:** switched regex to `/<(?:[^:]*:)?response>/gi` (any prefix, case-insensitive). Found at branch `fix/stalwart-calendar-parsing`.
+- [!] **Principal-home misclassified as calendar on Stalwart (latent)** — filter was `if (!response.includes("calendar")) continue`. Stalwart returns 404 propstats for `<supported-calendar-component-set/>` and `<calendar-color/>` on the user's principal home collection (`/dav/cal/<email>/` itself). The substring "calendar" matched those props, so the principal home would have been added as a fake calendar with `displayName` set to the user's full name ("Anton Shubin"). Hidden because the regex bug above masked it. **Fix:** now require `resourcetype` to contain `<(prefix:)?calendar/>` instead of substring matching.
+- [x] **Regression tests** — `apps/api/services/caldav/parse.test.ts` covers Radicale (no prefix), lowercase `d:`, Stalwart uppercase `D:`/`A:`, the principal-home regression, and the VTODO-only filter. 8 tests pass.
+- **Tradeoff:** Used case-insensitive (`/i`) regex instead of explicit prefix list. CalDAV local element names (`response`, `href`, `resourcetype`, `calendar`) are always lowercase per the spec — only the namespace prefix character case varies by server. Acceptable risk.
+
 ## 📋 Backlog
 
 ### v3 — Polish & UX (High Priority)
