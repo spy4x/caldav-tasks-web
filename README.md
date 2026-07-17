@@ -10,6 +10,8 @@ your tasks in the browser the same way you do on Android with
 [Live demo](https://todos.antonshubin.com) ·
 [Repository](https://github.com/spy4x/caldav-tasks-web)
 
+![Desktop dashboard showing the Work calendar with 7 priority-coded todos in the sidebar, all under a single Stalwart server](./docs/screenshots/desktop-dashboard.png)
+
 ---
 
 ## Why
@@ -31,6 +33,7 @@ browser.
 - Inline tag filter, full-text search across summary / description /
   categories
 - Filter by status or priority, hide completed, multi-sort
+- Kanban view — drag todos between status columns
 - Collection CRUD — create, rename, delete calendars in-place
 - Server passwords encrypted with AES-GCM at rest (key from
   `ENCRYPTION_SECRET`)
@@ -62,6 +65,16 @@ server should work.
 | Auth     | PBKDF2 with pepper, HttpOnly session cookies          |
 | Deploy   | `rsync` to homelab, then Docker Compose under Traefik |
 
+## Screenshots
+
+![Kanban view — Needs Action, In Progress, Completed, Cancelled columns](./docs/screenshots/desktop-kanban.png)
+
+![Mobile sidebar with collections drawer over the dashboard](./docs/screenshots/mobile-dashboard.png)
+
+![Settings page — server credentials, profile, encryption keys](./docs/screenshots/desktop-settings.png)
+
+![Animated showcase cycling through login, dashboard, kanban, settings, mobile](./docs/screenshots/showcase.svg)
+
 ## Quick start (local)
 
 ```bash
@@ -83,8 +96,7 @@ Let's Encrypt. `deno task deploy` does the whole loop:
 2. Rsync to the homelab (SSH target in `infra/envs/.env.prod`)
 3. `docker compose up -d --build` on the remote
 
-The deploy script and rsync excludes live in `infra/`. See
-[`docs/1.overview.md`](docs/1.overview.md) for the full architecture.
+See [`docs/1.overview.md`](docs/1.overview.md) for the full architecture.
 
 Place your production secrets directly on the deploy target (the repo
 does not store them — `.env.prod` is gitignored and a template lives at
@@ -92,13 +104,14 @@ does not store them — `.env.prod` is gitignored and a template lives at
 
 ## Environment variables
 
-| Var                  | Purpose                                        |
-| -------------------- | ---------------------------------------------- |
-| `AUTH_PEPPER`        | PBKDF2 pepper for password hashing             |
-| `AUTH_COOKIE_SECRET` | Session cookie signing key                     |
-| `ENCRYPTION_SECRET`  | AES-GCM key for CalDAV passwords at rest       |
-| `DB_PATH`            | SQLite file path (default `./data/todoapp.db`) |
-| `CORS_ORIGIN`        | Allowed frontend origin                        |
+| Var                  | Purpose                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `AUTH_PEPPER`        | PBKDF2 pepper for password hashing                                                        |
+| `AUTH_COOKIE_SECRET` | Session cookie signing key                                                                |
+| `ENCRYPTION_SECRET`  | AES-GCM key for CalDAV passwords at rest                                                  |
+| `DB_PATH`            | SQLite file path (default `./data/todoapp.db`)                                            |
+| `CORS_ORIGIN`        | Allowed frontend origin                                                                   |
+| `COOKIE_INSECURE`    | Set to `1` for local HTTP testing only (escape hatch for headless screenshot scripts, CI) |
 
 Production needs all three secrets. See `.env.example` and
 `infra/envs/.env.prod.example` for placeholders.
@@ -148,6 +161,13 @@ docs/             Architecture overview
 Stable. The [deployed instance](https://todos.antonshubin.com) holds
 5 calendars and 140+ todos and migrated from Radicale to Stalwart in
 2026-07 without any data movement.
+
+## Security
+
+See [`SECURITY.md`](SECURITY.md) for the threat model, supported
+versions, and how to report vulnerabilities. **Do not open a public
+GitHub issue for security-relevant findings** — email
+security@neatsoft.dev.
 
 ## License
 
