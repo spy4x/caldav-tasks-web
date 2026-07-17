@@ -15,7 +15,7 @@ export class CookieManager {
       maxAge: maxAgeSeconds ?? config.authSessionDurationMin * 60,
       httpOnly: true,
       sameSite: "lax",
-      secure: config.isProd,
+      secure: config.isProd && !Deno.env.get("COOKIE_INSECURE"),
     })
   }
 
