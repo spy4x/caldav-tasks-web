@@ -2,12 +2,13 @@
 
 A self-hosted PWA for managing VTODO tasks on any CalDAV server.
 
-Point it at Radicale, Stalwart, Nextcloud, or Baikal — anything that
-speaks [RFC 4791](https://datatracker.ietf.org/doc/html/rfc4791). Edit
-your tasks in the browser the same way you do on Android with
+Point it at Radicale, Nextcloud, or Baikal — anything that speaks
+[RFC 4791](https://datatracker.ietf.org/doc/html/rfc4791). Stalwart
+support is currently broken — see
+[Server compatibility](#server-compatibility). Edit your tasks in the
+browser the same way you do on Android with
 [Tasks.org](https://tasks.org/).
 
-[Live demo](https://todos.antonshubin.com) ·
 [Repository](https://github.com/spy4x/caldav-tasks-web)
 
 ![Desktop dashboard showing 6 unique calendars in the sidebar under one Stalwart server, NeatSoft calendar selected with 7 todos including priorities, due dates, and categories](./docs/screenshots/02-dashboard-desktop.png)
@@ -19,10 +20,9 @@ your tasks in the browser the same way you do on Android with
 Tasks.org is the best Android task app and it syncs to CalDAV cleanly.
 There is no web UI for it. This fills the gap.
 
-If you already run Radicale or Stalwart for your calendars and tasks,
-this gives you a touch-first PWA on top of the same data — no data
-migration, no second source of truth, installable on mobile from the
-browser.
+If you already run Radicale for your calendars and tasks, this gives
+you a touch-first PWA on top of the same data — no data migration, no
+second source of truth, installable on mobile from the browser.
 
 ## Features
 
@@ -45,7 +45,7 @@ browser.
 | Server    | Status                                 |
 | --------- | -------------------------------------- |
 | Radicale  | Tested in production                   |
-| Stalwart  | Tested in production (since 2026-07)   |
+| Stalwart  | Currently broken, not usable           |
 | Nextcloud | CalDAV-compliant, expected to work     |
 | Baikal    | CalDAV-compliant, expected to work     |
 | Tasks.org | Tested as a peer (round-trips cleanly) |
@@ -156,9 +156,10 @@ docs/             Architecture overview
 
 ## Status
 
-Stable. The [deployed instance](https://todos.antonshubin.com) holds
-5 calendars and 140+ todos and migrated from Radicale to Stalwart in
-2026-07 without any data movement.
+Works well with Radicale. Stalwart support is currently broken, to
+the point that the app is not usable with it. There is no public
+demo right now. Tracked in
+[issue #10](https://github.com/spy4x/caldav-tasks-web/issues/10).
 
 ## Security
 
