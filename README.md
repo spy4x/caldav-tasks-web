@@ -2,16 +2,17 @@
 
 A self-hosted PWA for managing VTODO tasks on any CalDAV server.
 
-Point it at Radicale, Nextcloud, or Baikal — anything that speaks
-[RFC 4791](https://datatracker.ietf.org/doc/html/rfc4791). Stalwart
-support is currently broken — see
-[Server compatibility](#server-compatibility). Edit your tasks in the
-browser the same way you do on Android with
+Tested against Radicale in production. Nextcloud and Baikal are
+CalDAV-compliant ([RFC 4791](https://datatracker.ietf.org/doc/html/rfc4791))
+and expected to work, untested. Stalwart support is currently broken —
+see [Server compatibility](#server-compatibility). Edit your tasks in
+the browser the same way you do on Android with
 [Tasks.org](https://tasks.org/).
 
 [Repository](https://github.com/spy4x/caldav-tasks-web)
 
 ![Desktop dashboard showing 6 unique calendars in the sidebar under one Stalwart server, NeatSoft calendar selected with 7 todos including priorities, due dates, and categories](./docs/screenshots/02-dashboard-desktop.png)
+_Screenshot taken before Stalwart support broke._
 
 ---
 
