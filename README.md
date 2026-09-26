@@ -58,7 +58,7 @@ Tasks.org round-trips cleanly as a peer on the same server. Details:
 ```bash
 git clone https://github.com/spy4x/caldav-tasks-web
 cd caldav-tasks-web
-cp .env.example .env                       # set AUTH_PEPPER, AUTH_COOKIE_SECRET, ENCRYPTION_SECRET
+cp .env.example .env                       # dev uses built-in secrets; set real ones for production (docs/self-hosting.md)
 mkdir -p data                              # the SQLite file lives here
 deno task db:migrate
 deno task dev                              # API :8080 + frontend :5173
