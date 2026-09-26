@@ -29,8 +29,8 @@ web UI. I use it with my own Radicale server.
   the app keeps only your account, sessions and server list in SQLite.
 - **Full VTODO editing.** Summary, description, status, priority, due and start dates, categories,
   location, recurrence and percent complete.
-- **Find anything fast.** Full-text search, tag filter, status and priority filters, multi-level
-  sort, all kept in the URL.
+- **Find anything fast.** Full-text search, status and priority filters and multi-level sort, all
+  kept in the URL, plus a tag filter.
 - **List or kanban.** Drag a task between status columns; create, rename and delete calendars in
   place.
 - **Several servers, one page.** Multiple CalDAV servers per account, multiple calendars per
@@ -59,6 +59,7 @@ Tasks.org round-trips cleanly as a peer on the same server. Details:
 git clone https://github.com/spy4x/caldav-tasks-web
 cd caldav-tasks-web
 cp .env.example .env                       # set AUTH_PEPPER, AUTH_COOKIE_SECRET, ENCRYPTION_SECRET
+mkdir -p data                              # the SQLite file lives here
 deno task db:migrate
 deno task dev                              # API :8080 + frontend :5173
 ```
