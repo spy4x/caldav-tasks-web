@@ -68,3 +68,11 @@ See `README.md` for quick start, `docs/1.overview.md` for architecture and statu
 - **CalDAV returns empty:** Radicale returns VTODO data via GET on `.ics` files, not inline in PROPFIND. The function `caldavGetTodos` first lists .ics files then fetches each individually.
 - **XML parsing fails / empty calendar list on Stalwart:** Stalwart emits `<D:response>` / `<A:response>` with capital prefixes and returns 404 propstats for `<supported-calendar-component-set/>` + `<calendar-color/>` on the user's principal home. Parser regex must accept any prefix with `i` flag, and must filter calendars by `<(prefix:)?calendar/>` inside `resourcetype` — substring "calendar" alone matches the user's home too. See branch `fix/stalwart-calendar-parsing`.
 - **Sidebar not showing on Settings:** Ensure Sidebar component is rendered inside Layout (not per-page). It should be in Layout.tsx, not Dashboard.tsx.
+
+## Shared libraries
+
+Before writing a component, helper or library here, search
+[spy4x/ts-libs](https://github.com/spy4x/ts-libs) and
+[spy4x/preact-components](https://github.com/spy4x/preact-components) for it. The global rule
+["Shared libs before local code"](https://github.com/spy4x/dotfiles/blob/main/ai-harnesses/AGENTS.md)
+says what belongs in each library; code only this repo needs stays here.
