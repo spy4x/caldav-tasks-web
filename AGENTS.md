@@ -1,8 +1,8 @@
-# TodoApp AGENTS.md
+# caldav-tasks-web AGENTS.md
 
 ## Context
 
-TodoApp is a CalDAV task manager PWA (Deno + Hono + Vite/Preact + SQLite).
+caldav-tasks-web is a CalDAV task manager PWA (Deno + Hono + Vite/Preact + SQLite).
 Deployed at https://todos.antonshubin.com via `deno task deploy`.
 
 **Public repo:** https://github.com/spy4x/caldav-tasks-web
@@ -19,7 +19,9 @@ Deployed at https://todos.antonshubin.com via `deno task deploy`.
 
 ## Project State
 
-See `README.md` for quick start, `docs/1.overview.md` for architecture and status.
+See `README.md` for quick start, `docs/architecture.md` and `docs/1.overview.md` for architecture,
+`docs/self-hosting.md` for deploy and env vars, `docs/features.md` for features and server status,
+and `CONTRIBUTING.md` for development.
 **See `todos.md` for all known issues, bugs, ideas, and roadmap — this is the single source of truth for project status.**
 
 **When working on the project, ALWAYS update `todos.md` with any new ideas, bugs discovered, or items completed. Move items from Backlog to Completed as they're done. Move items from Bug Queue to Fixed.**
