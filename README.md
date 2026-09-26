@@ -1,174 +1,103 @@
+<div align="center">
+
 # caldav-tasks-web
 
-A self-hosted PWA for managing VTODO tasks on any CalDAV server.
+**The web UI Tasks.org never had: manage your CalDAV tasks in the browser.**
 
-Tested against Radicale in production. Nextcloud and Baikal are
-CalDAV-compliant ([RFC 4791](https://datatracker.ietf.org/doc/html/rfc4791))
-and expected to work, untested. Stalwart support is currently broken —
-see [Server compatibility](#server-compatibility). Edit your tasks in
-the browser the same way you do on Android with
-[Tasks.org](https://tasks.org/).
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[Repository](https://github.com/spy4x/caldav-tasks-web)
+[Features](docs/features.md) · [Self-hosting](docs/self-hosting.md) ·
+[Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md)
 
-![Desktop dashboard showing 6 unique calendars in the sidebar under one Stalwart server, NeatSoft calendar selected with 7 todos including priorities, due dates, and categories](./docs/screenshots/02-dashboard-desktop.png)
-_Screenshot taken before Stalwart support broke._
+![Dashboard of the Home collection: seven tasks sorted by priority, each with a priority badge, due date, tags and status, one marked recurring and one cancelled; the sidebar holds search, filters, sort and four collections from one Radicale server](docs/screenshots/02-dashboard-desktop.png)
 
----
+![Kanban view of the same collection: Needs Action, In Progress, Completed and Cancelled columns, each task a card with its tags](docs/screenshots/03-kanban.png)
 
-## Why
+</div>
 
-Tasks.org is the best Android task app and it syncs to CalDAV cleanly.
-There is no web UI for it. This fills the gap.
+You connect your CalDAV server once, and every task list on it shows up in the browser: edit a
+task, tag it, filter and sort the list, or drag cards across a kanban board. Changes are written
+straight back to the server, so [Tasks.org](https://tasks.org/) on your phone sees them on its next
+sync. There is nothing to migrate and no second copy of your tasks.
 
-If you already run Radicale for your calendars and tasks, this gives
-you a touch-first PWA on top of the same data — no data migration, no
-second source of truth, installable on mobile from the browser.
+It exists because Tasks.org is a great Android task app that syncs to CalDAV cleanly but has no
+web UI. I use it with my own Radicale server.
 
-## Features
+## Why caldav-tasks-web
 
-- Multiple CalDAV servers per account, multiple calendars per server,
-  in one web UI
-- Full VTODO editing: summary, description, status, priority, due date,
-  start date, categories, location, recurrence, percent complete
-- Inline tag filter, full-text search across summary / description /
-  categories
-- Filter by status or priority, hide completed, multi-sort
-- Kanban view — drag todos between status columns
-- Collection CRUD — create, rename, delete calendars in-place
-- Server passwords encrypted with AES-GCM at rest (key from
-  `ENCRYPTION_SECRET`)
-- Mobile-first sidebar with overlay, works as an installed PWA
-- Self-host with one Deno binary plus SQLite — no Node, no npm runtime
+- **Your server stays the source of truth.** Tasks live on your CalDAV server as standard VTODOs;
+  the app keeps only your account, sessions and server list in SQLite.
+- **Full VTODO editing.** Summary, description, status, priority, due and start dates, categories,
+  location, recurrence and percent complete.
+- **Find anything fast.** Full-text search, status and priority filters and multi-level sort, all
+  kept in the URL, plus a tag filter.
+- **List or kanban.** Drag a task between status columns; create, rename and delete calendars in
+  place.
+- **Several servers, one page.** Multiple CalDAV servers per account, multiple calendars per
+  server. Server passwords are encrypted at rest with AES-GCM through Web Crypto.
+- **Phone-first.** A touch-friendly sidebar drawer, and a web manifest to install it from the
+  browser.
+
+**Use it if** you keep tasks on a CalDAV server and want to edit them from any browser. **Skip it
+if** your server is Stalwart (broken today, see
+[#10](https://github.com/spy4x/caldav-tasks-web/issues/10)) or you want a hosted service.
 
 ## Server compatibility
 
-| Server    | Status                                 |
-| --------- | -------------------------------------- |
-| Radicale  | Tested in production                   |
-| Stalwart  | Currently broken, not usable           |
-| Nextcloud | CalDAV-compliant, expected to work     |
-| Baikal    | CalDAV-compliant, expected to work     |
-| Tasks.org | Tested as a peer (round-trips cleanly) |
+| Server            | Status                                                                         |
+| ----------------- | ------------------------------------------------------------------------------ |
+| Radicale          | Tested in production                                                           |
+| Nextcloud, Baikal | CalDAV-compliant, expected to work, untested                                   |
+| Stalwart          | Broken, not usable: [#10](https://github.com/spy4x/caldav-tasks-web/issues/10) |
 
-The CalDAV protocol is standardized (RFC 4791) so any conforming
-server should work.
+Tasks.org round-trips cleanly as a peer on the same server. Details:
+[features.md](docs/features.md#server-compatibility).
 
-## Stack
-
-| Layer    | Tech                                                  |
-| -------- | ----------------------------------------------------- |
-| Runtime  | Deno 2.2 — single binary, no Node                     |
-| API      | Hono, CQRS-ready bus in `libs/shared/cqrs/`           |
-| Frontend | Preact + Signals (no hooks), Tailwind v4, Vite        |
-| DB       | SQLite via `@db/sqlite` FFI                           |
-| CalDAV   | Adapter layer in `apps/api/services/caldav/`          |
-| Auth     | PBKDF2 with pepper, HttpOnly session cookies          |
-| Deploy   | `rsync` to homelab, then Docker Compose under Traefik |
-
-## Screenshots
-
-![Kanban view — Needs Action, In Progress, Completed, Cancelled columns, drag todos between statuses](./docs/screenshots/03-kanban.png)
-
-![Mobile sidebar drawer with the same 6 unique collections over the dashboard](./docs/screenshots/10-mobile-dashboard.png)
-
-![Settings page — server credentials, profile, encryption keys](./docs/screenshots/04-settings.png)
-
-## Quick start (local)
+## Quick start
 
 ```bash
 git clone https://github.com/spy4x/caldav-tasks-web
 cd caldav-tasks-web
-cp .env.example .env                       # set AUTH_PEPPER, AUTH_COOKIE_SECRET, ENCRYPTION_SECRET
+cp .env.example .env                       # dev uses built-in secrets; set real ones for production (docs/self-hosting.md)
+mkdir -p data                              # the SQLite file lives here
 deno task db:migrate
 deno task dev                              # API :8080 + frontend :5173
 ```
 
-Open `http://localhost:5173`, sign up, add your CalDAV server.
+Open `http://localhost:5173`, sign up, add your CalDAV server. For Docker, Traefik and the deploy
+script, see [self-hosting.md](docs/self-hosting.md).
 
-## Production deploy
+## Configuration
 
-Comes with a `Dockerfile` and `compose.yml` wired for Traefik and
-Let's Encrypt. `deno task deploy` does the whole loop:
+The three secrets production needs:
 
-1. Build the frontend
-2. Rsync to the homelab (SSH target in `infra/envs/.env.prod`)
-3. `docker compose up -d --build` on the remote
+| Variable             | Purpose                                  |
+| -------------------- | ---------------------------------------- |
+| `AUTH_PEPPER`        | PBKDF2 pepper for password hashing       |
+| `AUTH_COOKIE_SECRET` | Session cookie signing key               |
+| `ENCRYPTION_SECRET`  | AES-GCM key for CalDAV passwords at rest |
 
-See [`docs/1.overview.md`](docs/1.overview.md) for the full architecture.
-
-Place your production secrets directly on the deploy target (the repo
-does not store them — `.env.prod` is gitignored and a template lives at
-`infra/envs/.env.prod.example`).
-
-## Environment variables
-
-| Var                  | Purpose                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------- |
-| `AUTH_PEPPER`        | PBKDF2 pepper for password hashing                                                        |
-| `AUTH_COOKIE_SECRET` | Session cookie signing key                                                                |
-| `ENCRYPTION_SECRET`  | AES-GCM key for CalDAV passwords at rest                                                  |
-| `DB_PATH`            | SQLite file path (default `./data/todoapp.db`)                                            |
-| `CORS_ORIGIN`        | Allowed frontend origin                                                                   |
-| `COOKIE_INSECURE`    | Set to `1` for local HTTP testing only (escape hatch for headless screenshot scripts, CI) |
-
-Production needs all three secrets. See `.env.example` and
-`infra/envs/.env.prod.example` for placeholders.
+`DB_PATH`, `CORS_ORIGIN` and `COOKIE_INSECURE` are optional: see
+[self-hosting.md](docs/self-hosting.md#environment-variables).
 
 ## Development
 
 ```bash
-deno task check                                 # fmt + lint + typecheck
-deno test apps/api/services/caldav/parse.test.ts
+deno task dev      # API and frontend with reload
+deno task check    # fmt + lint + typecheck
 ```
 
-The CalDAV parser tests cover Radicale (default namespace), lowercase
-`d:` prefixes, and Stalwart (uppercase `D:` / `A:`). Adding a Nextcloud
-or Baikal adapter is a new class in `apps/api/services/caldav/` and a
-case in `getAdapter()` — the route layer stays untouched.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and adding a server adapter, and
+[SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
-## Project layout
+## Built by
 
-```
-apps/api/         Hono API, CalDAV adapters, middleware
-apps/web/         Preact PWA (components, pages, signals)
-libs/server/db/   SQLite wrapper + migrations
-libs/shared/      Types, helpers, CQRS buses
-infra/            Deploy scripts, env templates, rsync config
-docs/             Architecture overview
-```
+I'm [Anton Shubin](https://antonshubin.com), a senior full-stack engineer and tech lead.
+caldav-tasks-web is one of the tools I build and use on my own servers. Need something like it
+built for your product? [That's my day job →](https://antonshubin.com)
 
-## Architecture notes
+Licensed under [MIT](LICENSE). Copyright (c) 2026 Anton Shubin.
 
-- **CQRS** — business logic uses command / query buses in
-  `libs/shared/cqrs/`. Not over-engineered for the current scope, but
-  no big refactor when features grow.
-- **CalDAV adapter layer** — `CalDAVAdapter` interface in
-  `apps/api/services/caldav/+index.ts`. Today's implementations:
-  `RadicaleAdapter`, `StalwartAdapter`. Adding a new server is one
-  class, not a chain of `if (serverType === ...)` blocks.
-- **preact-signals, not hooks** — state lives in signals, components
-  subscribe explicitly, no virtual DOM tree of hooks.
-- **SQLite, swappable** — `DbService` is the abstraction. Postgres is
-  one implementation away.
-- **Fail-open** — non-critical external calls (analytics, monitoring)
-  guarded with `|| true`. Primary operations never block on
-  auxiliaries.
+---
 
-## Status
-
-Works well with Radicale. Stalwart support is currently broken, to
-the point that the app is not usable with it. There is no public
-demo right now. Tracked in
-[issue #10](https://github.com/spy4x/caldav-tasks-web/issues/10).
-
-## Security
-
-See [`SECURITY.md`](SECURITY.md) for the threat model, supported
-versions, and how to report vulnerabilities. **Do not open a public
-GitHub issue for security-relevant findings** — email
-security@neatsoft.dev.
-
-## License
-
-[MIT](LICENSE).
+Made by Anton Shubin · [antonshubin.com/tools](https://antonshubin.com/tools)
