@@ -129,8 +129,8 @@ Deno.test("Upcoming reaches tomorrow through 14 days ahead and skips empty days"
   ]
   const days = upcomingView(all, now, UTC)
   expect(days.map((day) => day.date)).toEqual([`2026-10-09`, `2026-10-11`, `2026-10-22`])
-  // The date-only task starts at midnight, so it comes before the 08:00 one.
-  expect(uids(days[0].tasks)).toEqual([`d1`, `d1b`])
+  // A date-only task sorts at 23:59 of its day, so it comes after the 08:00 one.
+  expect(uids(days[0].tasks)).toEqual([`d1b`, `d1`])
 })
 
 Deno.test("Upcoming counts its 14 days from the viewer's today", () => {
@@ -138,4 +138,13 @@ Deno.test("Upcoming counts its 14 days from the viewer's today", () => {
   // Los Angeles is still on the 7th: the window ends on the 21st.
   expect(upcomingView([due], new Date(`2026-10-08T03:00:00Z`), LOS_ANGELES)).toEqual([])
   expect(upcomingView([due], new Date(`2026-10-08T03:00:00Z`), UTC).length).toBe(1)
+})
+
+Deno.test("Today lists a date-only task after the timed tasks still due today", () => {
+  const view = todayView(
+    [dated(`date`, `DUE;VALUE=DATE:20261008`), dated(`timed`, `DUE:20261008T200000Z`)],
+    new Date(`2026-10-08T09:00:00Z`),
+    UTC,
+  )
+  expect(uids(view.today)).toEqual([`timed`, `date`])
 })

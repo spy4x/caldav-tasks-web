@@ -4,7 +4,14 @@
  * text, so an edit can patch it later.
  */
 
-import { IcalDateKind, parseIcal, resolveInstant } from "@spy4x/time/ical"
+import {
+  getProperty,
+  type IcalComponent,
+  IcalDateKind,
+  parseIcal,
+  readDate,
+  resolveInstant,
+} from "@spy4x/time/ical"
 import { AlarmTriggerKind, readTodo, type Todo, TodoStatus } from "@spy4x/time/ical-tasks"
 import { isoDateInTz } from "@spy4x/time/tz"
 import { PriorityBand, type Task, type TaskDate, type TaskReminder, TaskStatus } from "./types.ts"
@@ -41,10 +48,10 @@ export function parseTask(source: TaskSource): ParseTaskResult {
   const todo = readTodo(parsed.output)
   if (!todo) return { success: false, output: null, error: `No VTODO in ${source.href}` }
   if (!todo.uid) return { success: false, output: null, error: `No UID in ${source.href}` }
-  return { success: true, output: toTask(todo, todo.uid, source), error: null }
+  return { success: true, output: toTask(todo, todo.uid, source, parsed.output), error: null }
 }
 
-function toTask(todo: Todo, uid: string, source: TaskSource): Task {
+function toTask(todo: Todo, uid: string, source: TaskSource, root: IcalComponent): Task {
   const task: Task = {
     uid,
     href: source.href,
@@ -59,6 +66,8 @@ function toTask(todo: Todo, uid: string, source: TaskSource): Task {
     tags: todo.categories,
     reminders: todo.alarms.flatMap(toReminder),
   }
+  const created = todo.created ?? stampOf(root)
+  if (created) task.created = created
   if (todo.due) task.due = todo.due
   if (todo.start) task.start = todo.start
   // Only a parent link makes a subtask; CHILD and SIBLING links say nothing about this task's own
@@ -68,6 +77,15 @@ function toTask(todo: Todo, uid: string, source: TaskSource): Task {
   if (todo.sortOrder !== undefined) task.sortOrder = todo.sortOrder
   if (todo.rrule) task.repeatRule = todo.rrule
   return task
+}
+
+/** The `DTSTAMP` of the task's VTODO, which `readTodo` does not return. */
+function stampOf(root: IcalComponent): TaskDate | undefined {
+  const todo = root.name.toUpperCase() === `VTODO`
+    ? root
+    : root.components.find((component) => component.name.toUpperCase() === `VTODO`)
+  const stamp = todo && getProperty(todo, `DTSTAMP`)
+  return stamp ? readDate(stamp) : undefined
 }
 
 function toReminder(alarm: Todo[`alarms`][number]): TaskReminder[] {

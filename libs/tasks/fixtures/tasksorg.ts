@@ -21,7 +21,7 @@ export function fixtureTask(ics: string): Task {
   return result.output
 }
 
-function vtodo(lines: string[], extra: string[] = []): string {
+export function vtodo(lines: string[], extra: string[] = []): string {
   return [
     `BEGIN:VCALENDAR`,
     `VERSION:2.0`,
@@ -102,6 +102,45 @@ export const MANUAL_ORDER = [
   `100200307`,
   `100200304`,
 ]
+
+/**
+ * Three tasks in the "Creation" list. Two were never dragged (no `X-APPLE-SORT-ORDER`) and one was
+ * dragged to a position between their creation times (Apple seconds: 2026-09-30T08:00Z is
+ * 812448000, 2026-10-01T08:00Z is 812534400, 2026-10-02T08:00Z is 812620800). Tasks.org places a
+ * never-dragged task at its creation time, so the order is `100200400`, `100200402`, `100200401`.
+ * Putting such tasks last, then by title, would give `100200402`, `100200401`, `100200400`.
+ */
+export const CREATION: Record<string, string> = {
+  "100200400": vtodo([
+    `DTSTAMP:20261003T000000Z`,
+    `CREATED:20260930T080000Z`,
+    `UID:100200400`,
+    `SUMMARY:Zebra stall`,
+  ]),
+  "100200401": vtodo([
+    `DTSTAMP:20261003T000000Z`,
+    `CREATED:20261002T080000Z`,
+    `UID:100200401`,
+    `SUMMARY:Apple stall`,
+  ]),
+  "100200402": vtodo([
+    `DTSTAMP:20261003T000000Z`,
+    `CREATED:20260901T080000Z`,
+    `UID:100200402`,
+    `SUMMARY:Mango stall`,
+    `X-APPLE-SORT-ORDER:812534400`,
+  ]),
+}
+
+/** The `UID`s of {@link CREATION} in manual order. */
+export const CREATION_MANUAL_ORDER = [`100200400`, `100200402`, `100200401`]
+
+/** A never-dragged task with no `CREATED`, only a `DTSTAMP` of 2026-10-01T08:00Z (812534400). */
+export const STAMP_ONLY = vtodo([
+  `DTSTAMP:20261001T080000Z`,
+  `UID:100200410`,
+  `SUMMARY:Stamp only`,
+])
 
 /** One task per kind of due value, all with the same wall clock: 23:30 on 2026-10-08. */
 export const DUE_KINDS = {

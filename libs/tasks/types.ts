@@ -66,6 +66,11 @@ export interface Task {
   parentUid?: string
   /** `X-APPLE-SORT-ORDER`, the manual position inside a list. */
   sortOrder?: number
+  /**
+   * When the task was created: `CREATED`, or `DTSTAMP` when the task has no `CREATED`. Tasks.org
+   * places a task that was never dragged at this time in manual order.
+   */
+  created?: TaskDate
   /** The `RRULE` as written; present when the task repeats. */
   repeatRule?: string
   reminders: TaskReminder[]
