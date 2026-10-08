@@ -5,8 +5,10 @@
  * or UID is a real one.
  *
  * `MANUAL_ORDER` is the order the "Errands" list has when sorted manually, the way Tasks.org
- * sorts it: ascending `X-APPLE-SORT-ORDER`, tasks without one last. It is written down by hand
- * from those numbers as the expected answer; it was not read off a Tasks.org screen.
+ * sorts it: ascending `X-APPLE-SORT-ORDER`; a task without one sits at its creation time in
+ * seconds since 2001-01-01 (`CREATED`, or `DTSTAMP` when there is none), and ties go by title.
+ * "Call the plumber" comes last only because it was created after the others' positions. The
+ * order is written down by hand from those numbers; it was not read off a Tasks.org screen.
  */
 
 import { parseTask } from "../model.ts"
