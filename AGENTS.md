@@ -26,7 +26,8 @@ is built. Public repo: https://github.com/spy4x/caldav-tasks-web
 deno.jsonc            workspace, tasks, pinned imports. deno.lock is committed.
 apps/server/          Hono: +main.ts (entry, `deno serve`), config.ts, app.ts
 apps/web/             Preact SPA: index.html, vite.config.ts, src/main.tsx, src/app.tsx
-libs/api/             JSON contract between server and SPA (arktype schemas and types)
+libs/api/             JSON contract between server and SPA, one file per lane: `errors.ts`
+                     (shared), `auth.ts`, `caldav.ts` (arktype schemas and types)
 libs/tasks/           task types and pure task logic
 libs/ui/              screens: pure, props in and callbacks out
 e2e/                  Playwright; fixtures seed Radicale
