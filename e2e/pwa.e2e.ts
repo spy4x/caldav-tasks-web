@@ -78,7 +78,6 @@ test(`opens a page offline after a non-page file was opened first`, async ({ pag
   await underWorker(page)
   // A file opened as a page (not an HTML one) must not replace the stored page.
   await page.goto(`/icons/icon.svg`)
-  await page.goto(`/`)
   await context.setOffline(true)
   await page.goto(`/lists`)
   await expect(page.getByTestId(`page-title`)).toHaveText(`Lists`)
