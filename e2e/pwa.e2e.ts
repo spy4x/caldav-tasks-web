@@ -1,4 +1,10 @@
 import { expect, type Page, test } from "@playwright/test"
+import { signIn } from "./sign-in.ts"
+
+/** The key `apps/web/src/state/session.ts` keeps its "signed in on this device" hint under. */
+const SIGNED_IN_HINT_KEY = `session:signed-in`
+
+const hint = (page: Page) => page.evaluate((key) => localStorage.getItem(key), SIGNED_IN_HINT_KEY)
 
 /** Waits until the service worker controls the page, reloading once if it only just installed. */
 async function underWorker(page: Page): Promise<void> {
@@ -21,6 +27,7 @@ function cachedUrls(page: Page): Promise<string[]> {
 }
 
 test(`serves a manifest whose icons exist and include a maskable one`, async ({ page, request }) => {
+  await signIn(page)
   await page.goto(`/`)
   const href = await page.locator(`link[rel=manifest]`).getAttribute(`href`)
   const response = await request.get(href!)
@@ -36,6 +43,7 @@ test(`serves a manifest whose icons exist and include a maskable one`, async ({ 
 })
 
 test(`registers the worker under the content security policy without a violation`, async ({ page }) => {
+  await signIn(page)
   const problems: string[] = []
   page.on(`console`, (message) => {
     if (message.type() === `error`) problems.push(message.text())
@@ -48,6 +56,7 @@ test(`registers the worker under the content security policy without a violation
 })
 
 test(`stores the shell and never an /api URL`, async ({ page }) => {
+  await signIn(page)
   await page.goto(`/`)
   await underWorker(page)
   // Under the worker, a request to /api or /health must go to the network, not through the worker.
@@ -65,15 +74,43 @@ test(`stores the shell and never an /api URL`, async ({ page }) => {
   expect(paths.filter((path) => path.startsWith(`/api`) || path === `/health`)).toEqual([])
 })
 
-test(`opens the last view with no network`, async ({ page, context }) => {
+test(`a signed-in owner who goes offline and reloads sees the last view, not sign-in`, async ({ page, context }) => {
+  await signIn(page)
   await page.goto(`/lists`)
   await underWorker(page)
   await context.setOffline(true)
   await page.reload()
   await expect(page.getByTestId(`page-title`)).toHaveText(`Lists`)
+  await expect(page.getByRole(`heading`, { name: `Sign in` })).toHaveCount(0)
+})
+
+test(`a visitor who never signed in sees the sign-in screen offline`, async ({ page, context }) => {
+  await page.goto(`/lists`)
+  await underWorker(page)
+  await context.setOffline(true)
+  await page.reload()
+  await expect(page.getByRole(`heading`, { name: `Sign in` })).toBeVisible()
+  await expect(page.getByTestId(`page-title`)).toHaveCount(0)
+})
+
+test(`a 401 online clears the hint, so the next offline start shows sign-in`, async ({ page, context }) => {
+  await signIn(page)
+  await page.goto(`/lists`)
+  await underWorker(page)
+  expect(await hint(page)).toBe(`1`)
+  // The session ends on the server's side: the next session request answers 401.
+  await context.clearCookies()
+  await page.reload()
+  await expect(page.getByRole(`heading`, { name: `Sign in` })).toBeVisible()
+  expect(await hint(page)).toBeNull()
+  await context.setOffline(true)
+  await page.reload()
+  await expect(page.getByRole(`heading`, { name: `Sign in` })).toBeVisible()
+  await expect(page.getByTestId(`page-title`)).toHaveCount(0)
 })
 
 test(`opens a page offline after a non-page file was opened first`, async ({ page, context }) => {
+  await signIn(page)
   await page.goto(`/`)
   await underWorker(page)
   // A file opened as a page (not an HTML one) must not replace the stored page.
@@ -84,6 +121,7 @@ test(`opens a page offline after a non-page file was opened first`, async ({ pag
 })
 
 test(`a missing built file is still a 404 under the worker`, async ({ page }) => {
+  await signIn(page)
   await page.goto(`/`)
   await underWorker(page)
   const status = await page.evaluate(async () => (await fetch(`/assets/missing-0000.js`)).status)
@@ -91,6 +129,7 @@ test(`a missing built file is still a 404 under the worker`, async ({ page }) =>
 })
 
 test(`a worker that installs drops the cache of an older deploy`, async ({ page }) => {
+  await signIn(page)
   await page.goto(`/`)
   await underWorker(page)
   // A second registration (another scope, same script) runs the real install and activate; the
