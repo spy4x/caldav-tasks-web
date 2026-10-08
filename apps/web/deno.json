@@ -1,0 +1,15 @@
+{
+  "tasks": {
+    "build": "deno run -A --node-modules-dir=auto npm:vite@7.3.6 build .",
+    "dev": "deno run -A --node-modules-dir=auto npm:vite@7.3.6 ."
+  },
+  "imports": {
+    "@deno/vite-plugin": "npm:@deno/vite-plugin@1.0.6",
+    "@preact/preset-vite": "npm:@preact/preset-vite@2.10.2",
+    "@tailwindcss/vite": "npm:@tailwindcss/vite@4.1.12",
+    "tailwindcss": "npm:tailwindcss@4.1.12",
+    "tailwindcss/": "npm:/tailwindcss@4.1.12/",
+    "tailwindcss/plugin": "npm:/tailwindcss@4.1.12/plugin.js",
+    "vite": "npm:vite@7.3.6"
+  }
+}
