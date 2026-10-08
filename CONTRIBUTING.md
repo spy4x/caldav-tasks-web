@@ -6,13 +6,24 @@ Bug reports and pull requests are welcome. For security findings, follow
 ## Development
 
 ```bash
-deno task check                                 # fmt + lint + typecheck
-deno test apps/api/services/caldav/parse.test.ts
+deno install --frozen    # exact dependency versions from deno.lock
+deno task check          # lint, format, type check, tests; run before every push
+deno task build          # builds apps/web into apps/web/dist
+deno task radicale:up    # Radicale for development and e2e
+deno task e2e            # Playwright against the built app and Radicale
 ```
 
-The CalDAV parser tests cover Radicale (default namespace), lowercase
-`d:` prefixes, and Stalwart (uppercase `D:` / `A:`). Adding a Nextcloud
-or Baikal adapter is a new class in `apps/api/services/caldav/` and a
-case in `getAdapter()` — the route layer stays untouched.
+CI runs the same `check`, then the build and the e2e tests (`.woodpecker/ci.yml`).
 
-How the code is organised: [docs/architecture.md](docs/architecture.md).
+## Layout
+
+| Path          | What it holds                                     |
+| ------------- | ------------------------------------------------- |
+| `apps/server` | Hono server: `/health`, `/api`, the built web app |
+| `apps/web`    | Preact web app (Vite)                             |
+| `libs/api`    | The JSON contract between server and web app      |
+| `libs/tasks`  | Task types and logic shared by screens            |
+| `libs/ui`     | Screens: props in, callbacks out, no app imports  |
+| `e2e`         | Playwright tests; fixtures seed Radicale          |
+| `tests`       | Guard tests over the UI rules                     |
+| `infra`       | Radicale for development                          |
