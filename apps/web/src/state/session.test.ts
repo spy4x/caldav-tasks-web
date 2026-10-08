@@ -145,8 +145,8 @@ Deno.test("offline, a device that was never signed in shows the sign-in screen",
 })
 
 Deno.test("with storage blocked, the session still loads and offline means signed out", async () => {
-  const answers = [json(200, {}), Promise.reject(new TypeError("Failed to fetch"))]
-  await withFetch(() => answers.shift()!, async () => {
+  const answers = [() => Promise.resolve(json(200, {})), offline]
+  await withFetch(() => answers.shift()!(), async () => {
     await loadSession()
     expect(sessionStatus.value).toBe(SessionStatus.SignedIn)
     await loadSession()
