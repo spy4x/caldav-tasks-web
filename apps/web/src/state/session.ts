@@ -16,15 +16,51 @@ export const sessionStatus = signal(SessionStatus.Unknown)
 
 const UNREACHABLE = "Cannot reach the server. Check the connection and try again."
 
-/** Asks the server whether the session cookie is still good. */
+/**
+ * localStorage key of the "signed in on this device" hint. It lets the installed app open offline
+ * to its last view instead of the sign-in screen. It is not a credential and grants nothing: every
+ * `/api` request still needs the HttpOnly session cookie, which the server checks.
+ */
+export const SIGNED_IN_HINT_KEY = "session:signed-in"
+
+/** Records or forgets the hint. Storage may be blocked; the app then works without it. */
+function rememberSignedIn(signedIn: boolean): void {
+  try {
+    if (signedIn) localStorage.setItem(SIGNED_IN_HINT_KEY, "1")
+    else localStorage.removeItem(SIGNED_IN_HINT_KEY)
+  } catch {
+    // No storage: an offline start shows the sign-in screen.
+  }
+}
+
+function wasSignedIn(): boolean {
+  try {
+    return localStorage.getItem(SIGNED_IN_HINT_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Asks the server whether the session cookie is still good. 200 means signed in and 401 means
+ * signed out. With no answer from the server (offline, or an error status from something on the
+ * way), the hint decides: the owner who was signed in on this device keeps the app shell, everyone
+ * else sees the sign-in screen.
+ */
 export async function loadSession(): Promise<void> {
+  // Stays undefined while the server has not answered either way.
+  let signedIn: boolean | undefined
   try {
     const response = await fetch(AUTH_PATHS.session, { credentials: "same-origin" })
     await response.body?.cancel()
-    sessionStatus.value = response.ok ? SessionStatus.SignedIn : SessionStatus.SignedOut
+    if (response.ok) signedIn = true
+    else if (response.status === 401) signedIn = false
   } catch {
-    sessionStatus.value = SessionStatus.SignedOut
+    // Offline or the server is out of reach.
   }
+  if (signedIn === undefined) signedIn = wasSignedIn()
+  else rememberSignedIn(signedIn)
+  sessionStatus.value = signedIn ? SessionStatus.SignedIn : SessionStatus.SignedOut
 }
 
 /**
@@ -45,6 +81,7 @@ export async function signIn(password: string): Promise<string | null> {
   }
   if (response.ok) {
     await response.body?.cancel()
+    rememberSignedIn(true)
     sessionStatus.value = SessionStatus.SignedIn
     return null
   }
@@ -66,6 +103,7 @@ export async function signOut(): Promise<string | null> {
   } catch {
     return UNREACHABLE
   }
+  rememberSignedIn(false)
   sessionStatus.value = SessionStatus.SignedOut
   return null
 }

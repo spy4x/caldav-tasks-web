@@ -1,11 +1,16 @@
 /// <reference lib="deno.ns" />
-import { defineConfig } from "vite"
+import { build, defineConfig } from "vite"
 import { fromFileUrl } from "@std/path"
 import deno from "@deno/vite-plugin"
 import preact from "@preact/preset-vite"
 import tailwindcss from "@tailwindcss/vite"
 import { themeBootstrapScript } from "@spy4x/preact-signals/theme"
-import { npmSpecifiers, preactThemeCss, requireComponentCss } from "@spy4x/preact-theme/vite"
+import {
+  npmSpecifiers,
+  preactThemeCss,
+  requireComponentCss,
+  serviceWorker,
+} from "@spy4x/preact-theme/vite"
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -16,6 +21,14 @@ export default defineConfig({
     preactThemeCss(),
     tailwindcss(),
     requireComponentCss(),
+    // The worker imports a JSR module, so it is bundled into dist/sw.js after the app build.
+    serviceWorker({
+      entry: fromFileUrl(new URL("./src/sw.ts", import.meta.url)),
+      build,
+      plugins: [deno()],
+      readDir: Deno.readDir,
+      readFile: Deno.readFile,
+    }),
     {
       // Paints the stored (or system) light/dark choice before the first frame, so a dark reader
       // never sees a light flash. `index.html` cannot call the library, so the build injects it.
