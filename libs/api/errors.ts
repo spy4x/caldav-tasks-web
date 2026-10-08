@@ -21,6 +21,8 @@ export enum ApiErrorCode {
   CalDavUnreachable = "caldav_unreachable",
   /** The CalDAV server refused the configured credentials. */
   CalDavRefused = "caldav_refused",
+  /** Too many failed sign-in attempts; try again later. */
+  TooManyAttempts = "too_many_attempts",
 }
 
 /** The body of every error response. It never carries a credential. */

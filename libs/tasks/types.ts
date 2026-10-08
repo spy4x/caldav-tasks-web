@@ -4,6 +4,10 @@
  * with the task so an edit can patch it without losing what this file does not model.
  */
 
+import type { IcalDateValue } from "@spy4x/time/ical"
+
+export { IcalDateKind, type IcalDateValue } from "@spy4x/time/ical"
+
 /** A task's state, as a VTODO `STATUS` says it. */
 export enum TaskStatus {
   NeedsAction = 1,
@@ -26,38 +30,6 @@ export enum SortMode {
   Due,
   Priority,
   Title,
-}
-
-/**
- * Whether a date value is a date, a floating time, a UTC time or a time in a named zone. The four
- * kinds are kept apart because "today" and "overdue" depend on which one a task has.
- *
- * Identical to `IcalDateKind` in `@spy4x/time/ical`, which is merged in ts-libs but not released.
- * When it is, this file re-exports it and the copy goes.
- */
-export enum IcalDateKind {
-  /** `VALUE=DATE`: a calendar date with no time. */
-  Date = 1,
-  /** A local time with no zone: the same wall clock wherever the reader is. */
-  Floating,
-  /** A UTC time, written with a trailing `Z`. */
-  Utc,
-  /** A local time in the zone named by the `TZID` parameter. */
-  Zoned,
-}
-
-/**
- * A DATE or DATE-TIME value in a form that keeps its kind through a round trip. Identical to
- * `IcalDateValue` in `@spy4x/time/ical`; becomes a re-export once that is released.
- */
-export interface IcalDateValue {
-  kind: IcalDateKind
-  /** `YYYY-MM-DD`. */
-  date: string
-  /** `HH:MM:SS`; absent for {@link IcalDateKind.Date}. */
-  time?: string
-  /** The `TZID` parameter; only for {@link IcalDateKind.Zoned}. */
-  tzid?: string
 }
 
 /** A due or start value. */

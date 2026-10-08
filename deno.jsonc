@@ -2,6 +2,9 @@
   "workspace": ["./apps/web", "./libs/ui"],
   "nodeModulesDir": "auto",
   "allowScripts": ["npm:@tailwindcss/oxide@4.1.12"],
+  // Wait a day before installing a new release, except our own packages: they are published and
+  // consumed in the same wave.
+  "minimumDependencyAge": { "age": "1440", "exclude": ["jsr:@spy4x/*"] },
   "tasks": {
     // Development: the Vite dev server (http://localhost:5173) proxies /api and /health to the
     // server (http://localhost:8080). Both need `.env`, copied from `.env.example`.
@@ -60,9 +63,10 @@
     // #endregion Aliases
 
     // #region Dependencies
-    // spy4x/ts-libs 1.37.0, the current release. hono and arktype must stay on the exact versions
+    // spy4x/ts-libs 1.38.0, the current release. hono and arktype must stay on the exact versions
     // these packages were published with, or two copies load and their types stop matching.
-    "@spy4x/server": "jsr:@spy4x/server@1.37.0",
+    "@spy4x/server": "jsr:@spy4x/server@1.38.0",
+    "@spy4x/time": "jsr:@spy4x/time@1.38.0",
     "hono": "jsr:@hono/hono@4.13.8",
     "arktype": "npm:arktype@2.2.3",
 
