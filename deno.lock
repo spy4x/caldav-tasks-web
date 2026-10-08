@@ -9,6 +9,7 @@
     "jsr:@spy4x/email@^1.38.0": "1.38.0",
     "jsr:@spy4x/net@^1.38.0": "1.38.0",
     "jsr:@spy4x/platform@1.10.0": "1.10.0",
+    "jsr:@spy4x/platform@1.38.0": "1.38.0",
     "jsr:@spy4x/platform@^1.38.0": "1.38.0",
     "jsr:@spy4x/preact-cn@^3.6.0": "3.6.0",
     "jsr:@spy4x/preact-icons@3.6.0": "3.6.0",
@@ -41,7 +42,7 @@
     "npm:@deno/vite-plugin@1.0.6": "1.0.6_vite@7.3.6",
     "npm:@noble/ciphers@^2.1.1": "2.4.0",
     "npm:@noble/curves@^2.0.1": "2.0.1",
-    "npm:@noble/hashes@^2.0.1": "2.4.0",
+    "npm:@noble/hashes@^2.0.1": "2.0.1",
     "npm:@noble/post-quantum@~0.5.3": "0.5.4",
     "npm:@playwright/test@1.57.0": "1.57.0",
     "npm:@preact/preset-vite@2.10.2": "2.10.2_@babel+core@7.29.7_vite@7.3.6_preact@10.29.8_preact-render-to-string@6.7.0",
@@ -105,7 +106,9 @@
       "integrity": "5f4f2a203ff467cd514f9d3595951d868d9bd0bb4f188b9def74125759069d72",
       "dependencies": [
         "jsr:@hono/hono",
+        "jsr:@spy4x/email",
         "jsr:@spy4x/net",
+        "jsr:@spy4x/time@^1.38.0",
         "jsr:@spy4x/validation@^1.38.0",
         "jsr:@std/crypto",
         "jsr:@std/encoding",
@@ -590,20 +593,17 @@
     "@noble/curves@2.0.1": {
       "integrity": "sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw==",
       "dependencies": [
-        "@noble/hashes@2.0.1"
+        "@noble/hashes"
       ]
     },
     "@noble/hashes@2.0.1": {
       "integrity": "sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw=="
     },
-    "@noble/hashes@2.4.0": {
-      "integrity": "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="
-    },
     "@noble/post-quantum@0.5.4": {
       "integrity": "sha512-leww0zzIirrvwaYMPI9fj6aRIlA/c6Y0/lifQQ1YOOyHEr0MNH3yYpjXeiVG+tWdPps4XxGclFWX2INPO3Yo5w==",
       "dependencies": [
         "@noble/curves",
-        "@noble/hashes@2.0.1"
+        "@noble/hashes"
       ]
     },
     "@playwright/test@1.57.0": {
@@ -1445,6 +1445,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@hono/hono@4.13.8",
+      "jsr:@spy4x/platform@1.38.0",
       "jsr:@spy4x/preact-icons@3.6.0",
       "jsr:@spy4x/preact-signals@3.6.0",
       "jsr:@spy4x/preact-system@3.6.0",

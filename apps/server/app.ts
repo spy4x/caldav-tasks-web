@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { serveStatic } from "@spy4x/server/static"
 import { fromFileUrl } from "@std/path"
 import { ApiErrorCode } from "@api/errors.ts"
-import { authRoutes } from "./auth/routes.ts"
+import { type AuthOptions, createAuth } from "./auth/routes.ts"
 import { caldavRoutes } from "./caldav/routes.ts"
 import type { Config } from "./config.ts"
 import { securityHeaders } from "./security-headers.ts"
@@ -14,13 +14,15 @@ export const DEFAULT_STATIC_ROOT = fromFileUrl(new URL("../web/dist", import.met
 export interface AppOptions {
   /** The folder with the built SPA. Defaults to `apps/web/dist`. */
   staticRoot?: string
+  /** Test seams for sign-in, such as the clock. */
+  auth?: AuthOptions
 }
 
 /**
- * The server: `/health`, an empty `/api` that later issues fill, and the built SPA for every other
- * path. The configuration is loaded once at start and handed in here.
+ * The server: `/health`, `/api` behind the owner's session, and the built SPA for every other path.
+ * The configuration is loaded once at start and handed in here.
  */
-export async function createApp(_config: Config, options: AppOptions = {}): Promise<Hono> {
+export async function createApp(config: Config, options: AppOptions = {}): Promise<Hono> {
   const staticRoot = options.staticRoot ?? DEFAULT_STATIC_ROOT
   const app = new Hono()
 
@@ -35,8 +37,15 @@ export async function createApp(_config: Config, options: AppOptions = {}): Prom
 
   app.get("/health", (c) => c.json({ status: "ok" }))
 
-  // Each lane owns one route module; they are empty until its issue fills them.
-  app.route("/api/auth", authRoutes)
+  // Sign-in is the one API route open without a session. Everything registered after the guard,
+  // the unknown-path 404 included, needs a valid session cookie, and a same-origin request for any
+  // method but GET, HEAD and OPTIONS.
+  const auth = createAuth(config, options.auth)
+  app.route("/api/auth", auth.signInRoutes)
+  app.use("/api/*", ...auth.guard)
+
+  // Each lane owns one route module.
+  app.route("/api/auth", auth.routes)
   app.route("/api/caldav", caldavRoutes)
 
   // An unknown API path is a JSON 404, never the SPA's HTML.

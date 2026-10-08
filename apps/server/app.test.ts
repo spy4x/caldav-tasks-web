@@ -2,7 +2,8 @@
 import { expect } from "@std/expect"
 import { fromFileUrl } from "@std/path"
 import { createApp } from "./app.ts"
-import { TEST_CONFIG } from "./test-config.ts"
+import { TEST_CONFIG, TEST_OWNER_PASSWORD } from "./test-config.ts"
+import { AUTH_PATHS } from "@api/auth.ts"
 
 const STATIC_ROOT = fromFileUrl(new URL("./testdata", import.meta.url))
 const app = await createApp(TEST_CONFIG, { staticRoot: STATIC_ROOT })
@@ -36,17 +37,34 @@ Deno.test("serves a built asset as immutable and the shell as revalidated", asyn
   await shell.body?.cancel()
 })
 
-Deno.test("answers an unknown /api path with a JSON 404, not the SPA", async () => {
+/** A session cookie for the test owner, as the browser would send it back. */
+async function sessionCookie(): Promise<string> {
+  const response = await app.request(AUTH_PATHS.signIn, {
+    method: "POST",
+    headers: {
+      origin: TEST_CONFIG.PUBLIC_URL,
+      "sec-fetch-site": "same-origin",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ password: TEST_OWNER_PASSWORD }),
+  })
+  expect(response.status).toBe(204)
+  return (response.headers.get("set-cookie") ?? "").split(";")[0]
+}
+
+Deno.test("answers an unknown /api path with a JSON 401 without a session, not the SPA", async () => {
   const response = await app.request("/api/unknown")
-  expect(response.status).toBe(404)
+  expect(response.status).toBe(401)
   expect(response.headers.get("content-type")).toContain("application/json")
-  expect(await response.json()).toEqual({ code: "not_found", message: "Not found" })
+  expect(await response.json()).toEqual({ code: "unauthorized", message: "Sign in first" })
 })
 
-Deno.test("answers an unknown path under /api/auth and /api/caldav with the JSON 404", async () => {
-  for (const path of ["/api/auth/nothing", "/api/caldav/nothing"]) {
-    const response = await app.request(path)
+Deno.test("answers an unknown /api path with a JSON 404 when signed in, not the SPA", async () => {
+  const cookie = await sessionCookie()
+  for (const path of ["/api/unknown", "/api/auth/nothing", "/api/caldav/nothing"]) {
+    const response = await app.request(path, { headers: { cookie } })
     expect(response.status).toBe(404)
+    expect(response.headers.get("content-type")).toContain("application/json")
     expect(await response.json()).toEqual({ code: "not_found", message: "Not found" })
   }
 })

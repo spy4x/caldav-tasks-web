@@ -18,7 +18,8 @@
     "build": "deno task --cwd apps/web build",
     // Runs the built app the way the container does. Needs the seven variables in the environment.
     "start": "deno serve --allow-net --allow-env --allow-read=apps/web/dist --port 8080 apps/server/+main.ts",
-    "password:hash": "deno run --no-prompt infra/scripts/password-hash.ts",
+    // Prints OWNER_PASSWORD_HASH for a password typed or piped in; reads AUTH_PEPPER from .env.
+    "password:hash": "deno run --no-prompt --env-file=.env --allow-env=AUTH_PEPPER infra/scripts/password-hash.ts",
 
     // Radicale for development and e2e: http://localhost:5232
     "radicale:up": "docker compose -f infra/compose.dev.yml up -d --wait",
@@ -66,6 +67,7 @@
     // spy4x/ts-libs 1.38.0, the current release. hono and arktype must stay on the exact versions
     // these packages were published with, or two copies load and their types stop matching.
     "@spy4x/server": "jsr:@spy4x/server@1.38.0",
+    "@spy4x/platform": "jsr:@spy4x/platform@1.38.0",
     "@spy4x/time": "jsr:@spy4x/time@1.38.0",
     "hono": "jsr:@hono/hono@4.13.8",
     "arktype": "npm:arktype@2.2.3",
