@@ -62,7 +62,7 @@ Deno.test("typing and submitting hands the password over, and a failure moves fo
     await rerender({ onSignIn, busy: false, error: "Wrong password" })
     const alert = root.querySelector(`[role="alert"]`)!
     expect(alert.textContent).toBe("Wrong password")
-    expect(window.document.activeElement).toBe(input as never)
+    expect(window.document.activeElement?.id).toBe(input.id)
     expect(input.getAttribute("aria-invalid")).toBe("true")
     const describedBy = input.getAttribute("aria-describedby")!
     expect(window.document.getElementById(describedBy)?.textContent).toBe("Wrong password")
