@@ -25,6 +25,15 @@ export function hashPassword(password: string, pepper: string): Promise<string> 
   return createPasswordHasher({ pepper }).hash(password)
 }
 
+/**
+ * Removes the last character from UTF-8 `bytes`, however many bytes it takes: the continuation
+ * bytes (`10xxxxxx`) and the byte that starts it. Backspace calls it.
+ */
+export function eraseLastCharacter(bytes: number[]): void {
+  while (bytes.length > 0 && (bytes[bytes.length - 1] & 0xc0) === 0x80) bytes.pop()
+  bytes.pop()
+}
+
 /** Reads one line from the terminal without echoing it. Returns `null` on Ctrl-C or Ctrl-D. */
 async function readHidden(): Promise<string | null> {
   const encoder = new TextEncoder()
@@ -39,7 +48,7 @@ async function readHidden(): Promise<string | null> {
       for (const byte of buffer.subarray(0, read)) {
         if (byte === 0x03 || byte === 0x04) return null
         if (byte === 0x0d || byte === 0x0a) return new TextDecoder().decode(new Uint8Array(bytes))
-        if (byte === 0x7f || byte === 0x08) bytes.pop()
+        if (byte === 0x7f || byte === 0x08) eraseLastCharacter(bytes)
         else bytes.push(byte)
       }
     }
