@@ -12,7 +12,7 @@ The skeleton the rest of v1 is built on:
 
 - a Hono server that answers `/health` and serves the built web app,
 - a Preact web app with five empty pages: Today, Upcoming, Lists, Search and More,
-- tests, a Playwright smoke test against Radicale, a Dockerfile and a CI pipeline.
+- tests, a Playwright smoke test against Radicale and a Dockerfile.
 
 ## Development
 
