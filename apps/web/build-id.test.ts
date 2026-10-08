@@ -1,3 +1,4 @@
+/// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { buildIdOf } from "./build-id.ts"
 

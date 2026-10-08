@@ -1,3 +1,4 @@
+/// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { installOfflineShell, type ShellScope } from "@spy4x/platform/browser/offline-shell"
 import { shellOptions } from "./sw-options.ts"
