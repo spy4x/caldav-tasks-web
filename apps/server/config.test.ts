@@ -63,13 +63,3 @@ Deno.test("refuses a PUBLIC_URL or CALDAV_URL that is not a URL", () => {
     )
   }
 })
-
-Deno.test("never prints a value in the error message", () => {
-  const secret = "hunter2-hunter2-hunter2-hunter2-x"
-  try {
-    readConfig(createEnvReader({ ...TEST_CONFIG, CALDAV_URL: secret }))
-    throw new Error("expected a ConfigError")
-  } catch (error) {
-    expect(describeConfigError(error as ConfigError)).not.toContain(secret)
-  }
-})

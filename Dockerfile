@@ -9,6 +9,8 @@ RUN deno task build
 
 FROM denoland/deno:${DENO_VERSION}
 WORKDIR /app
+# `deno cache` writes node_modules next to deno.jsonc, so /app belongs to the app user.
+RUN chown deno:deno /app
 # The server's source and the dependencies it imports; the SPA is already built. Nothing in this
 # image is written at run time, so the app runs as the base image's non-root `deno` user.
 COPY --from=build --chown=deno:deno /app/deno.jsonc /app/deno.lock ./
