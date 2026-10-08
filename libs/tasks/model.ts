@@ -116,6 +116,5 @@ export function dateInstant(value: TaskDate, zone: string): Date {
  */
 export function dateDay(value: TaskDate, zone: string): string {
   if (value.kind === IcalDateKind.Date || value.kind === IcalDateKind.Floating) return value.date
-  if (value.kind === IcalDateKind.Zoned && !resolveInstant(value, { zone })) return value.date
   return isoDateInTz(dateInstant(value, zone), zone)
 }
