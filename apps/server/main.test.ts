@@ -1,8 +1,9 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
+import { fromFileUrl } from "@std/path"
 import { TEST_CONFIG } from "./test-config.ts"
 
-const MAIN = new URL("./+main.ts", import.meta.url).pathname
+const MAIN = fromFileUrl(new URL("./+main.ts", import.meta.url))
 
 /** Runs the server entry with the given variables set; a blank value counts as unset. */
 async function runMain(env: Record<string, string>) {

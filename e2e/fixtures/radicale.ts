@@ -83,3 +83,8 @@ export async function readTask(taskUrl: string): Promise<string> {
   if (!response.ok) throw new Error(`GET ${taskUrl} answered ${response.status}`)
   return await response.text()
 }
+
+/** Deletes a list the fixture created, so a run leaves Radicale as it found it. */
+export async function deleteList(list: SeededList): Promise<void> {
+  await caldav(`DELETE`, list.calendarUrl, {}, ``, [200, 204, 404])
+}
