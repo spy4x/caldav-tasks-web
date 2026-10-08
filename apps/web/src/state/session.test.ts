@@ -1,14 +1,51 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { AUTH_PATHS } from "@api/auth.ts"
-import { loadSession, SessionStatus, sessionStatus, signIn, signOut } from "./session.ts"
+import {
+  loadSession,
+  SessionStatus,
+  sessionStatus,
+  SIGNED_IN_HINT_KEY,
+  signIn,
+  signOut,
+} from "./session.ts"
 
-/** Answers every `fetch` with `answer` for the test's length, and records what was sent. */
+/**
+ * An in-memory `localStorage`: Deno's own one persists on disk between runs. `null` gives storage
+ * that throws on every call, as a blocked one does.
+ */
+function fakeStorage(
+  storage: Map<string, string> | null,
+): Pick<Storage, "getItem" | "setItem" | "removeItem"> {
+  const blocked = () => {
+    throw new DOMException("blocked", "SecurityError")
+  }
+  if (!storage) return { getItem: blocked, setItem: blocked, removeItem: blocked }
+  return {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => void storage.set(key, value),
+    removeItem: (key) => void storage.delete(key),
+  }
+}
+
+const signedInDevice = () => new Map([[SIGNED_IN_HINT_KEY, "1"]])
+const offline = () => Promise.reject(new TypeError("Failed to fetch"))
+
+/**
+ * Answers every `fetch` with `answer` for the test's length, and records what was sent.
+ * `localStorage` is `storage` meanwhile (see {@link fakeStorage}).
+ */
 async function withFetch(
   answer: (request: Request) => Response | Promise<Response>,
   test: (sent: Request[]) => Promise<void>,
+  storage: Map<string, string> | null = new Map(),
 ): Promise<void> {
   const own = globalThis.fetch
+  const ownStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  Object.defineProperty(globalThis, "localStorage", {
+    value: fakeStorage(storage),
+    configurable: true,
+  })
   const sent: Request[] = []
   globalThis.fetch = (input, init) => {
     const request = new Request(new URL(String(input), "http://app.localhost"), init)
@@ -20,6 +57,8 @@ async function withFetch(
     await test(sent)
   } finally {
     globalThis.fetch = own
+    if (ownStorage) Object.defineProperty(globalThis, "localStorage", ownStorage)
+    else delete (globalThis as { localStorage?: unknown }).localStorage
   }
 }
 
@@ -60,14 +99,70 @@ Deno.test("a sign-in that cannot reach the server says so", async () => {
   })
 })
 
-Deno.test("loading the session follows the server's answer", async () => {
+Deno.test("loading the session follows the server's answer and records it on the device", async () => {
+  const storage = new Map<string, string>()
   const answers = [json(200, { expiresAt: "2026-11-07T12:00:00.000Z" }), json(401, {})]
+  await withFetch(() => answers.shift()!, async () => {
+    await loadSession()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedIn)
+    expect(storage.get(SIGNED_IN_HINT_KEY)).toBe("1")
+    await loadSession()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedOut)
+    expect(storage.has(SIGNED_IN_HINT_KEY)).toBe(false)
+  }, storage)
+})
+
+Deno.test("a 401 signs out a device that was signed in", async () => {
+  const storage = signedInDevice()
+  await withFetch(() => json(401, {}), async () => {
+    await loadSession()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedOut)
+    expect(storage.has(SIGNED_IN_HINT_KEY)).toBe(false)
+  }, storage)
+})
+
+Deno.test("offline, a device that was signed in keeps the app open", async () => {
+  const storage = signedInDevice()
+  await withFetch(offline, async () => {
+    await loadSession()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedIn)
+    expect(storage.get(SIGNED_IN_HINT_KEY)).toBe("1")
+  }, storage)
+})
+
+Deno.test("an error status other than 401 keeps a signed-in device open", async () => {
+  await withFetch(() => new Response("Bad Gateway", { status: 502 }), async () => {
+    await loadSession()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedIn)
+  }, signedInDevice())
+})
+
+Deno.test("offline, a device that was never signed in shows the sign-in screen", async () => {
+  await withFetch(offline, async () => {
+    await loadSession()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedOut)
+  })
+})
+
+Deno.test("with storage blocked, the session still loads and offline means signed out", async () => {
+  const answers = [json(200, {}), Promise.reject(new TypeError("Failed to fetch"))]
   await withFetch(() => answers.shift()!, async () => {
     await loadSession()
     expect(sessionStatus.value).toBe(SessionStatus.SignedIn)
     await loadSession()
     expect(sessionStatus.value).toBe(SessionStatus.SignedOut)
-  })
+  }, null)
+})
+
+Deno.test("signing in and out records and clears the device hint", async () => {
+  const storage = new Map<string, string>()
+  const answers = [new Response(null, { status: 204 }), new Response(null, { status: 204 })]
+  await withFetch(() => answers.shift()!, async () => {
+    expect(await signIn("secret")).toBeNull()
+    expect(storage.get(SIGNED_IN_HINT_KEY)).toBe("1")
+    expect(await signOut()).toBeNull()
+    expect(storage.has(SIGNED_IN_HINT_KEY)).toBe(false)
+  }, storage)
 })
 
 Deno.test("signing out marks the session signed out only once the server ended it", async () => {
