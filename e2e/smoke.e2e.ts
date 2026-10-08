@@ -4,6 +4,7 @@ import { readTask, seedTaskList } from "./fixtures/radicale.ts"
 test("answers /health with 200", async ({ request }) => {
   const response = await request.get(`/health`)
   expect(response.status()).toBe(200)
+  expect(await response.json()).toEqual({ status: `ok` })
 })
 
 test("opens on Today and moves between the five destinations without a reload", async ({ page }) => {
