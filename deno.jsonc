@@ -18,7 +18,8 @@
     "build": "deno task --cwd apps/web build",
     // Runs the built app the way the container does. Needs the seven variables in the environment.
     "start": "deno serve --allow-net --allow-env --allow-read=apps/web/dist --port 8080 apps/server/+main.ts",
-    "password:hash": "deno run --no-prompt infra/scripts/password-hash.ts",
+    // Prints OWNER_PASSWORD_HASH for a password typed or piped in; reads AUTH_PEPPER from .env.
+    "password:hash": "deno run --no-prompt --env-file=.env --allow-env=AUTH_PEPPER infra/scripts/password-hash.ts",
 
     // Radicale for development and e2e: http://localhost:5232
     "radicale:up": "docker compose -f infra/compose.dev.yml up -d --wait",

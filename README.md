@@ -14,6 +14,33 @@ The skeleton the rest of v1 is built on:
 - a Preact web app with five empty pages: Today, Upcoming, Lists, Search and More,
 - tests, a Playwright smoke test against Radicale and a Dockerfile.
 
+## Signing in
+
+The app has one owner and one password. Set it up once:
+
+1. Put a random `AUTH_PEPPER` and `SESSION_SECRET` (32 characters or more each) in `.env`.
+2. Run `deno task password:hash`, type the password, and put the printed line in `.env` as
+   `OWNER_PASSWORD_HASH`.
+
+A sign-in lasts 30 days on that device. What ends sessions:
+
+- **Signing out** ends the session on this device only. Other devices stay signed in. The server
+  remembers signed-out sessions in memory, so after a restart a copied cookie works again until its
+  30 days run out; rotate `SESSION_SECRET` to be sure.
+- **Changing the password** (a new `OWNER_PASSWORD_HASH`, then a restart) ends every session.
+- **Rotating `SESSION_SECRET`** (then a restart) ends every session too.
+
+Wrong passwords are counted per client address, and IPv6 addresses are grouped by their /64
+network. After 6 wrong passwords that address is locked for 15 minutes, and each further lock
+doubles, up to a day. There is also a lock for all addresses together: from the 31st wrong password
+nobody can sign in for a minute, doubling up to an hour, though devices already signed in keep
+working. This stops a guesser who rotates addresses, at a price: someone with several addresses can
+keep that overall lock on and keep you out. Restarting the server clears every lock, because the
+counts live in memory.
+
+Behind a reverse proxy, the server reads the client address from `X-Real-IP`, and believes it only
+when the proxy connects from a private or loopback address. Traefik sends it by default.
+
 ## Development
 
 You need [Deno](https://deno.com/) 2 and Docker.
