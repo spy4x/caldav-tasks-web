@@ -54,6 +54,15 @@ Deno.test("due order reads a date and a floating time in the viewer's zone", () 
   expect(order(tasks, SortMode.Due, `America/Los_Angeles`)).toEqual([`utc`, `date`])
 })
 
+Deno.test("due order breaks a tie by priority, high first", () => {
+  const tasks = [
+    make(`low`, `A`, `DUE;VALUE=DATE:20261010`, `PRIORITY:9`),
+    make(`none`, `B`, `DUE;VALUE=DATE:20261010`),
+    make(`high`, `C`, `DUE;VALUE=DATE:20261010`, `PRIORITY:2`),
+  ]
+  expect(order(tasks, SortMode.Due)).toEqual([`high`, `low`, `none`])
+})
+
 Deno.test("priority order groups 1 to 4 as high, then 5, then 6 to 9, then none", () => {
   const tasks = [
     make(`none`, `A`),
@@ -72,7 +81,7 @@ Deno.test("priority order groups 1 to 4 as high, then 5, then 6 to 9, then none"
 Deno.test("title order ignores case and accents and puts item 2 before item 10", () => {
   const tasks = [
     make(`10`, `item 10`),
-    make(`b`, `banana`),
+    make(`b`, `banana`, `DUE;VALUE=DATE:20261005`),
     make(`2`, `Item 2`),
     make(`e`, `Écrire`),
     make(`a`, `Apple`, `DUE;VALUE=DATE:20261012`),

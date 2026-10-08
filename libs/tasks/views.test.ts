@@ -125,7 +125,7 @@ Deno.test("Upcoming reaches tomorrow through 14 days ahead and skips empty days"
     dated(`d15`, `DUE;VALUE=DATE:20261023`),
     dated(`d3`, `DUE;VALUE=DATE:20261011`),
     dated(`past`, `DUE;VALUE=DATE:20261001`),
-    fixtureTask(COMPLETED),
+    fixtureTask(task(`done`, `Done`, [`STATUS:COMPLETED`, `DUE;VALUE=DATE:20261010`])),
   ]
   const days = upcomingView(all, now, UTC)
   expect(days.map((day) => day.date)).toEqual([`2026-10-09`, `2026-10-11`, `2026-10-22`])
