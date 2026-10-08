@@ -50,13 +50,19 @@ test(`registers the worker under the content security policy without a violation
 test(`stores the shell and never an /api URL`, async ({ page }) => {
   await page.goto(`/`)
   await underWorker(page)
-  // An API call made under the worker must not land in a cache.
-  await page.evaluate(() => fetch(`/api/caldav/lists`).catch(() => undefined))
+  // Under the worker, a request to /api or /health must go to the network, not through the worker.
+  for (const path of [`/api/caldav/lists`, `/health`]) {
+    const [response] = await Promise.all([
+      page.waitForResponse((r) => new URL(r.url()).pathname === path),
+      page.evaluate((url) => fetch(url).catch(() => undefined), path),
+    ])
+    expect(response.fromServiceWorker(), path).toBe(false)
+  }
   const paths = (await cachedUrls(page)).map((url) => new URL(url).pathname)
   expect(paths).toContain(`/`)
   expect(paths.some((path) => path.startsWith(`/assets/`))).toBe(true)
   expect(paths).toContain(`/manifest.webmanifest`)
-  expect(paths.filter((path) => path.startsWith(`/api`))).toEqual([])
+  expect(paths.filter((path) => path.startsWith(`/api`) || path === `/health`)).toEqual([])
 })
 
 test(`opens the last view with no network`, async ({ page, context }) => {

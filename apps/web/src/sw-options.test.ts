@@ -96,6 +96,13 @@ Deno.test(`the worker never answers or stores a request under /api`, async () =>
   expect([...worker.caches.get(`shell-b1`)!.keys()].some((k) => k.startsWith(`/api`))).toBe(false)
 })
 
+Deno.test(`the worker never answers or stores a request for /health`, async () => {
+  const worker = fakeWorker(`b1`, [], site)
+  await worker.run(`install`)
+  expect(await worker.request(`https://app.example/health`)).toBeUndefined()
+  expect(worker.caches.get(`shell-b1`)!.has(`/health`)).toBe(false)
+})
+
 Deno.test(`a missing asset stays a 404 and is not stored`, async () => {
   const worker = fakeWorker(
     `b1`,
