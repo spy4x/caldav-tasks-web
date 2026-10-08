@@ -1,9 +1,25 @@
-node_modules/
-data/
-dist/
-*.lock
-.env
-.env.*
+# OS
+.DS_Store
+
+# IDE
+.idea
+
+# Configs: the owner's encrypted copy .env.age is committed, the plaintext never is
+.age/
+.env*
 !.env.example
-!.env.prod.example
-.volumes/
+!.env*.age
+
+# Packages
+node_modules
+
+# Artifacts
+dist
+.vite
+vite.config.ts.timestamp-*
+e2e/results
+e2e/report
+playwright-report
+
+# Logs
+*.log

@@ -1,6 +1,18 @@
-node_modules/
-data/
-.volumes/
-.git/
-.gitignore
-*.lock
+# 1. Ignore everything
+**/*
+
+# 2. Add what the image needs
+!apps/**
+!libs/**
+!deno.jsonc
+!deno.lock
+
+# 3. Leave out what must never be baked in
+**/node_modules
+**/dist
+**/.vite
+**/.DS_Store
+**/.env*
+apps/server/testdata
+**/*.test.ts
+**/*.test.tsx

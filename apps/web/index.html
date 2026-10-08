@@ -1,18 +1,23 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-900">
+<!doctype html>
+<html lang="en" class="h-full">
   <head>
     <meta charset="utf-8" />
+    <title>Tasks</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f172a" />
-    <meta name="description" content="TodoApp — CalDAV todo manager" />
-    <title>TodoApp</title>
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="apple-touch-icon" href="/apple-icon-180x180.png" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <link rel="stylesheet" href="/src/index.css" />
+    <meta name="color-scheme" content="light dark" />
+    <style>
+    /* The blank frame before the app's CSS follows the chosen theme: the build's theme script
+       sets `dark` on <html> before the first paint. */
+    :root {
+      color-scheme: light;
+    }
+    :root.dark {
+      color-scheme: dark;
+    }
+    </style>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
-  <body class="h-full bg-slate-900 text-slate-100">
+  <body class="theme-base min-h-full">
     <div id="app"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

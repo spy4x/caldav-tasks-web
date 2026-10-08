@@ -1,0 +1,19 @@
+# Radicale for development and the end-to-end tests: http://localhost:5232
+#   deno task radicale:up      start it
+#   deno task radicale:down    stop it and delete its data
+# Development only: `--auth-type none` accepts any username and password (the image's default
+# denies everyone), and each user still sees only their own collections. The data stays inside the
+# container.
+name: caldav-tasks-web-dev
+services:
+  radicale:
+    image: ghcr.io/kozea/radicale:3.5.4
+    container_name: caldav-tasks-web-radicale
+    command: ["--hosts", "0.0.0.0:5232", "--auth-type", "none"]
+    ports:
+      - "127.0.0.1:5232:5232"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5232/.web/"]
+      interval: 2s
+      timeout: 2s
+      retries: 30

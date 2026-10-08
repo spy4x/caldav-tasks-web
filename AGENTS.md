@@ -2,74 +2,69 @@
 
 ## Context
 
-caldav-tasks-web is a CalDAV task manager PWA (Deno + Hono + Vite/Preact + SQLite).
-Deployed at https://todos.antonshubin.com via `deno task deploy`.
+caldav-tasks-web is a single-user, self-hosted web companion to Tasks.org. One install serves one
+person and talks to one CalDAV server (Stalwart, Radicale or Nextcloud) whose address and
+credentials come from the environment. The v1 rewrite is in progress; the README claims only what
+is built. Public repo: https://github.com/spy4x/caldav-tasks-web
 
-**Public repo:** https://github.com/spy4x/caldav-tasks-web
+## Architecture
 
-## Core Rules
+- The browser (Preact SPA) talks JSON plus raw iCalendar text to a thin Hono server in one
+  container; the server talks CalDAV. The browser never sees the CalDAV password.
+- The server never parses a task. The browser reads, patches and creates tasks with
+  `@spy4x/time/ical` and caches `{ href, etag, ics }` in IndexedDB. Every edit patches the original
+  text, so nothing Tasks.org or another client wrote is dropped.
+- No server-side database. Sign-in is one owner password and a signed, expiring session cookie.
+- "Tasks.org semantics": a list is a CalDAV calendar, a tag is a `CATEGORIES` value, a subtask
+  links to its parent with `RELATED-TO` (`RELTYPE=PARENT`), manual order is `X-APPLE-SORT-ORDER`,
+  priority is 1 (high), 5 (medium), 9 (low) or 0 (none), and a repeating task is one VTODO whose
+  dates move on completion.
 
-- **Deno-only.** No Node.js/bun. No npm except via `--node-modules-dir`.
-- **Minimal third-party deps.** Prefer std lib. Document each dep.
-- **preact-signals, not hooks.**
-- **Money as ints, enums start at 1** (Financy conventions).
-- **Fail-open:** non-critical external failures → `|| true`, never block.
-- **CQRS** for business logic (buses in `libs/shared/cqrs/`).
-- **SQLite** for now, but DB access must be through `DbService` (easy swap to Postgres later).
-
-## Project State
-
-See `README.md` for quick start, `docs/architecture.md` and `docs/1.overview.md` for architecture,
-`docs/self-hosting.md` for deploy and env vars, `docs/features.md` for features and server status,
-and `CONTRIBUTING.md` for development.
-**See `todos.md` for all known issues, bugs, ideas, and roadmap — this is the single source of truth for project status.**
-
-**When working on the project, ALWAYS update `todos.md` with any new ideas, bugs discovered, or items completed. Move items from Backlog to Completed as they're done. Move items from Bug Queue to Fixed.**
-
-## Workflow
+## Layout
 
 ```
-/plan → /design → /tasks → /process → /review → /pr
+deno.jsonc            workspace, tasks, pinned imports. deno.lock is committed.
+apps/server/          Hono: +main.ts (entry, `deno serve`), config.ts, app.ts
+apps/web/             Preact SPA: index.html, vite.config.ts, src/main.tsx, src/app.tsx
+libs/api/             JSON contract between server and SPA, one file per lane: `errors.ts`
+                     (shared), `auth.ts`, `caldav.ts` (arktype schemas and types)
+libs/tasks/           task types and pure task logic
+libs/ui/              screens: pure, props in and callbacks out
+e2e/                  Playwright; fixtures seed Radicale
+tests/                guard tests: ui-boundary and spacing
+infra/compose.dev.yml Radicale for development and e2e
+.woodpecker/ci.yml    check, build, e2e on pull requests and main
 ```
 
-1. First consult `todos.md` for existing issues and `docs/1.overview.md` for architecture.
-2. Create branch for big changes.
-3. Delegate tasks with exact deliverables, tests, acceptance criteria.
-4. After merge, update `docs/` and `todos.md` (state who/where).
-5. Run `deno task check` before committing.
+Aliases: `@api/` is `libs/api/`, `@tasks/` is `libs/tasks/`, `@ui/` is `libs/ui/`.
 
-## Key Files
+## Commands
 
-| File                                         | Purpose                                                        |
-| -------------------------------------------- | -------------------------------------------------------------- |
-| `apps/api/index.ts`                          | Hono server entry                                              |
-| `apps/api/services/radicale.ts`              | CalDAV client (PROPFIND, MKCOL, PROPPATCH, PUT, DELETE)        |
-| `apps/web/src/state/+index.ts`               | All preact-signals (state management, filters, sort, URL sync) |
-| `apps/web/src/components/Sidebar.tsx`        | Sidebar with collections, search, filters, sorting, tags       |
-| `apps/web/src/components/TodoEditDialog.tsx` | Full todo editor modal                                         |
-| `apps/web/src/pages/Settings.tsx`            | Profile + server management (3 separate save forms)            |
-| `libs/server/db/+index.ts`                   | SQLite wrapper + migrations                                    |
-| `infra/scripts/deploy.ts`                    | rsync → docker compose                                         |
-| `compose.yml`                                | Production compose with traefik                                |
-| `Dockerfile`                                 | debian-2.2.0 + sqlite-dev                                      |
+Use the names in `deno.jsonc`; never guess one.
 
-## Key Architecture Decisions
+| Task                                      | What it does                                                  |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `deno task check`                         | lint, format check, type check, tests. Run before every push. |
+| `deno task dev`                           | server on :8080 and Vite on :5173 (needs `.env`)              |
+| `deno task build`                         | builds the SPA into `apps/web/dist`                           |
+| `deno task start`                         | runs the server the way the container does                    |
+| `deno task radicale:up` / `radicale:down` | Radicale at :5232                                             |
+| `deno task e2e`                           | Playwright against the built app and Radicale                 |
+| `deno task env:decrypt` / `env:encrypt`   | age64 `.env` handling                                         |
 
-- **Username ≠ Email**: `user_keys.identification` = login (any string). `users.email` = contact. Separate endpoints for changing each.
-- **CalDAV todos**: VTODO data is fetched via GET on each `.ics` file (not inline in PROPFIND). Some servers (like Radicale) return 404 for `calendar-data` in PROPFIND.
-- **XML namespace**: Radicale uses default namespace (no `d:` prefix). Stalwart uses uppercase `D:` and `A:` prefixes. All regex parsers use `(?:[^:]*:)?response` with `i` flag to handle any prefix and any case. Bare `d:href`-style arg names in `extractXml` calls would silently miss Stalwart's `<D:href>`.
-- **URL-first state**: Filters, search, sort, selected collection stored in URL query params. Restored on page load.
-- **Collection colors**: Parsed from `<ICAL:calendar-color>` in PROPFIND response.
-- **Encryption at rest**: Server passwords encrypted with AES-GCM using `ENCRYPTION_SECRET` env var.
+## Rules
 
-## Troubleshooting
-
-- **Create todo returns 502 / CalDAV PUT 400**: Check iCalendar date format. Radicale may reject `Z` suffix in DTSTAMP or missing `DTSTART`. Test with minimal VTODO first.
-- **manifest.json error in console:** Files are in `apps/web/static/`, Vite's `publicDir` is set to `static/` in vite.config.ts.
-- **Container won't start:** `@db/sqlite` needs SQLite shared lib. Debian image has it via `apt-get install libsqlite3-dev`.
-- **CalDAV returns empty:** Radicale returns VTODO data via GET on `.ics` files, not inline in PROPFIND. The function `caldavGetTodos` first lists .ics files then fetches each individually.
-- **XML parsing fails / empty calendar list on Stalwart:** Stalwart emits `<D:response>` / `<A:response>` with capital prefixes and returns 404 propstats for `<supported-calendar-component-set/>` + `<calendar-color/>` on the user's principal home. Parser regex must accept any prefix with `i` flag, and must filter calendars by `<(prefix:)?calendar/>` inside `resourcetype` — substring "calendar" alone matches the user's home too. See branch `fix/stalwart-calendar-parsing`.
-- **Sidebar not showing on Settings:** Ensure Sidebar component is rendered inside Layout (not per-page). It should be in Layout.tsx, not Dashboard.tsx.
+- **Configuration:** all seven variables in `.env.example` are required. The server exits naming
+  each missing one. No fallbacks, no development defaults. `.env.example` holds placeholders only.
+- **Screens in `libs/ui` are pure.** They import no store, router, `fetch` or app code
+  (`tests/ui-boundary.test.ts` enforces it). Wiring lives in `apps/web/src`.
+- **Spacing** uses the scale of `@spy4x/preact-theme/spacing` (`tests/spacing.test.ts`).
+- **Type checking** is plain `deno check`, which covers `.tsx`.
+- **Shared libraries first.** Before writing a component or helper, search the lists in the section
+  below. If it is missing, file the issue in the library and wait for the release; do not keep a
+  local copy.
+- **Errors never carry a credential.** No response body, log line or error message may hold
+  `CALDAV_PASSWORD` or any other secret.
 
 ## Shared libraries
 

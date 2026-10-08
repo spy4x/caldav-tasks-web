@@ -1,0 +1,8 @@
+{
+  "imports": {
+    // Server-renders the screens in tests: the version @preact/preset-vite already locks.
+    "preact-render-to-string": "npm:preact-render-to-string@6.7.0",
+    // A browser DOM for the interaction tests: focus, form submission and FormData.
+    "happy-dom": "npm:happy-dom@20.14.5"
+  }
+}

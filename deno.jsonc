@@ -1,0 +1,119 @@
+{
+  "workspace": ["./apps/web", "./libs/ui"],
+  "nodeModulesDir": "auto",
+  "allowScripts": ["npm:@tailwindcss/oxide@4.1.12"],
+  // Wait a day before installing a new release, except our own packages: they are published and
+  // consumed in the same wave.
+  "minimumDependencyAge": { "age": "1440", "exclude": ["jsr:@spy4x/*"] },
+  "tasks": {
+    // Development: the Vite dev server (http://localhost:5173) proxies /api and /health to the
+    // server (http://localhost:8080). Both need `.env`, copied from `.env.example`.
+    "dev": {
+      "command": "echo 'dev servers stopped'",
+      "dependencies": ["dev:server", "dev:web"]
+    },
+    "dev:server": "deno serve --allow-net --allow-env --allow-read=apps/web/dist --env-file=.env --watch --port 8080 apps/server/+main.ts",
+    "dev:web": "deno task --cwd apps/web dev",
+    // Production build of the SPA into apps/web/dist, which the server serves.
+    "build": "deno task --cwd apps/web build",
+    // Runs the built app the way the container does. Needs the seven variables in the environment.
+    "start": "deno serve --allow-net --allow-env --allow-read=apps/web/dist --port 8080 apps/server/+main.ts",
+    "password:hash": "deno run --no-prompt infra/scripts/password-hash.ts",
+
+    // Radicale for development and e2e: http://localhost:5232
+    "radicale:up": "docker compose -f infra/compose.dev.yml up -d --wait",
+    "radicale:down": "docker compose -f infra/compose.dev.yml down",
+
+    "env:encrypt": "deno run --no-prompt -R -W=. @spy4x/server/env-age64/cli encrypt",
+    "env:decrypt": "deno run --no-prompt -R -W=. @spy4x/server/env-age64/cli decrypt",
+    "env:status": "deno run --no-prompt -R -W=. @spy4x/server/env-age64/cli status",
+    "env:keygen": "deno run --no-prompt -R -W=. @spy4x/server/env-age64/cli keygen",
+
+    // #region Checks
+    "check": {
+      "command": "echo 'Checks passed!'",
+      "description": "Run all checks",
+      "dependencies": ["lint:check", "fmt:check", "ts:check", "test"]
+    },
+    "fmt:fix": "deno fmt",
+    "fmt:check": "deno fmt --check",
+    "lint:fix": "deno lint --fix",
+    "lint:check": "deno lint",
+    // Plain `deno check` covers .tsx too, across the whole workspace.
+    "ts:check": "deno check apps libs tests e2e playwright.config.ts",
+    // libs/ui's interaction tests load happy-dom, whose WebSocket package reads the two WS_*
+    // variables. With no path argument deno test walks the whole workspace (a path of `apps` finds
+    // nothing, because it holds a workspace member). apps/server/main.test.ts starts the server
+    // entry as a child process, so it runs on its own with permission to. The guard tests under
+    // tests/ read source files, so each runs with its own grant.
+    "test": "deno test --no-prompt --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE --allow-read=apps/server,libs/ui --ignore=tests,apps/server/main.test.ts && deno test --no-prompt --allow-read --allow-env --allow-net --allow-run apps/server/main.test.ts && deno test --no-prompt --allow-read=apps,libs tests/spacing.test.ts && deno test --no-prompt --allow-read=libs/ui tests/ui-boundary.test.ts",
+    "e2e": "PLAYWRIGHT_HTML_OUTPUT_DIR=./e2e/report deno run -A --node-modules-dir=auto npm:playwright@1.57.0 test",
+    "fix": {
+      "command": "echo 'Fixes applied!'",
+      "description": "Run all fixes",
+      "dependencies": ["lint:fix", "fmt:fix"]
+    }
+    // #endregion Checks
+  },
+  "imports": {
+    // #region Aliases
+    "@api/": "./libs/api/",
+    "@tasks/": "./libs/tasks/",
+    "@ui/": "./libs/ui/",
+    // #endregion Aliases
+
+    // #region Dependencies
+    // spy4x/ts-libs 1.38.0, the current release. hono and arktype must stay on the exact versions
+    // these packages were published with, or two copies load and their types stop matching.
+    "@spy4x/server": "jsr:@spy4x/server@1.38.0",
+    "@spy4x/time": "jsr:@spy4x/time@1.38.0",
+    "hono": "jsr:@hono/hono@4.13.8",
+    "arktype": "npm:arktype@2.2.3",
+
+    // spy4x/preact-components 3.6.0. Every package is published at one version together, so all
+    // five move in one change. They take preact and the signals packages as caret ranges, so the
+    // versions below are the one copy that loads. wouter-preact must stay on the version they pin,
+    // or two copies load.
+    "@spy4x/preact-icons": "jsr:@spy4x/preact-icons@3.6.0",
+    "@spy4x/preact-signals": "jsr:@spy4x/preact-signals@3.6.0",
+    "@spy4x/preact-system": "jsr:@spy4x/preact-system@3.6.0",
+    "@spy4x/preact-theme": "jsr:@spy4x/preact-theme@3.6.0",
+    "@spy4x/preact-ui": "jsr:@spy4x/preact-ui@3.6.0",
+    "preact": "npm:preact@10.29.8",
+    "wouter-preact": "npm:wouter-preact@3.9.0",
+    "@preact/signals": "npm:@preact/signals@2.5.1",
+    "@preact/signals-core": "npm:@preact/signals-core@1.12.1",
+
+    "@std/path": "jsr:@std/path@1.1.6",
+    "@std/fs": "jsr:@std/fs@1.0.24",
+    "@std/expect": "jsr:@std/expect@1.0.17",
+    "@playwright/test": "npm:@playwright/test@1.57.0"
+    // #endregion Dependencies
+  },
+  "exclude": [
+    "**/dist/*",
+    "node_modules",
+    "e2e/report",
+    "e2e/results",
+    "*.lock"
+  ],
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["require-await"]
+    }
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "singleQuote": false,
+    "proseWrap": "preserve",
+    "semiColons": false
+  },
+  "compilerOptions": {
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
+  }
+}
