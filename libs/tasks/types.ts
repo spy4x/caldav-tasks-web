@@ -29,18 +29,39 @@ export enum SortMode {
 }
 
 /**
- * A due or start value. The four kinds iCalendar allows are kept apart because "today" and
- * "overdue" depend on which one a task has.
+ * Whether a date value is a date, a floating time, a UTC time or a time in a named zone. The four
+ * kinds are kept apart because "today" and "overdue" depend on which one a task has.
+ *
+ * Identical to `IcalDateKind` in `@spy4x/time/ical`, which is merged in ts-libs but not released.
+ * When it is, this file re-exports it and the copy goes.
  */
-export type TaskDate =
-  /** A day with no time, `2026-10-15`. */
-  | { kind: "date"; date: string }
-  /** A local time with no zone, `2026-10-15T09:00:00`: the reader's own clock. */
-  | { kind: "floating"; local: string }
-  /** An exact instant, `2026-10-15T07:00:00Z`. */
-  | { kind: "utc"; instant: string }
-  /** A local time in a named zone. */
-  | { kind: "zoned"; local: string; timeZone: string }
+export enum IcalDateKind {
+  /** `VALUE=DATE`: a calendar date with no time. */
+  Date = 1,
+  /** A local time with no zone: the same wall clock wherever the reader is. */
+  Floating,
+  /** A UTC time, written with a trailing `Z`. */
+  Utc,
+  /** A local time in the zone named by the `TZID` parameter. */
+  Zoned,
+}
+
+/**
+ * A DATE or DATE-TIME value in a form that keeps its kind through a round trip. Identical to
+ * `IcalDateValue` in `@spy4x/time/ical`; becomes a re-export once that is released.
+ */
+export interface IcalDateValue {
+  kind: IcalDateKind
+  /** `YYYY-MM-DD`. */
+  date: string
+  /** `HH:MM:SS`; absent for {@link IcalDateKind.Date}. */
+  time?: string
+  /** The `TZID` parameter; only for {@link IcalDateKind.Zoned}. */
+  tzid?: string
+}
+
+/** A due or start value. */
+export type TaskDate = IcalDateValue
 
 /** A reminder the task carries. Read-only in v1. */
 export interface TaskReminder {
@@ -56,6 +77,8 @@ export interface Task {
   href: string
   /** The version the browser holds, sent back as `If-Match` on a save. */
   etag: string
+  /** The raw iCalendar text this task was read from, so an edit can patch it. */
+  ics: string
   /** The `href` of the list (calendar) the task belongs to. */
   listHref: string
   title: string
