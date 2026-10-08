@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test"
 import { deleteList, readTask, seedTaskList } from "./fixtures/radicale.ts"
+import { signIn } from "./sign-in.ts"
+
+// The app is behind the owner's sign-in; /health and the Radicale fixture ignore the session.
+test.beforeEach(async ({ page }) => await signIn(page))
 
 test("answers /health with 200", async ({ request }) => {
   const response = await request.get(`/health`)
