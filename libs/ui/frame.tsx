@@ -7,7 +7,6 @@ import {
   IconSun,
 } from "@spy4x/preact-icons"
 import { RailShell, type RailShellItem } from "@spy4x/preact-system/rail-shell"
-import { followLinkClick } from "@spy4x/preact-ui/link"
 
 /** The page each destination opens. Kept here so the router and the navigation cannot drift. */
 export const PATHS = {
@@ -19,23 +18,25 @@ export const PATHS = {
 } as const
 
 /** The five destinations, in display order: the rail from `md` up, the tab bar below. */
-export const NAV_ITEMS: readonly RailShellItem[] = [
-  { key: "today", label: "Today", href: PATHS.today, Icon: IconSun },
-  { key: "upcoming", label: "Upcoming", href: PATHS.upcoming, Icon: IconCalendarDays },
-  { key: "lists", label: "Lists", href: PATHS.lists, Icon: IconList },
-  { key: "search", label: "Search", href: PATHS.search, Icon: IconLens },
-  { key: "more", label: "More", href: PATHS.more, Icon: IconEllipsisVertical },
+export const NAV_ITEMS: readonly NavItem[] = [
+  { key: "today", label: "Today", path: PATHS.today, Icon: IconSun },
+  { key: "upcoming", label: "Upcoming", path: PATHS.upcoming, Icon: IconCalendarDays },
+  { key: "lists", label: "Lists", path: PATHS.lists, Icon: IconList },
+  { key: "search", label: "Search", path: PATHS.search, Icon: IconLens },
+  { key: "more", label: "More", path: PATHS.more, Icon: IconEllipsisVertical },
 ]
+
+/** A destination: the rail shell's entry plus the path it opens. */
+export interface NavItem extends RailShellItem {
+  path: string
+}
 
 /** The navigation entry a path belongs to, or `undefined` for a path no entry owns. */
 export function navKey(path: string | undefined): string | undefined {
   if (path === undefined) return undefined
   if (path === PATHS.today) return "today"
   for (const item of NAV_ITEMS) {
-    if (
-      item.href !== PATHS.today && item.href &&
-      (path === item.href || path.startsWith(`${item.href}/`))
-    ) {
+    if (item.path !== PATHS.today && (path === item.path || path.startsWith(`${item.path}/`))) {
       return item.key
     }
   }
@@ -43,8 +44,12 @@ export function navKey(path: string | undefined): string | undefined {
 }
 
 /**
- * The app's frame: the rail from `md` up and the phone tab bar below, around the page. `navigate`
- * takes over clicks on the navigation links, so moving between pages never reloads the app.
+ * The app's frame: the rail from `md` up and the phone tab bar below, around the page. The
+ * entries carry no `href`, so the shell draws them as buttons and reports a choice through
+ * `navigate`, which the router handles; moving between pages never reloads the app.
+ *
+ * TODO(spy4x/preact-components#596): once link clicks go through a port, give the entries real
+ * `href`s again, so they are links without JavaScript, open in a new tab and show their address.
  */
 export function AppFrame(
   { currentPath, navigate, children }: {
@@ -53,20 +58,22 @@ export function AppFrame(
     children: ComponentChildren
   },
 ): JSX.Element {
+  const items: readonly RailShellItem[] = NAV_ITEMS.map(({ key, label, Icon }) => ({
+    key,
+    label,
+    Icon,
+  }))
   return (
-    <div
-      onClick={(event) => {
-        const link = (event.target as Element | null)?.closest?.(
-          `a[data-e2e="rail-shell-entry"]`,
-        )
-        const href = link?.getAttribute("href")
-        if (href) followLinkClick(event, { href, navigate })
+    <RailShell
+      items={items}
+      currentKey={navKey(currentPath)}
+      navigate={(key) => {
+        const item = NAV_ITEMS.find((candidate) => candidate.key === key)
+        if (item) navigate?.(item.path)
       }}
     >
-      <RailShell items={NAV_ITEMS} currentKey={navKey(currentPath)}>
-        {children}
-      </RailShell>
-    </div>
+      {children}
+    </RailShell>
   )
 }
 
