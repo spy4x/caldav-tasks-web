@@ -219,8 +219,9 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
 
   const routes = new Hono()
   routes.get("/session", async (c) => {
-    // The guard has already checked it; read again for the expiry.
-    const session = (await readSession(c))!
+    // The guard has already checked it; read again for the expiry. A sign-out may land in between.
+    const session = await readSession(c)
+    if (!session) return fail(c, 401, ApiErrorCode.Unauthorized, "Sign in first")
     return c.json({ expiresAt: new Date(session.expiresAt).toISOString() } satisfies Session)
   })
   routes.post("/sign-out", async (c) => {
