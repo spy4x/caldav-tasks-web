@@ -14,8 +14,8 @@ export const OWNER_PASSWORD = `e2e-owner-password`
 const AUTH_PEPPER = `e2e-pepper-e2e-pepper-e2e-pepper`
 
 /**
- * `OWNER_PASSWORD` hashed with `AUTH_PEPPER` by `deno task password:hash`, at the lowest iteration
- * count the hasher accepts, so each e2e sign-in stays fast.
+ * `OWNER_PASSWORD` hashed with `AUTH_PEPPER` at 100,000 iterations, the lowest the hasher accepts, so
+ * each e2e sign-in stays fast. `deno task password:hash` uses the hasher's default of 600,000.
  */
 const OWNER_PASSWORD_HASH =
   `pbkdf2-sha256$100000$9342ac26ee1f7b80734af4653441a507$0461fea3b8bade3d56455fbb9e7aa8ca6778f38f87370233e158da4de9f6843b`
