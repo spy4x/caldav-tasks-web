@@ -166,7 +166,7 @@ Deno.test("signing in again ends the session the browser already had", async () 
   await current.body?.cancel()
 })
 
-Deno.test("an address is locked out after five wrong passwords, the right one included, and told when to retry", async () => {
+Deno.test("after six wrong passwords an address is locked out, the right one included, and told when to retry", async () => {
   const { app, advance } = await setup()
   const peer = "198.51.100.7"
   // Five free failures, then the sixth wrong one is still checked and starts a 15-minute lock.
