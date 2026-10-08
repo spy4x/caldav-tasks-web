@@ -65,6 +65,7 @@
     // #region Dependencies
     // spy4x/ts-libs 1.38.0, the current release. hono and arktype must stay on the exact versions
     // these packages were published with, or two copies load and their types stop matching.
+    "@spy4x/platform": "jsr:@spy4x/platform@1.38.0",
     "@spy4x/server": "jsr:@spy4x/server@1.38.0",
     "@spy4x/time": "jsr:@spy4x/time@1.38.0",
     "hono": "jsr:@hono/hono@4.13.8",

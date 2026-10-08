@@ -5,6 +5,7 @@ import deno from "@deno/vite-plugin"
 import preact from "@preact/preset-vite"
 import tailwindcss from "@tailwindcss/vite"
 import { themeBootstrapScript } from "@spy4x/preact-signals/theme"
+import { serviceWorker } from "./service-worker.ts"
 import { npmSpecifiers, preactThemeCss, requireComponentCss } from "@spy4x/preact-theme/vite"
 
 // https://vite.dev/config/
@@ -16,6 +17,7 @@ export default defineConfig({
     preactThemeCss(),
     tailwindcss(),
     requireComponentCss(),
+    serviceWorker(),
     {
       // Paints the stored (or system) light/dark choice before the first frame, so a dark reader
       // never sees a light flash. `index.html` cannot call the library, so the build injects it.
