@@ -9,8 +9,8 @@ import type { Task, TaskNode } from "./types.ts"
  * Nests each task under its parent (`parentUid`). Siblings keep the order they have in `tasks`, so
  * sort first to order a tree.
  *
- * - A task with no parent, a parent that is not in `tasks`, or itself as parent is at the top.
- * - A cycle (A under B under A) is cut at the member that comes first in `tasks`, which goes to
+ * - A task with no parent, or a parent that is not in `tasks`, is at the top.
+ * - A cycle (A under B under A, or a task under itself) is cut at the member that comes first in `tasks`, which goes to
  *   the top with the rest of the cycle below it.
  * - When two tasks share a `UID`, children attach to the first; the second is shown at the top.
  */
@@ -19,10 +19,10 @@ export function buildTree(tasks: readonly Task[]): TaskNode[] {
   tasks.forEach((task, index) => {
     if (!indexOfUid.has(task.uid)) indexOfUid.set(task.uid, index)
   })
-  const parent = tasks.map((task, index) => {
+  const parent = tasks.map((task) => {
     if (task.parentUid === undefined) return -1
     const found = indexOfUid.get(task.parentUid)
-    return found === undefined || found === index ? -1 : found
+    return found ?? -1
   })
 
   cutCycles(parent)

@@ -61,10 +61,12 @@ Deno.test("priority order groups 1 to 4 as high, then 5, then 6 to 9, then none"
     make(`p5`, `C`, `PRIORITY:5`),
     make(`p4`, `D`, `PRIORITY:4`, `DUE;VALUE=DATE:20261011`),
     make(`p1`, `E`, `PRIORITY:1`, `DUE;VALUE=DATE:20261012`),
-    make(`p6`, `F`, `PRIORITY:6`),
+    make(`p6`, `F`, `PRIORITY:6`, `DUE;VALUE=DATE:20261001`),
+    make(`p2`, `G`, `PRIORITY:2`),
   ]
-  // p4 and p1 are one band, so the earlier due date comes first; p9 and p6 tie and keep input order.
-  expect(order(tasks, SortMode.Priority)).toEqual([`p4`, `p1`, `p5`, `p9`, `p6`, `none`])
+  // p4 and p1 are one band, so the earlier due date comes first, and p2 with no due comes last in
+  // it. p6 is due first of all, yet low. p9 and p6 are one band, so p6's due date puts it ahead.
+  expect(order(tasks, SortMode.Priority)).toEqual([`p4`, `p1`, `p2`, `p5`, `p6`, `p9`, `none`])
 })
 
 Deno.test("title order ignores case and accents and puts item 2 before item 10", () => {
@@ -73,9 +75,10 @@ Deno.test("title order ignores case and accents and puts item 2 before item 10",
     make(`b`, `banana`),
     make(`2`, `Item 2`),
     make(`e`, `Écrire`),
-    make(`a`, `Apple`),
+    make(`a`, `Apple`, `DUE;VALUE=DATE:20261012`),
+    make(`a2`, `apple`, `DUE;VALUE=DATE:20261001`),
   ]
-  expect(order(tasks, SortMode.Title)).toEqual([`a`, `b`, `e`, `2`, `10`])
+  expect(order(tasks, SortMode.Title)).toEqual([`a2`, `a`, `b`, `e`, `2`, `10`])
 })
 
 Deno.test("sorting leaves the list it was given as it was", () => {
