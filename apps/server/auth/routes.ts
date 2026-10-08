@@ -128,7 +128,7 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
   async function readSession(c: Context): Promise<typeof sessionPayload.infer | null> {
     const token = getCookie(c, SESSION_COOKIE, "host")
     if (!token) return null
-    const result = await sessions.verify(token)
+    const result = await sessions.verify(token, { context: config.OWNER_PASSWORD_HASH })
     if (!result.ok || signedOut.has(result.value.sid)) return null
     return result.value
   }
@@ -192,7 +192,8 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
       const expiresAt = now() + SESSION_TTL_MS
       const token = await sessions.sign(
         { sid: crypto.randomUUID(), expiresAt },
-        { ttlMs: SESSION_TTL_MS },
+        // Bound to the password hash: a new password ends every session signed under the old one.
+        { ttlMs: SESSION_TTL_MS, context: config.OWNER_PASSWORD_HASH },
       )
       setCookie(c, SESSION_COOKIE, token, {
         prefix: "host",

@@ -10,6 +10,9 @@ import { SESSION_COOKIE_HEADER_NAME, SESSION_TTL_MS } from "./routes.ts"
 const STATIC_ROOT = fromFileUrl(new URL("../testdata", import.meta.url))
 const ORIGIN = new URL(TEST_CONFIG.PUBLIC_URL).origin
 const START = Date.UTC(2026, 9, 8, 12)
+/** The hash of another password, as after the owner changes it. Only its difference matters here. */
+const NEW_OWNER_PASSWORD_HASH =
+  "pbkdf2-sha256$100000$9342ac26ee1f7b80734af4653441a507$0461fea3b8bade3d56455fbb9e7aa8ca6778f38f87370233e158da4de9f6843b"
 
 /** A fresh app with its own lockout counters and a clock the test moves. */
 async function setup(): Promise<{ app: Hono; advance: (ms: number) => void }> {
@@ -127,6 +130,27 @@ Deno.test("a session cookie signed with another secret is refused", async () => 
   const response = await send(app, AUTH_PATHS.session, { cookie })
   expect(response.status).toBe(401)
   await response.body?.cancel()
+})
+
+Deno.test("a new owner password ends every session signed under the old one", async () => {
+  const { app } = await setup()
+  const cookie = await signedIn(app)
+  // The same server restarted with the same settings still takes the cookie.
+  const restarted = await createApp(TEST_CONFIG, {
+    staticRoot: STATIC_ROOT,
+    auth: { now: () => START },
+  })
+  const kept = await send(restarted, AUTH_PATHS.session, { cookie })
+  expect(kept.status).toBe(200)
+  await kept.body?.cancel()
+  // Restarted with a new password hash, it refuses it.
+  const newPassword = await createApp(
+    { ...TEST_CONFIG, OWNER_PASSWORD_HASH: NEW_OWNER_PASSWORD_HASH },
+    { staticRoot: STATIC_ROOT, auth: { now: () => START } },
+  )
+  const refused = await send(newPassword, AUTH_PATHS.session, { cookie })
+  expect(refused.status).toBe(401)
+  await refused.body?.cancel()
 })
 
 Deno.test("a session cookie is refused once it expires", async () => {
@@ -248,6 +272,20 @@ Deno.test("X-Real-IP names the client only when a private-network or same-host p
   })
   expect(sameHost.status).toBe(429)
   await sameHost.body?.cancel()
+})
+
+Deno.test("an IPv6 network shares one count, so a guesser cannot hop between its own addresses", async () => {
+  const { app } = await setup()
+  // Six wrong passwords, each from another address in 2001:db8:1:2::/64.
+  for (let n = 1; n <= 6; n++) {
+    const response = await signIn(app, "wrong", { peer: `2001:db8:1:2::${n}` })
+    expect(response.status).toBe(401)
+    await response.body?.cancel()
+  }
+  const sameNetwork = await signIn(app, TEST_OWNER_PASSWORD, { peer: "2001:db8:1:2::7" })
+  expect(sameNetwork.status).toBe(429)
+  await sameNetwork.body?.cancel()
+  await signedIn(app, { peer: "2001:db8:1:3::1" })
 })
 
 Deno.test("a cross-site sign-in is refused with 403 and starts no session", async () => {
