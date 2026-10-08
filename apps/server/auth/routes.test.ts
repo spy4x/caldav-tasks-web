@@ -207,7 +207,7 @@ Deno.test("sign-in stops for every address after thirty wrong passwords overall"
   await locked.body?.cancel()
 })
 
-Deno.test("X-Real-IP names the client only when a private-network proxy sends it", async () => {
+Deno.test("X-Real-IP names the client only when a private-network or same-host proxy sends it", async () => {
   const { app } = await setup()
   // Straight from the internet, a changing header does not escape the address's own lock.
   for (let n = 1; n <= 6; n++) {
@@ -240,6 +240,14 @@ Deno.test("X-Real-IP names the client only when a private-network proxy sends it
   expect(lockedClient.status).toBe(429)
   await lockedClient.body?.cancel()
   await signedIn(app, { peer: "172.18.0.2", headers: { "x-real-ip": "192.0.2.51" } })
+
+  // A proxy on the same host, such as the e2e browser's, is believed too: the client stays locked.
+  const sameHost = await signIn(app, "wrong", {
+    peer: "127.0.0.1",
+    headers: { "x-real-ip": "192.0.2.50" },
+  })
+  expect(sameHost.status).toBe(429)
+  await sameHost.body?.cancel()
 })
 
 Deno.test("a cross-site sign-in is refused with 403 and starts no session", async () => {
