@@ -61,4 +61,5 @@ services:
   radicale:
     # The same image and flags as infra/compose.dev.yml: any user name and password is accepted.
     image: ghcr.io/kozea/radicale:3.5.4
-    command: ["--hosts", "0.0.0.0:5232", "--auth-type", "none"]
+    # Woodpecker does not pass a service's `command` to the image, so the flags go in the entrypoint.
+    entrypoint: ["/app/bin/radicale", "--hosts", "0.0.0.0:5232", "--auth-type", "none"]
