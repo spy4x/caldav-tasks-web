@@ -88,8 +88,8 @@ const CHANGED_AGAIN = `The task changed again while saving. Try again.`
 
 /**
  * Saves an edit. Offline it is refused, never queued. A 412 reads the fresh copy, re-applies the
- * edit to it with the rebase from `rebaseEdit` in `@spy4x/time/ical-tasks-edit` and sends once more; fields that both sides
- * changed come back as a conflict. Moving a task to another list is not handled here yet.
+ * edit to it with `rebaseEdit` from `@spy4x/time/ical-tasks-edit` and sends once more; fields that
+ * both sides changed come back as a conflict. Moving a task to another list is not handled here yet.
  */
 export function saveTask(task: Task, edit: TaskEdit, now = new Date()): Promise<WriteResult> {
   if (edit.listHref !== undefined && edit.listHref !== task.listHref) {
