@@ -18,6 +18,7 @@ Deno.test("typing a title and sending it adds the trimmed title, empties the fie
   await mount(<QuickAdd onAdd={(title) => added.push(title)} />, async ({ root, window, act }) => {
     input(root).focus()
     input(root).value = `  Buy oat milk  `
+    input(root).blur()
     await act(() => form(root).requestSubmit())
     expect(added).toEqual([`Buy oat milk`])
     expect(input(root).value).toBe(``)

@@ -17,7 +17,7 @@ const TASKS = [
     priority: 1,
     tags: [`food`],
   }),
-  makeTask(`d`, `Done thing`, { sortOrder: 4, status: TaskStatus.Completed }),
+  makeTask(`d`, `Done thing`, { sortOrder: 4, tags: [`chores`], status: TaskStatus.Completed }),
 ]
 const props = (over: Partial<ListScreenProps> = {}): ListScreenProps => ({
   list: { href: FIXTURE_LIST_HREF, name: `Home`, color: `#e07a5f`, openCount: 4 },
@@ -80,14 +80,18 @@ Deno.test("choosing a sort in the menu reports the mode", async () => {
   )
 })
 
-Deno.test("tag chips list each tag once, and a pressed chip narrows the list to tasks with that tag", async () => {
+Deno.test("tag chips list each tag once in alphabetical order, and a pressed chip narrows the list to tasks with that tag", async () => {
   const pressed: string[][] = []
   await mount(
     <ListScreen
       {...props({ activeTags: [`food`], onActiveTagsChange: (tags) => pressed.push(tags) })}
     />,
     async ({ root, act }) => {
-      expect(texts(root, `[aria-label="Filter by tag"] button`)).toEqual([`#diy`, `#food`])
+      expect(texts(root, `[aria-label="Filter by tag"] button`)).toEqual([
+        `#chores`,
+        `#diy`,
+        `#food`,
+      ])
       expect(titles(root)).toEqual([`Apple`])
       const diy = [
         ...root.querySelectorAll<HTMLButtonElement>(`[aria-label="Filter by tag"] button`),
