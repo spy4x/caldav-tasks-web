@@ -27,7 +27,14 @@ export interface SentRequest {
 
 /** A CalDAV relay in memory: the routes the data layer uses, with real etag checking. */
 export class FakeServer {
-  calendarList: { href: string; displayName: string; color?: string; changeMarker?: string }[] = []
+  calendarList: {
+    href: string
+    displayName: string
+    color?: string
+    changeMarker?: string
+    /** What the calendar accepts; tasks only unless a test says otherwise. */
+    components?: string[]
+  }[] = []
   objects = new Map<string, FakeObject>()
   sent: SentRequest[] = []
   /** Every request throws as `fetch` does with no network. */
@@ -106,7 +113,7 @@ export class FakeServer {
     }
     if (url.pathname === CALDAV_PATHS.calendars) {
       return Response.json({
-        calendars: this.calendarList.map((c) => ({ ...c, components: [`VTODO`] })),
+        calendars: this.calendarList.map((c) => ({ ...c, components: c.components ?? [`VTODO`] })),
       })
     }
     if (url.pathname === CALDAV_PATHS.objects && request.method === `POST`) {

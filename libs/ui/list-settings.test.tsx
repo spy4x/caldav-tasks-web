@@ -4,6 +4,7 @@ import { Window } from "happy-dom"
 import { render } from "preact"
 import { act } from "preact/test-utils"
 import { renderToString } from "preact-render-to-string"
+import { LIST_HOLDS_EVENTS } from "@api/caldav.ts"
 import {
   DEFAULT_LIST_COLOR,
   deleteQuestion,
@@ -141,7 +142,8 @@ Deno.test("Delete is in More actions, names the list and its task count, and onl
   )
 })
 
-Deno.test("the delete question counts one task, many tasks, or none", () => {
+Deno.test("the delete question counts one task, many tasks, or none, and names no number when unknown", () => {
+  expect(deleteQuestion(`Shopping`, null)).toBe(`Delete Shopping and all its tasks?`)
   expect(deleteQuestion(`Shopping`, 0)).toBe(`Delete Shopping?`)
   expect(deleteQuestion(`Shopping`, 1)).toBe(`Delete Shopping and its 1 task?`)
   expect(deleteQuestion(`Shopping`, 12)).toBe(`Delete Shopping and its 12 tasks?`)
@@ -178,4 +180,22 @@ Deno.test("a failed save or delete shows its message as an alert", () => {
     <ListSettingsScreen {...props({ list: SHOPPING, error: `The CalDAV server failed` })} />,
   )
   expect(html).toMatch(/role="alert"[^>]*>The CalDAV server failed</)
+})
+
+Deno.test("while the task count is loading, Delete is disabled", async () => {
+  await mount(
+    props({ list: SHOPPING, taskCount: 1, counting: true, onDelete: () => {} }),
+    async (root) => {
+      await press(e2e(root, `list-menu`))
+      expect((e2e(root, `list-delete`) as HTMLButtonElement).disabled).toBe(true)
+    },
+  )
+})
+
+Deno.test("a list that may hold events has no Delete and says to delete it in a calendar app", () => {
+  const html = renderToString(
+    <ListSettingsScreen {...props({ list: SHOPPING, holdsEvents: true, onDelete: () => {} })} />,
+  )
+  expect(html).not.toContain(`data-e2e="list-menu"`)
+  expect(html).toContain(LIST_HOLDS_EVENTS)
 })

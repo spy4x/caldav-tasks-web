@@ -9,6 +9,7 @@ import { Input } from "@spy4x/preact-ui/input"
 import { Notice } from "@spy4x/preact-ui/notice"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import type { TaskList } from "@spy4x/time/ical-tasks-model"
+import { LIST_HOLDS_EVENTS } from "@api/caldav.ts"
 
 /** What the form hands back on Save: the trimmed name and the colour as `#rrggbb`. */
 export interface ListDraft {
@@ -20,8 +21,15 @@ export interface ListDraft {
 export interface ListSettingsScreenProps {
   /** The list to edit. Without one the screen creates a new list. */
   list?: TaskList
-  /** How many tasks the list holds, completed ones included, for the delete question. */
-  taskCount?: number
+  /**
+   * How many tasks the list holds, completed ones included, for the delete question. `null` when
+   * the completed ones could not be loaded, so the question names no number rather than a low one.
+   */
+  taskCount?: number | null
+  /** True while the completed tasks are still loading: Delete waits, so the count is never low. */
+  counting?: boolean
+  /** True when the list may also hold calendar events: it cannot be deleted here, and says why. */
+  holdsEvents?: boolean
   /** True when the app cannot reach its server: nothing can be saved or deleted then. */
   offline?: boolean
   saving?: boolean
@@ -53,8 +61,9 @@ export function pickerColor(color: string | undefined): string {
   return match ? match[0].toLowerCase() : DEFAULT_LIST_COLOR
 }
 
-/** The delete question, naming the list and how many tasks go with it. */
-export function deleteQuestion(name: string, taskCount: number): string {
+/** The delete question, naming the list and how many tasks go with it; `null` names no number. */
+export function deleteQuestion(name: string, taskCount: number | null): string {
+  if (taskCount === null) return `Delete ${name} and all its tasks?`
   if (taskCount === 0) return `Delete ${name}?`
   return `Delete ${name} and its ${taskCount} ${taskCount === 1 ? `task` : `tasks`}?`
 }
@@ -62,10 +71,12 @@ export function deleteQuestion(name: string, taskCount: number): string {
 /**
  * Create or edit a task list: its name and colour. Editing adds "Delete list" to "More actions",
  * which asks first and names the number of tasks it removes. A list is a calendar on the CalDAV
- * server, so nothing here works offline: the screen says so and disables Save and Delete.
+ * server, so nothing here works offline: the screen says so and disables Save and Delete. A list
+ * that may also hold calendar events offers no Delete, and says to delete it in a calendar app.
  */
 export function ListSettingsScreen(props: ListSettingsScreenProps): JSX.Element {
   const { list, navigate, backHref, offline = false, saving = false, deleting = false } = props
+  const { counting = false, holdsEvents = false } = props
   const [name, setName] = useState(list?.name ?? ``)
   const [color, setColor] = useState(pickerColor(list?.color))
   const [nameError, setNameError] = useState<string | undefined>()
@@ -89,7 +100,7 @@ export function ListSettingsScreen(props: ListSettingsScreenProps): JSX.Element 
     props.onSave({ name: trimmed, color })
   }
 
-  const taskCount = props.taskCount ?? 0
+  const taskCount = props.taskCount === undefined ? 0 : props.taskCount
   return (
     <div class="mx-auto w-full max-w-2xl space-y-6">
       <PageHeader
@@ -97,10 +108,10 @@ export function ListSettingsScreen(props: ListSettingsScreenProps): JSX.Element 
         subtitle={list?.name}
         back={{ href: backHref, label: `Back` }}
         navigate={navigate}
-        menu={list && props.onDelete && (
+        menu={list && props.onDelete && !holdsEvents && (
           <DropdownItem
             danger
-            disabled={offline || deleting}
+            disabled={offline || deleting || counting}
             onClick={() => setAsking(true)}
             dataE2E="list-delete"
           >
@@ -110,6 +121,9 @@ export function ListSettingsScreen(props: ListSettingsScreenProps): JSX.Element 
         menuDataE2E="list-menu"
       />
       {offline && <Notice tone="warning" data-e2e="list-offline">{LIST_ADMIN_OFFLINE}</Notice>}
+      {list && holdsEvents && (
+        <p class="text-sm text-muted" data-e2e="list-holds-events">{LIST_HOLDS_EVENTS}</p>
+      )}
       <EnhancedForm
         status={saving ? `sending` : `idle`}
         labels={{ sending: ``, done: ``, failed: `` }}
