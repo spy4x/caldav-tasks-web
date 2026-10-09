@@ -46,6 +46,7 @@ Deno.test("with no lists it says No lists yet", () => {
 
 Deno.test("while loading it shows a skeleton and no empty state", () => {
   const html = renderToString(<ListsScreen {...props({ lists: [], loading: true })} />)
-  expect(html).toContain(`aria-busy="true"`)
+  expect(html).toContain(`data-e2e="loading"`)
+  expect(html).not.toContain(`aria-busy`)
   expect(html).not.toContain(`No lists yet`)
 })

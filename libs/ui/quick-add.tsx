@@ -1,5 +1,5 @@
 import type { JSX } from "preact"
-import { useRef } from "preact/hooks"
+import { useId, useRef } from "preact/hooks"
 import { IconPlus } from "@spy4x/preact-icons"
 import { Button } from "@spy4x/preact-ui/button"
 import { Input } from "@spy4x/preact-ui/input"
@@ -27,7 +27,8 @@ export function QuickAdd(
   { onAdd, label = `New task`, placeholder = `Add a task`, hint, busy = false }: QuickAddProps,
 ): JSX.Element {
   const field = useRef<HTMLInputElement>(null)
-  const hintId = hint ? `quick-add-hint` : undefined
+  const id = useId()
+  const hintId = hint ? `${id}-hint` : undefined
 
   const submit = (event: JSX.TargetedEvent<HTMLFormElement, SubmitEvent>) => {
     event.preventDefault()

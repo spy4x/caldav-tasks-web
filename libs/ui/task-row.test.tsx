@@ -35,7 +35,30 @@ Deno.test("an open task is unchecked and a completed one is checked, struck thro
   const done = html({ task: makeTask(`1`, `Buy oat milk`, { status: TaskStatus.Completed }) })
   expect(done).toMatch(/<input[^>]*\schecked(?=[\s=/>])/)
   expect(done).toContain(`line-through`)
-  expect(done).toContain(`opacity-60`)
+  expect(done).toMatch(/line-through opacity-60/)
+})
+
+Deno.test("a done task fades only its title, so the meta line keeps its contrast", () => {
+  const done = html({
+    task: makeTask(`1`, `Buy oat milk`, {
+      status: TaskStatus.Completed,
+      due: dateOnly(`2026-10-09`),
+    }),
+  })
+  expect(done.match(/opacity-60/g)?.length).toBe(1)
+  expect(done).toMatch(/<span class="break-words line-through opacity-60">/)
+})
+
+Deno.test("a completed task with a past due date is not coloured as overdue", () => {
+  const done = html({
+    task: makeTask(`1`, `A`, { status: TaskStatus.Completed, due: dateOnly(`2026-10-07`) }),
+  })
+  expect(done).toContain(`Yesterday`)
+  expect(done).not.toContain(`text-danger`)
+})
+
+Deno.test("each row isolates its stacking, so its check cannot draw over a pinned bar", () => {
+  expect(html()).toMatch(/<li class="isolate /)
 })
 
 Deno.test("the check completes the task and the title opens it, each without the other", async () => {

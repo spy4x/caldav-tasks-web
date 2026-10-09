@@ -64,7 +64,7 @@ function tagsOf(tasks: readonly Task[]): string[] {
  */
 export function ListScreen(props: ListScreenProps): JSX.Element {
   const { list, tasks, zone } = props
-  const allTags = tagsOf(tasks)
+  const allTags = tagsOf(props.showCompleted ? tasks : tasks.filter(isOpen))
   const shown = tasks.filter((task) =>
     (props.showCompleted || isOpen(task)) &&
     (props.activeTags.length === 0 || task.tags.some((tag) => props.activeTags.includes(tag)))
@@ -152,7 +152,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
               ? (
                 <EmptyBody
                   title="No tasks yet"
-                  description="Type a title above and press Enter."
+                  description="Type a title in the field and press Enter."
                   icon={<IconCheckCircle class="size-5" />}
                 />
               )

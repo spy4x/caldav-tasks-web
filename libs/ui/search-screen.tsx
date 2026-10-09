@@ -31,6 +31,7 @@ export function SearchScreen(props: SearchScreenProps): JSX.Element {
   const groups = props.lists
     .map((list) => ({ list, tasks: results.filter((task) => task.listHref === list.href) }))
     .filter((group) => group.tasks.length > 0)
+  const total = groups.reduce((sum, group) => sum + group.tasks.length, 0)
   const searching = props.query.trim() !== ``
 
   return (
@@ -50,7 +51,7 @@ export function SearchScreen(props: SearchScreenProps): JSX.Element {
         />
         <div role="status" class="sr-only" data-e2e="search-count">
           {searching && !props.loading &&
-            `${results.length} ${results.length === 1 ? `result` : `results`}`}
+            `${total} ${total === 1 ? `result` : `results`}`}
         </div>
         {props.loading ? <LoadingBody label="Loading tasks" /> : !searching
           ? (

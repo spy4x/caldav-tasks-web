@@ -43,7 +43,7 @@ export function GroupHeading(
 /** What a screen shows while its data loads: the skeleton, announced to screen readers. */
 export function LoadingBody({ label }: { label: string }): JSX.Element {
   return (
-    <div role="status" aria-busy="true" data-e2e="loading">
+    <div role="status" data-e2e="loading">
       <span class="sr-only">{label}</span>
       <LoadingSkeleton rows={3} />
     </div>

@@ -35,6 +35,10 @@ const props = (over: Partial<ListScreenProps> = {}): ListScreenProps => ({
   onQuickAdd: () => {},
   ...over,
 })
+const mount_titles = (p: ListScreenProps) => {
+  const html = renderToString(<ListScreen {...p} />)
+  return [...html.matchAll(/data-e2e="task-open"[^>]*><span[^>]*>([^<]*)</g)].map((m) => m[1])
+}
 const titles = (root: ParentNode) => texts(root, `[data-e2e="task-open"]`)
 
 Deno.test("the list shows its name, a way back to Lists and quick add that says where tasks go", () => {
@@ -87,11 +91,7 @@ Deno.test("tag chips list each tag once in alphabetical order, and a pressed chi
       {...props({ activeTags: [`food`], onActiveTagsChange: (tags) => pressed.push(tags) })}
     />,
     async ({ root, act }) => {
-      expect(texts(root, `[aria-label="Filter by tag"] button`)).toEqual([
-        `#chores`,
-        `#diy`,
-        `#food`,
-      ])
+      expect(texts(root, `[aria-label="Filter by tag"] button`)).toEqual([`#diy`, `#food`])
       expect(titles(root)).toEqual([`Apple`])
       const diy = [
         ...root.querySelectorAll<HTMLButtonElement>(`[aria-label="Filter by tag"] button`),
@@ -101,6 +101,20 @@ Deno.test("tag chips list each tag once in alphabetical order, and a pressed chi
       expect(pressed).toEqual([[`diy`, `food`]])
     },
   )
+})
+
+Deno.test("with two tag chips pressed, a task carrying only one of them still shows", () => {
+  const out = mount_titles(props({ activeTags: [`diy`, `food`] }))
+  expect(out).toEqual([`Paint the room`, `Buy paint`, `Apple`])
+})
+
+Deno.test("tag chips come only from the tasks shown, so Show completed adds a finished task's tag", async () => {
+  const chips = `[aria-label="Filter by tag"] button`
+  await mount(<ListScreen {...props()} />, async ({ root, rerender }) => {
+    expect(texts(root, chips)).toEqual([`#diy`, `#food`])
+    await rerender(<ListScreen {...props({ showCompleted: true })} />)
+    expect(texts(root, chips)).toEqual([`#chores`, `#diy`, `#food`])
+  })
 })
 
 Deno.test("Show completed reports the new state", async () => {
@@ -149,7 +163,8 @@ Deno.test("an empty list says No tasks yet, and a filter nothing passes says why
 
 Deno.test("while loading the list shows a skeleton and no controls", () => {
   const html = renderToString(<ListScreen {...props({ loading: true })} />)
-  expect(html).toContain(`aria-busy="true"`)
+  expect(html).toContain(`data-e2e="loading"`)
+  expect(html).not.toContain(`aria-busy`)
   expect(html).not.toContain(`list-controls`)
   expect(html).not.toContain(`No tasks yet`)
 })

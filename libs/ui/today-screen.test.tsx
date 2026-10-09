@@ -75,7 +75,7 @@ Deno.test("with no tasks the screen says Nothing due today and still offers quic
 
 Deno.test("while loading the screen shows a skeleton announced as loading, not an empty state", () => {
   const html = renderToString(<TodayScreen {...props({ loading: true })} />)
-  expect(html).toContain(`role="status" aria-busy="true"`)
+  expect(html).toContain(`role="status" data-e2e="loading"`)
   expect(html).toContain(`Loading today's tasks`)
   expect(html).not.toContain(`Nothing due today`)
   expect(html).not.toContain(`data-e2e="task-row"`)

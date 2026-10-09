@@ -53,6 +53,19 @@ Deno.test("while a task is being created a send adds nothing and the typed title
 Deno.test("the hint says where the task goes and the field points at it", () => {
   const html = renderToString(<QuickAdd onAdd={() => {}} hint="Added to Errands" />)
   expect(html).toContain(`Added to Errands`)
-  expect(html).toContain(`aria-describedby="quick-add-hint"`)
-  expect(html).toContain(`id="quick-add-hint"`)
+  const id = html.match(/aria-describedby="([^"]+)"/)?.[1]
+  expect(id).toBeTruthy()
+  expect(html).toContain(`id="${id}"`)
+})
+
+Deno.test("two quick adds on a page point at their own hints", () => {
+  const html = renderToString(
+    <div>
+      <QuickAdd onAdd={() => {}} hint="One" />
+      <QuickAdd onAdd={() => {}} hint="Two" />
+    </div>,
+  )
+  const ids = [...html.matchAll(/aria-describedby="([^"]+)"/g)].map((m) => m[1])
+  expect(ids).toHaveLength(2)
+  expect(ids[0]).not.toBe(ids[1])
 })

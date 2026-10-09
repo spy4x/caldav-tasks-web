@@ -71,7 +71,9 @@ const FLAG: Record<PriorityBand, { label: string; class: string } | undefined> =
 export function TaskRow(props: TaskRowProps): JSX.Element {
   const { task, zone, now, depth = 0, list, subtaskCount = 0, expanded = false } = props
   const open = isOpen(task)
-  const due = task.due ? dueLabel(task.due, now, zone) : undefined
+  const shownDue = task.due ? dueLabel(task.due, now, zone) : undefined
+  // A finished task is never late: keep the date, drop the alarm colour.
+  const due = shownDue && !open ? { ...shownDue, tone: DueTone.Normal } : shownDue
   const flag = FLAG[priorityBand(task.priority)]
   const shownTags = task.tags.slice(0, MAX_TAGS)
   const hiddenTags = task.tags.length - shownTags.length
@@ -91,7 +93,9 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
 
   return (
     <li
-      class={`relative flex items-start gap-1 border-b border-subtle ${INDENT[Math.min(depth, 3)]}`}
+      class={`isolate relative flex items-start gap-1 border-b border-subtle ${
+        INDENT[Math.min(depth, 3)]
+      }`}
       data-e2e="task-row"
       data-task-uid={task.uid}
       onKeyDown={onKeyDown}
@@ -106,14 +110,14 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
         onChange={(event) =>
           props.onComplete(task, (event.currentTarget as HTMLInputElement).checked)}
       />
-      <div class={`min-w-0 flex-1 py-2 ${open ? `` : `opacity-60`}`}>
+      <div class="min-w-0 flex-1 py-2">
         <button
           type="button"
           class="block w-full cursor-pointer text-left text-base after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-ring)]"
           onClick={() => props.onOpen(task)}
           data-e2e="task-open"
         >
-          <span class={`break-words ${open ? `` : `line-through`}`}>{task.title}</span>
+          <span class={`break-words ${open ? `` : `line-through opacity-60`}`}>{task.title}</span>
         </button>
         <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
           {due && <span class={TONE_CLASS[due.tone]} data-e2e="task-due">{due.text}</span>}

@@ -37,6 +37,17 @@ Deno.test("results are grouped by list in the lists' order and match titles, not
   })
 })
 
+Deno.test("the result count counts only the tasks shown, not ones in a list that is not shown", async () => {
+  const stray = makeTask(`9`, `Paint the fence`, { listHref: `/l/gone/` })
+  await mount(
+    <SearchScreen {...props({ tasks: [...props().tasks, stray] })} />,
+    async ({ root }) => {
+      expect(texts(root, `[data-e2e="task-open"]`)).toHaveLength(3)
+      expect(texts(root, `[data-e2e="search-count"]`)).toEqual([`3 results`])
+    },
+  )
+})
+
 Deno.test("a tag alone finds a task", async () => {
   await mount(<SearchScreen {...props({ query: `diy` })} />, async ({ root }) => {
     expect(texts(root, `[data-e2e="task-open"]`)).toEqual([`Buy paint`])
@@ -71,7 +82,8 @@ Deno.test("a blank query invites a search and a query nothing matches says so", 
 
 Deno.test("while loading it shows a skeleton and announces no count", () => {
   const html = renderToString(<SearchScreen {...props({ loading: true })} />)
-  expect(html).toContain(`aria-busy="true"`)
+  expect(html).toContain(`data-e2e="loading"`)
+  expect(html).not.toContain(`aria-busy`)
   expect(html).not.toContain(`results`)
 })
 

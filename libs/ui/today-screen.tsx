@@ -65,7 +65,7 @@ export function TodayScreen(props: TodayScreenProps): JSX.Element {
         ? (
           <EmptyBody
             title="Nothing due today"
-            description="Add a task above, or enjoy the quiet."
+            description="Add a task in the field, or enjoy the quiet."
             icon={<IconSun class="size-5" />}
           />
         )

@@ -50,7 +50,8 @@ Deno.test("with no tasks in the next days it says Nothing coming up", () => {
 
 Deno.test("while loading the screen shows a skeleton, not the empty state", () => {
   const html = renderToString(<UpcomingScreen {...props({ days: [], loading: true })} />)
-  expect(html).toContain(`aria-busy="true"`)
+  expect(html).toContain(`data-e2e="loading"`)
+  expect(html).not.toContain(`aria-busy`)
   expect(html).not.toContain(`Nothing coming up`)
 })
 
