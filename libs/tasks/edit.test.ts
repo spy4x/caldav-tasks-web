@@ -65,6 +65,25 @@ for (const [name, ics] of EVERY_FIXTURE) {
   })
 }
 
+for (const [name, ics] of EVERY_FIXTURE) {
+  Deno.test(`a whole-form save of ${name} that changes only the title keeps SEQUENCE, DUE and DTSTART`, () => {
+    const before = fixtureTask(ics)
+    const { ics: after } = edited(ics, {
+      title: `Renamed`,
+      notes: before.notes,
+      due: before.due ?? null,
+      start: before.start ?? null,
+      priority: before.priority,
+      tags: before.tags,
+    })
+    const removed = difference(lines(ics), lines(after))
+    const added = difference(lines(after), lines(ics))
+    const allowed = /^(SUMMARY|DTSTAMP|LAST-MODIFIED)[:;]/
+    expect(removed.filter((line) => !allowed.test(line))).toEqual([])
+    expect(added.filter((line) => !allowed.test(line))).toEqual([])
+  })
+}
+
 Deno.test(`a due date edit raises SEQUENCE by one each time it is saved`, () => {
   const due = (date: string) => ({ kind: IcalDateKind.Date, date }) as const
   const first = edited(task(`1`, `A`), { due: due(`2026-11-02`) })

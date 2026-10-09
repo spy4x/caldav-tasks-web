@@ -1,10 +1,10 @@
 /**
  * Applies an editor change to a task as a lossless patch of its original iCalendar text. Only the
- * changed properties are rewritten; `@spy4x/time`'s `patchTodo` also stamps `DTSTAMP` and
- * `LAST-MODIFIED`, and raises `SEQUENCE` whenever the edit includes `due` or `start`, changed or
- * not (a title, notes, tags or priority alone leave it). Every other line is written back byte for
- * byte, so reminders and `X-` properties that Tasks.org or another client wrote survive. Nothing
- * here reads the clock or the network.
+ * changed properties are rewritten, so the editor may send every field on save; `@spy4x/time`'s
+ * `patchTodo` also stamps `DTSTAMP` and `LAST-MODIFIED`, and raises `SEQUENCE` only when `due` or
+ * `start` really changes (a rename of a dated task leaves it). Every other line is written back
+ * byte for byte, so reminders and `X-` properties that Tasks.org or another client wrote survive.
+ * Nothing here reads the clock or the network.
  */
 
 import { parseIcal, serializeIcal } from "@spy4x/time/ical"
@@ -71,7 +71,7 @@ export interface EditOutput {
 export function editTask(task: Task, edit: TaskEdit, now: Date): EditResult {
   const parsed = parseIcal(task.ics)
   if (!parsed.success) return { success: false, output: null, error: parsed.error.message }
-  const patched = patchTodo(parsed.output, toPatch(edit), { now })
+  const patched = patchTodo(parsed.output, toPatch(task, edit), { now })
   if (!patched.success) return { success: false, output: null, error: patched.error.message }
   const ics = serializeIcal(parsed.output)
   // The list is where the task lives, not a property of the text, so it is carried over as given.
@@ -90,14 +90,15 @@ export function editTask(task: Task, edit: TaskEdit, now: Date): EditResult {
   return { success: true, output, error: null }
 }
 
-function toPatch(edit: TaskEdit): TodoPatch {
+function toPatch(task: Task, edit: TaskEdit): TodoPatch {
   const patch: TodoPatch = {}
   if (edit.title !== undefined) patch.summary = edit.title
   // Empty notes remove the line; an empty `DESCRIPTION:` would be left otherwise.
   if (edit.notes !== undefined) patch.description = edit.notes === `` ? null : edit.notes
   if (edit.due !== undefined) patch.due = edit.due
   if (edit.start !== undefined) patch.start = edit.start
-  if (edit.priority !== undefined) patch.priority = edit.priority
+  // A task without PRIORITY reads as 0, so an unchanged 0 must not write `PRIORITY:0`.
+  if (edit.priority !== undefined && edit.priority !== task.priority) patch.priority = edit.priority
   if (edit.tags !== undefined) patch.categories = edit.tags.length ? edit.tags : null
   if (edit.sortOrder !== undefined) patch.sortOrder = edit.sortOrder
   return patch
