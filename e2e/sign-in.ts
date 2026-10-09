@@ -23,3 +23,12 @@ export async function signIn(page: Page): Promise<void> {
   await submitPassword(page)
   await expect(pageTitle(page)).toBeVisible()
 }
+
+/** Waits until the service worker controls the page, reloading once if it only just installed. */
+export async function underWorker(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready
+  })
+  await page.reload()
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true)
+}
