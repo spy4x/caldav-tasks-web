@@ -35,8 +35,9 @@ e2e/                  Playwright; fixtures seed Radicale
 tests/                guard tests: ui-boundary and spacing
 infra/compose.dev.yml Radicale for development and e2e
 .woodpecker/ci.yml    check, build, e2e on pull requests, main and tags
-.woodpecker/release.yml  on a v* tag, after ci: image to Docker Hub (repo trusted for volumes:
-                      it mounts the agent's Docker socket)
+.woodpecker/release.yml  on a v* tag on main, after ci: kaniko builds the image with no secret,
+                      then crane alone pushes it to Docker Hub. The repo is untrusted: no
+                      volumes, no privileged steps, no Docker socket.
 ```
 
 Aliases: `@api/` is `libs/api/`, `@tasks/` is `libs/tasks/`, `@ui/` is `libs/ui/`.

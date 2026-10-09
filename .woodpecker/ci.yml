@@ -24,6 +24,16 @@ steps:
       - deno task build
     depends_on: [check]
 
+  image:
+    # Builds the release image the way release.yml does (the same Dockerfile, through kaniko, as
+    # an ordinary container) but pushes nothing and reads no secret, so a pull request shows the
+    # image still builds without a Docker socket or a trusted repository.
+    image: woodpeckerci/plugin-kaniko:2.3.3@sha256:d6ecc0f37561503eeacd8f2189068c5a13c531f5629cf2ce2de0ac144824c9f4
+    commands:
+      - executor --context "$$PWD" --dockerfile Dockerfile --build-arg APP_VERSION=pr --no-push
+    when:
+      - event: pull_request
+
   e2e:
     # The image carries Chromium and its system libraries, so nothing is installed through Deno
     # (`playwright install` downloads the browser and then hangs).
