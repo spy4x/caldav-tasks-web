@@ -3,7 +3,7 @@ import { expect } from "@std/expect"
 import { act } from "preact/test-utils"
 import { makeTask } from "@ui/task-fixtures.ts"
 import { flatNodes, TaskTree } from "@ui/task-tree.tsx"
-import { mount, must } from "@ui/mount.test.tsx"
+import { focused, mount, must } from "@ui/mount.test.tsx"
 import { shortcutsOpen } from "../shortcuts.ts"
 import { useShortcuts } from "./use-shortcuts.ts"
 
@@ -154,4 +154,43 @@ Deno.test("in the task editor g t, g u, g l, n and / do nothing but ? still open
     expect(shortcutsOpen.value).toBe(true)
   })
   shortcutsOpen.value = false
+})
+
+/** Lets the mutation observers run. */
+const observed = () => act(() => new Promise<void>((done) => setTimeout(done, 10)))
+
+Deno.test("after it has focused the new-task field, n stops watching the page", async () => {
+  await mount(<Page log={[]} />, async ({ window, rerender }) => {
+    await key(window as never, window.document.body as never, `n`)
+    await rerender(<Page log={[]} quickAdd />)
+    await observed()
+    expect(focused(window)).toBe(`input quick-add-input`)
+    ;(window.document.activeElement as unknown as HTMLElement).blur()
+    await rerender(<Page log={[]} />)
+    await rerender(<Page log={[]} quickAdd />)
+    await observed()
+    expect(focused(window)).toBe(`body `)
+  })
+})
+
+Deno.test("n off Today leaves the focus where the person moved it before the field appears", async () => {
+  await mount(<Page log={[]} />, async ({ root, window, rerender }) => {
+    await key(window as never, window.document.body as never, `n`)
+    must<HTMLInputElement>(root, `#field`).focus()
+    await rerender(<Page log={[]} quickAdd />)
+    await observed()
+    expect(focused(window)).toBe(`input field`)
+  })
+})
+
+Deno.test("a second shortcut replaces the first one's wait for its field", async () => {
+  const log: string[] = []
+  await mount(<Page log={log} />, async ({ window, rerender }) => {
+    await key(window as never, window.document.body as never, `n`)
+    await key(window as never, window.document.body as never, `/`)
+    expect(log).toEqual([`go /`, `go /search`])
+    await rerender(<Page log={log} quickAdd search />)
+    await observed()
+    expect(focused(window)).toBe(`input search-input`)
+  })
 })

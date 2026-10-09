@@ -6,22 +6,34 @@ import { createShortcutMatcher, shortcutAllowed, ShortcutId, shortcutsOpen } fro
 const QUICK_ADD = `[data-e2e="quick-add-input"]`
 const SEARCH = `[data-e2e="search-input"]`
 
+/** Stops the watcher `focusWhenThere` left waiting, if there is one. */
+let stopWaiting = () => {}
+
 /**
  * Focuses the first element a selector finds, now if it is there, else the moment the page draws
- * it (a mutation observer runs before the next key press can arrive). Gives up after two seconds,
- * and never takes the focus back from where the person has moved on.
+ * it (a mutation observer runs before the next key press can arrive). One watcher waits at a time:
+ * a newer shortcut replaces it. It stops once the field is there or after two seconds. It focuses
+ * the field only while the focus is still where the key was pressed, or nowhere, so it never takes
+ * the focus from where the person has moved on.
  */
 function focusWhenThere(selector: string): void {
+  stopWaiting()
   const now = document.querySelector<HTMLElement>(selector)
   if (now) return now.focus()
+  const pressedOn = document.activeElement
   const watcher = new (document.defaultView?.MutationObserver ?? MutationObserver)(() => {
     const field = document.querySelector<HTMLElement>(selector)
     if (!field) return
+    stopWaiting()
+    const active = document.activeElement
+    if (!active || active === document.body || active === pressedOn) field.focus()
+  })
+  const giveUp = setTimeout(() => stopWaiting(), 2000)
+  stopWaiting = () => {
     watcher.disconnect()
     clearTimeout(giveUp)
-    field.focus()
-  })
-  const giveUp = setTimeout(() => watcher.disconnect(), 2000)
+    stopWaiting = () => {}
+  }
   watcher.observe(document.body, { childList: true, subtree: true })
 }
 
@@ -96,4 +108,5 @@ export function useShortcuts(navigate: (to: string) => void, path: string): void
     document.addEventListener(`keydown`, onKeyDown)
     return () => document.removeEventListener(`keydown`, onKeyDown)
   }, [match, navigate])
+  useEffect(() => () => stopWaiting(), [])
 }
