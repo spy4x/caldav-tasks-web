@@ -1,3 +1,4 @@
+import { useNow } from "@spy4x/preact-signals/now"
 import { useLocation } from "wouter-preact"
 import { upcomingView } from "@spy4x/platform/universal/ical-tasks-view"
 import { UpcomingScreen } from "@ui/upcoming-screen.tsx"
@@ -12,7 +13,7 @@ import { completeWithUndo } from "./task-actions.ts"
 export function UpcomingView() {
   const [, navigate] = useLocation()
   const zone = browserZone()
-  const now = new Date()
+  const now = useNow({ zone }).value
   return (
     <UpcomingScreen
       days={upcomingView(tasks.value, now, zone)}

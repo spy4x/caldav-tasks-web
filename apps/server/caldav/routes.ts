@@ -174,8 +174,15 @@ export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOp
     if (!calendar.ok) return failed(c, calendar.failure)
     if (!calendar.value) return outside(c)
     const url = calendar.value.url
-    const outcome = await call("createObject", () =>
-      client.createObject(url, body.ics, body.name === undefined ? undefined : { name: body.name }))
+    const outcome = await call(
+      "createObject",
+      () =>
+        client.createObject(
+          url,
+          body.ics,
+          body.name === undefined ? undefined : { name: body.name },
+        ),
+    )
     if (!outcome.ok) return failed(c, outcome.failure)
     return c.json(toWriteResult(outcome.value), 201)
   })

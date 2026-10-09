@@ -1,3 +1,4 @@
+import { useNow } from "@spy4x/preact-signals/now"
 import { useLocation } from "wouter-preact"
 import { todayView } from "@spy4x/platform/universal/ical-tasks-view"
 import { TodayScreen } from "@ui/today-screen.tsx"
@@ -14,7 +15,7 @@ export function TodayView() {
   const [, navigate] = useLocation()
   const quickAdd = useQuickAdd({ dueToday: true })
   const zone = browserZone()
-  const now = new Date()
+  const now = useNow({ zone }).value
   const { overdue, today } = todayView(tasks.value, now, zone)
   return (
     <TodayScreen
