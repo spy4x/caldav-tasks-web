@@ -1,9 +1,9 @@
 /// <reference lib="deno.ns" />
-// Dexie reads `indexedDB` when it loads, so the fake must be imported before anything that uses it.
+// The cache reads the global `indexedDB` when it first opens, so the fake is installed first.
 import "fake-indexeddb/auto"
 import { CALDAV_PATHS } from "@api/caldav.ts"
 import { connection, resetConnection } from "./connection.ts"
-import { createDexieStorage, useStorage } from "./db.ts"
+import { createIndexedDbStorage, useStorage } from "./db.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { cacheUnavailable, lastSyncedAt } from "./sync.ts"
 import { createTestOutboxStore, useOutboxStore } from "./outbox.ts"
@@ -156,7 +156,7 @@ export async function withApp(test: (server: FakeServer) => Promise<void>): Prom
     Promise.resolve(
       server.handle(new Request(new URL(String(input), `http://app.localhost`), init)),
     )
-  useStorage(createDexieStorage(`test-${++databases}`))
+  useStorage(createIndexedDbStorage(`test-${++databases}`))
   useOutboxStore(createTestOutboxStore())
   reset()
   const stopWatching = connection.watch({
