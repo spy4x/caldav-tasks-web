@@ -3,9 +3,17 @@ import { ApiErrorCode } from "@api/errors.ts"
 import { createTask, type NewTaskFields } from "@spy4x/time/ical-tasks-edit"
 import { PRODID } from "@tasks/identity.ts"
 import { parseTask, type Task } from "@spy4x/time/ical-tasks-model"
-import { offline, OFFLINE_NOTICE, relay } from "./connection.ts"
-import { cacheUnavailable, getStorage } from "./db.ts"
-import { remember, tasks, WriteKind, type WriteResult } from "./tasks.ts"
+import { offline, relay } from "./connection.ts"
+import {
+  createdHref,
+  fileIdFor,
+  queueCreate,
+  queueDelete,
+  queuedFor,
+  withdrawQueued,
+} from "./outbox.ts"
+import { forget, remember } from "./task-store.ts"
+import { WriteKind, type WriteResult } from "./tasks.ts"
 
 const CHANGED_ON_SERVER = `The task changed on the server. Reload it and try again.`
 
@@ -16,8 +24,8 @@ export interface NewTaskPlace {
 }
 
 /**
- * Creates a task on the server and in the cache. Offline it is refused, never queued. `uid` and
- * `now` default to a fresh random UID and the clock; tests pass their own.
+ * Creates a task on the server and in the cache. Offline it is queued and sent when the network
+ * returns. `uid` and `now` default to a fresh random UID and the clock; tests pass their own.
  */
 export async function addTask(
   fields: NewTaskFields,
@@ -33,26 +41,45 @@ export async function addTask(
     parent: place.parent,
   })
   if (!built.success) return { kind: WriteKind.Failed, message: built.error }
-  return await post(built.output.listHref, built.output.ics)
+  return await post(built.output.listHref, built.output.ics, uid)
 }
 
 /**
  * Puts a deleted task back: the same text, created again in its list. This is Undo for a delete.
  */
-export function restoreTask(task: Task): Promise<WriteResult> {
-  return post(task.listHref, task.ics)
+export async function restoreTask(task: Task): Promise<WriteResult> {
+  // A delete still waiting in the queue is taken back there; the server never heard of it.
+  if (queuedFor(task) && await withdrawQueued(task)) {
+    return { kind: WriteKind.Saved, task, queued: true }
+  }
+  return await post(task.listHref, task.ics, task.uid)
 }
 
-async function post(listHref: string, ics: string): Promise<WriteResult> {
-  if (offline.value) return { kind: WriteKind.Offline, notice: OFFLINE_NOTICE }
+/** Queues a create and answers with the task as it will be once the server has it. */
+async function queued(listHref: string, ics: string, fileId: string): Promise<WriteResult> {
+  const outcome = await queueCreate(listHref, fileId, ics)
+  if (outcome.kind === `failed`) {
+    const message = outcome.error instanceof Error ? outcome.error.message : CHANGED_ON_SERVER
+    return { kind: WriteKind.Failed, message }
+  }
+  const parsed = parseTask({ href: createdHref(listHref, fileId), etag: ``, listHref, ics })
+  if (!parsed.success) return { kind: WriteKind.Failed, message: parsed.error }
+  return { kind: WriteKind.Saved, task: parsed.output, queued: true }
+}
+
+async function post(listHref: string, ics: string, uid: string): Promise<WriteResult> {
+  const fileId = fileIdFor(uid)
+  if (offline.value) return await queued(listHref, ics, fileId)
+  // The object is named after the task, so a create whose answer was lost and is sent again finds
+  // its own object instead of making a second one.
   const result = await relay(
     CALDAV_PATHS.objects,
-    { method: `POST`, body: { calendar: listHref, ics } },
+    { method: `POST`, body: { calendar: listHref, ics, name: `${fileId}.ics` } },
     writeResultSchema,
   )
   if (!result.ok) {
     return result.offline
-      ? { kind: WriteKind.Offline, notice: OFFLINE_NOTICE }
+      ? await queued(listHref, ics, fileId)
       : { kind: WriteKind.Failed, message: result.message }
   }
   const parsed = parseTask({
@@ -66,31 +93,38 @@ async function post(listHref: string, ics: string): Promise<WriteResult> {
   return { kind: WriteKind.Saved, task: parsed.output }
 }
 
+/** Queues a delete. The task leaves the screens at once; the server hears of it later. */
+async function queuedDelete(task: Task): Promise<WriteResult> {
+  if (!task.etag && !queuedFor(task)) {
+    return { kind: WriteKind.Failed, message: CHANGED_ON_SERVER }
+  }
+  const outcome = await queueDelete(task)
+  if (outcome.kind === `failed`) {
+    const message = outcome.error instanceof Error ? outcome.error.message : CHANGED_ON_SERVER
+    return { kind: WriteKind.Failed, message }
+  }
+  return { kind: WriteKind.Saved, task, queued: outcome.kind !== `sent` }
+}
+
 /**
- * Deletes a task on the server, then drops it from the cache. Refused when the server's copy
- * changed since it was read, so a delete never removes an edit it has not seen. Subtasks are not
- * touched. Resolves with the deleted task, so Undo can {@link restoreTask} it.
+ * Deletes a task on the server, then drops it from the cache. Offline it is queued. Refused when
+ * the server's copy changed since it was read, so a delete never removes an edit it has not seen.
+ * Subtasks are not touched. Resolves with the deleted task, so Undo can {@link restoreTask} it.
  */
 export async function deleteTask(task: Task): Promise<WriteResult> {
-  if (offline.value) return { kind: WriteKind.Offline, notice: OFFLINE_NOTICE }
+  if (offline.value || queuedFor(task)) return await queuedDelete(task)
   if (!task.etag) return { kind: WriteKind.Failed, message: CHANGED_ON_SERVER }
   const result = await relay(CALDAV_PATHS.object, {
     method: `DELETE`,
     body: { href: task.href, etag: task.etag },
   })
   if (!result.ok) {
-    if (result.offline) return { kind: WriteKind.Offline, notice: OFFLINE_NOTICE }
+    if (result.offline) return await queuedDelete(task)
     return {
       kind: WriteKind.Failed,
       message: result.code === ApiErrorCode.Conflict ? CHANGED_ON_SERVER : result.message,
     }
   }
-  try {
-    await getStorage().deleteTask(task.href)
-  } catch {
-    // The server has the delete already; a failing cache must not report it as lost.
-    cacheUnavailable.value = true
-  }
-  tasks.value = tasks.value.filter((other) => other.href !== task.href)
+  await forget(task.href)
   return { kind: WriteKind.Saved, task }
 }

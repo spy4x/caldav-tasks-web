@@ -45,9 +45,6 @@ export function TaskEditorView() {
       case WriteKind.Conflict:
         conflict.value = result.conflict
         return false
-      case WriteKind.Offline:
-        errors.value = { form: result.notice }
-        return false
       case WriteKind.Failed:
         errors.value = { form: result.message }
         return false
@@ -90,7 +87,6 @@ export function TaskEditorView() {
       timeZone={browserZone()}
       onAddSubtask={(title) =>
         void addTask({ title }, { listHref: task.listHref, parent: task }).then((result) => {
-          if (result.kind === WriteKind.Offline) toasts.error({ title: ``, body: result.notice })
           if (result.kind === WriteKind.Failed) toasts.error({ title: ``, body: result.message })
         })}
       onDelete={async () => {

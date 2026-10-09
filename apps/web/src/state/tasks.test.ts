@@ -56,28 +56,28 @@ Deno.test(`a saved edit sends the etag it was read with and caches the new text 
   })
 })
 
-Deno.test(`a write while offline is refused with the notice and nothing is sent`, async () => {
+Deno.test(`a write while offline is queued, shown at once and not sent`, async () => {
   await withApp(async (server) => {
     const before = await start(server)
     setBrowserOnline(false)
     const result = await saveTask(before, { title: `Changed` }, NOW)
-    expect(result).toEqual({ kind: WriteKind.Offline, notice: OFFLINE_NOTICE })
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
     expect(server.sent).toEqual([])
-    // Never queued: going online again sends nothing by itself.
-    setBrowserOnline(true)
-    expect(server.sent).toEqual([])
-    expect(tasks.value[0].title).toBe(`Buy milk`)
+    expect(tasks.value[0].title).toBe(`Changed`)
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Buy milk`)
   })
 })
 
-Deno.test(`a write that gets no answer is refused as offline and the cached task is unchanged`, async () => {
+Deno.test(`a write that gets no answer is queued and the cached copy is the server's`, async () => {
   await withApp(async (server) => {
     const before = await start(server)
     server.down = true
     const result = await saveTask(before, { title: `Changed` }, NOW)
-    expect(result.kind).toBe(WriteKind.Offline)
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
     expect(notice.value).toBe(OFFLINE_NOTICE)
-    expect(tasks.value[0].title).toBe(`Buy milk`)
+    expect(tasks.value[0].title).toBe(`Changed`)
     expect((await getStorage().listTasks())[0].ics).toBe(before.ics)
   })
 })
