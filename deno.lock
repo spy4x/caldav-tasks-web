@@ -22,8 +22,8 @@
     "jsr:@spy4x/preact-ui@^3.7.0": "3.7.0",
     "jsr:@spy4x/server@1.39.0": "1.39.0",
     "jsr:@spy4x/time@1.10.0": "1.10.0",
-    "jsr:@spy4x/time@1.39.0": "1.39.0",
-    "jsr:@spy4x/time@^1.39.0": "1.39.0",
+    "jsr:@spy4x/time@1.40.0": "1.40.0",
+    "jsr:@spy4x/time@^1.39.0": "1.40.0",
     "jsr:@spy4x/validation@1.10.0": "1.10.0",
     "jsr:@spy4x/validation@^1.10.0": "1.39.0",
     "jsr:@spy4x/validation@^1.39.0": "1.39.0",
@@ -192,8 +192,8 @@
     "@spy4x/time@1.10.0": {
       "integrity": "b307fd6c7952cd2336b83f48c742d9c72343da26c18da5ac000f20cd972b4b18"
     },
-    "@spy4x/time@1.39.0": {
-      "integrity": "dde53c5d0f5b2fdbfa83c3a79a1053498f502940e9630b1d5655772582dcad47"
+    "@spy4x/time@1.40.0": {
+      "integrity": "47444915ae3fef162f6c16d218e7c722150a3c53a5a946c76366162b1e750bc6"
     },
     "@spy4x/validation@1.10.0": {
       "integrity": "255e6c78f08149fb1b073ad76bf437ad7e15958ccd13a2630fd96e7b2df8f95b",
@@ -1455,7 +1455,7 @@
       "jsr:@spy4x/preact-theme@3.7.0",
       "jsr:@spy4x/preact-ui@3.7.0",
       "jsr:@spy4x/server@1.39.0",
-      "jsr:@spy4x/time@1.39.0",
+      "jsr:@spy4x/time@1.40.0",
       "jsr:@std/expect@1.0.17",
       "jsr:@std/fs@1.0.24",
       "jsr:@std/path@1.1.6",
