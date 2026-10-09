@@ -23,7 +23,8 @@ function Harness({ initial, keep = false }: { initial: Task[]; keep?: boolean })
           zone="UTC"
           now={NOW}
           onComplete={(task) => {
-            if (!keep) setTasks((current) => current.filter((t) => t.uid !== task.uid))
+            // A kept row still re-renders, as it does when the server answers.
+            setTasks((current) => keep ? [...current] : current.filter((t) => t.uid !== task.uid))
           }}
           onOpen={() => {}}
         />
@@ -60,10 +61,13 @@ Deno.test("checking the only row moves focus to the task region, not to the top 
   })
 })
 
-Deno.test("a row that stays keeps focus on its own check", async () => {
+Deno.test("a row that stays gets focus back on its own check when the page dropped it", async () => {
   await mount(<Harness initial={THREE} keep />, async ({ root, window, act }) => {
     check(root, `a`).focus()
-    await act(() => check(root, `a`).click())
+    await act(() => {
+      check(root, `a`).click()
+      check(root, `a`).blur()
+    })
     expect(focused(window)).toBe(`check a`)
   })
 })

@@ -78,8 +78,14 @@ Deno.test("Left Arrow on a row collapses its subtasks and Right Arrow expands th
 Deno.test("collapsing a task leaves the other tasks' state alone", async () => {
   await mount(tree(), async ({ root, act }) => {
     // Collapse "Buy paint" (it has the one grandchild); "Paint the room" stays open.
-    const expander = must<HTMLButtonElement>(root, `[data-task-uid="c1"] [data-e2e="task-expand"]`)
-    await act(() => expander.click())
+    const expander = (uid: string) =>
+      must<HTMLButtonElement>(root, `[data-task-uid="${uid}"] [data-e2e="task-expand"]`)
+    await act(() => expander(`c1`).click())
+    expect(titles(root)).toEqual([`Paint the room`, `Buy paint`, `Tape the edges`, `Fix the door`])
+    // Folding the parent away and back must not forget that "Buy paint" is folded.
+    await act(() => expander(`p`).click())
+    expect(titles(root)).toEqual([`Paint the room`, `Fix the door`])
+    await act(() => expander(`p`).click())
     expect(titles(root)).toEqual([`Paint the room`, `Buy paint`, `Tape the edges`, `Fix the door`])
   })
 })
