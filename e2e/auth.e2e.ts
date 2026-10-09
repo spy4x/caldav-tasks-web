@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test"
 import { OWNER_PASSWORD } from "./env.ts"
+import { pageTitle } from "./sign-in.ts"
 
 /**
  * Gives this page's requests their own client address. The server believes X-Real-IP from a
@@ -40,7 +41,7 @@ test(
     await actAs(page, `198.51.100.${20 + info.retry}`)
     await page.goto(`/`)
     await submit(page, OWNER_PASSWORD)
-    await expect(page.getByTestId(`page-title`)).toHaveText(`Today`)
+    await expect(pageTitle(page)).toHaveText(`Today`)
 
     const [cookie] = await context.cookies()
     expect(cookie).toMatchObject({
@@ -53,7 +54,7 @@ test(
     expect(await page.evaluate(() => document.cookie)).toBe(``)
 
     await page.reload()
-    await expect(page.getByTestId(`page-title`)).toHaveText(`Today`)
+    await expect(pageTitle(page)).toHaveText(`Today`)
 
     // The UI has no sign-out button yet, so the page calls the route the way the app will.
     const status = await page.evaluate(async () =>

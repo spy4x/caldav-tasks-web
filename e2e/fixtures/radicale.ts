@@ -37,7 +37,10 @@ async function caldav(
  * Creates a fresh task list (a calendar that accepts VTODOs) on Radicale with one task, under a
  * name no other run uses, so runs never see each other's data.
  */
-export async function seedTaskList(title = `Seeded task`): Promise<SeededList> {
+export async function seedTaskList(
+  title = `Seeded task`,
+  extraLines: string[] = [],
+): Promise<SeededList> {
   const id = crypto.randomUUID()
   const calendarUrl = `${RADICALE_URL}/${CALDAV_USERNAME}/${id}/`
   await caldav(
@@ -68,6 +71,7 @@ export async function seedTaskList(title = `Seeded task`): Promise<SeededList> {
       `DTSTAMP:20261008T090000Z`,
       `SUMMARY:${title}`,
       `STATUS:NEEDS-ACTION`,
+      ...extraLines,
       `END:VTODO`,
       `END:VCALENDAR`,
       ``,
@@ -77,11 +81,47 @@ export async function seedTaskList(title = `Seeded task`): Promise<SeededList> {
   return { calendarUrl, taskUrl, uid, title }
 }
 
+/** Adds one more task to a seeded list and returns its address on Radicale. */
+export async function addSeededTask(
+  list: SeededList,
+  title: string,
+  extraLines: string[] = [],
+): Promise<string> {
+  const uid = crypto.randomUUID()
+  const taskUrl = `${list.calendarUrl}${uid}.ics`
+  await caldav(
+    `PUT`,
+    taskUrl,
+    { "Content-Type": `text/calendar; charset=utf-8`, "If-None-Match": `*` },
+    [
+      `BEGIN:VCALENDAR`,
+      `VERSION:2.0`,
+      `PRODID:-//caldav-tasks-web//e2e//EN`,
+      `BEGIN:VTODO`,
+      `UID:${uid}`,
+      `DTSTAMP:20261008T090000Z`,
+      `SUMMARY:${title}`,
+      `STATUS:NEEDS-ACTION`,
+      ...extraLines,
+      `END:VTODO`,
+      `END:VCALENDAR`,
+      ``,
+    ].join(`\r\n`),
+    [201],
+  )
+  return taskUrl
+}
+
 /** Reads a task back from Radicale as iCalendar text. */
 export async function readTask(taskUrl: string): Promise<string> {
   const response = await fetch(taskUrl, { headers: { Authorization: authorization() } })
   if (!response.ok) throw new Error(`GET ${taskUrl} answered ${response.status}`)
   return await response.text()
+}
+
+/** Reads every task of a list from Radicale as one iCalendar text. */
+export async function readList(list: SeededList): Promise<string> {
+  return await readTask(list.calendarUrl)
 }
 
 /** Deletes a list the fixture created, so a run leaves Radicale as it found it. */
