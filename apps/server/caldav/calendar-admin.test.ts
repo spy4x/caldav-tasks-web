@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { CalDavErrorCode } from "@spy4x/caldav"
-import { CALDAV_PATHS } from "@api/caldav.ts"
+import { CALDAV_PATHS, LIST_HOLDS_EVENTS } from "@api/caldav.ts"
 import { DAV, EVENTS, HOME, OPEN, ORIGIN, setup, TASKS } from "./fake-caldav.test.ts"
 
 /** The calls that change a calendar. */
@@ -111,6 +111,31 @@ Deno.test("deletes a listed list, then refuses its tasks without asking the CalD
   expect(after.status).toBe(400)
   await after.body?.cancel()
   expect(dav.calls.some(([method]) => method === "getObject")).toBe(false)
+})
+
+Deno.test("refuses to delete a list that may hold events, but still renames it", async () => {
+  const { dav, send } = await setup()
+  const mixed = "/test-user/personal/"
+  const unrestricted = "/test-user/everything/"
+  dav.calendars.push(
+    { url: `${DAV}${mixed}`, displayName: "Personal", components: ["VEVENT", "VTODO"] },
+    { url: `${DAV}${unrestricted}`, displayName: "Everything", components: [] },
+  )
+  for (const href of [mixed, unrestricted]) {
+    const response = await send(CALDAV_PATHS.calendar, { method: "DELETE", body: { href } })
+    expect([href, response.status, await response.json()]).toEqual([
+      href,
+      400,
+      { code: "bad_request", message: LIST_HOLDS_EVENTS },
+    ])
+  }
+  expect(dav.calls.filter(([method]) => method === "deleteCalendar")).toEqual([])
+
+  const renamed = await send(CALDAV_PATHS.calendar, {
+    method: "PATCH",
+    body: { href: mixed, displayName: "Home" },
+  })
+  expect(renamed.status).toBe(204)
 })
 
 Deno.test("refuses an href outside the user's lists before any request names it", async () => {

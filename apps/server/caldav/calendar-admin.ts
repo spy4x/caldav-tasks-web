@@ -4,9 +4,11 @@ import {
   type CalendarCreated,
   createCalendarRequestSchema,
   deleteCalendarRequestSchema,
+  isTasksOnly,
+  LIST_HOLDS_EVENTS,
   updateCalendarRequestSchema,
 } from "@api/caldav.ts"
-import { failed, outside, readRequest } from "./http.ts"
+import { failed, outside, readRequest, refuse } from "./http.ts"
 import type { Outcome } from "./routes.ts"
 import { hrefOf } from "./scope.ts"
 
@@ -35,8 +37,8 @@ export function toCalendarColor(color: string): string {
  * Task-list administration: create a list in the account's first calendar home, and rename,
  * recolour or delete a list the relay listed. A new list accepts VTODO only, as Tasks.org creates
  * one. Any href that is not a listed task list (another user's calendar, an event calendar, a
- * task) is refused with 400 before a request leaves the server. Mounted under `/api/caldav`, behind
- * the session guard.
+ * task) is refused with 400 before a request leaves the server. So is deleting a list that may also
+ * hold events. Mounted under `/api/caldav`, behind the session guard.
  */
 export function createCalendarAdminRoutes(relay: CalendarRelay): Hono {
   const { client, call } = relay
@@ -82,6 +84,8 @@ export function createCalendarAdminRoutes(relay: CalendarRelay): Hono {
     const calendar = await relay.findCalendar(body.href)
     if (!calendar.ok) return failed(c, calendar.failure)
     if (!calendar.value) return outside(c)
+    // Deleting a calendar deletes its events too, and this app neither shows nor counts them.
+    if (!isTasksOnly(calendar.value.components)) return refuse(c, 400, LIST_HOLDS_EVENTS)
     const url = calendar.value.url
     const outcome = await call("deleteCalendar", () => client.deleteCalendar(url))
     if (!outcome.ok) return failed(c, outcome.failure)

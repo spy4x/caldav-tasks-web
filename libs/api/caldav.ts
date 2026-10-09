@@ -197,6 +197,18 @@ export const updateCalendarRequestSchema = type({
 /** The body of `PATCH /api/caldav/calendar`. */
 export type UpdateCalendarRequest = typeof updateCalendarRequestSchema.infer
 
+/**
+ * Whether a calendar holds tasks only. Only such a list may be deleted here: a calendar that also
+ * accepts events, or that does not say what it accepts, may hold events this app never shows.
+ */
+export function isTasksOnly(components: readonly string[]): boolean {
+  return components.length > 0 && components.every((component) => component === "VTODO")
+}
+
+/** Why `DELETE /api/caldav/calendar` refuses a calendar that is not {@link isTasksOnly}. */
+export const LIST_HOLDS_EVENTS =
+  "This list also holds calendar events, so delete it from your calendar app."
+
 /** The body of `DELETE /api/caldav/calendar`. */
 export const deleteCalendarRequestSchema = type({
   /** The calendar's href, as listed. */
