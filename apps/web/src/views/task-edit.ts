@@ -1,5 +1,6 @@
 import type { TaskEdit } from "@spy4x/time/ical-tasks-edit"
-import type { Task, TaskDate } from "@spy4x/time/ical-tasks-model"
+import type { AlarmInput } from "@spy4x/time/ical-tasks"
+import type { Task, TaskDate, TaskReminder } from "@spy4x/time/ical-tasks-model"
 import type { TaskDraft } from "@ui/task-editor-screen.tsx"
 
 function sameDate(a: TaskDate | null | undefined, b: TaskDate | null | undefined): boolean {
@@ -9,6 +10,11 @@ function sameDate(a: TaskDate | null | undefined, b: TaskDate | null | undefined
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((item, index) => item === b[index])
+}
+
+/** Whether the form's reminders are the ones the task was read with, in the same order. */
+function sameReminders(draft: readonly AlarmInput[], stored: readonly TaskReminder[]): boolean {
+  return JSON.stringify(draft) === JSON.stringify(stored.map((item) => ({ trigger: item.alarm })))
 }
 
 /**
@@ -24,5 +30,7 @@ export function draftToEdit(task: Task, draft: TaskDraft): TaskEdit {
   if (draft.priority !== task.priority) edit.priority = draft.priority
   if (!sameList(draft.tags, task.tags)) edit.tags = draft.tags
   if (draft.listHref !== task.listHref) edit.listHref = draft.listHref
+  if (draft.repeatRule !== (task.repeatRule ?? null)) edit.repeatRule = draft.repeatRule
+  if (!sameReminders(draft.reminders, task.reminders)) edit.reminders = draft.reminders
   return edit
 }

@@ -69,6 +69,47 @@ test("an edit keeps the reminder and the property this app does not know on the 
   expect(ics).toContain(`X-E2E-KEEP:still here`)
 })
 
+test("a weekly repeat and a reminder survive a reload, and removing them removes them on the server", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await expect(page.getByTestId(`task-reminder`)).toHaveCount(1)
+
+  await page.getByLabel(`Repeat`).selectOption({ label: `Weekly` })
+  await page.getByLabel(`New reminder`).selectOption({ label: `Before due` })
+  await page.getByLabel(`Amount`).fill(`1`)
+  await page.getByLabel(`Unit`).selectOption({ label: `hours` })
+  await page.getByRole(`button`, { name: `Add reminder` }).click()
+  await expect(page.getByTestId(`task-reminder`)).toHaveCount(2)
+  await page.getByTestId(`task-save`).click()
+  await expect(page).toHaveURL(/\/lists\//)
+  await expect.poll(async () => await readTask(list.taskUrl)).toContain(
+    `RRULE:FREQ=WEEKLY;INTERVAL=1`,
+  )
+  expect(await readTask(list.taskUrl)).toContain(`-PT1H`)
+
+  await page.reload()
+  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await expect(page.getByLabel(`Repeat`)).toHaveValue(`2`)
+  await expect(page.getByTestId(`task-reminder`)).toHaveCount(2)
+  await expect(page.getByText(`1 hour before due`)).toBeVisible()
+
+  await page.getByLabel(`Repeat`).selectOption({ label: `Does not repeat` })
+  await page.getByRole(`button`, { name: /^Remove reminder/ }).first().click()
+  await page.getByRole(`button`, { name: /^Remove reminder/ }).first().click()
+  await expect(page.getByTestId(`task-reminder`)).toHaveCount(0)
+  await page.getByTestId(`task-save`).click()
+  await expect(page).toHaveURL(/\/lists\//)
+  await expect.poll(async () => await readTask(list.taskUrl)).not.toContain(`RRULE`)
+  const cleared = await readTask(list.taskUrl)
+  expect(cleared).not.toContain(`VALARM`)
+  expect(cleared).toContain(`X-E2E-KEEP:still here`)
+
+  await page.reload()
+  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await expect(page.getByLabel(`Repeat`)).toHaveValue(`none`)
+  await expect(page.getByTestId(`task-reminder`)).toHaveCount(0)
+})
+
 test("the sort and the tag filter of a list survive a reload", async ({ page }) => {
   await addSeededTask(list, `Zebra`, [`CATEGORIES:home`, `PRIORITY:1`])
   await addSeededTask(list, `Apple`, [`CATEGORIES:work`, `PRIORITY:9`])
