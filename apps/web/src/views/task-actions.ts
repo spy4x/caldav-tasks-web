@@ -2,7 +2,16 @@ import type { Task } from "@spy4x/time/ical-tasks-model"
 import { toasts } from "../state/toasts.ts"
 import { deleteTask, restoreTask } from "../state/task-writes.ts"
 import { reorderWrites } from "@tasks/reorder.ts"
-import { saveTask, setTaskDone, undoWrite, WriteKind, type WriteResult } from "../state/tasks.ts"
+import { findCalendar } from "../state/calendars.ts"
+import { loadCompleted } from "../state/sync.ts"
+import {
+  saveTask,
+  setTaskDone,
+  tasks,
+  undoWrite,
+  WriteKind,
+  type WriteResult,
+} from "../state/tasks.ts"
 
 const NO_HEADING = ``
 
@@ -74,19 +83,22 @@ function reportReorderFailure(result: WriteResult): boolean {
 }
 
 /**
- * Moves a task to `toIndex` among the `visible` siblings in manual order. `all` is every loaded
- * task of the list, so hidden siblings keep their place. Writes the fewest tasks that keep the
- * order (the moved one, a neighbour, or a few spread out), one after another. Failures show a
- * toast; a failure after the first write leaves the earlier ones saved. Resolves `true` when every
- * write was saved.
+ * Moves a task to `toIndex` among the `visible` siblings in manual order, in the list `listHref`.
+ * Every loaded task of the list counts, so hidden siblings keep their place; before the first drag
+ * in a list, its completed tasks are loaded too, as "Show completed" loads them. Writes the fewest
+ * tasks that keep the order (the moved one, a neighbour, or a few spread out), one after another.
+ * Failures show a toast; a failure after the first write leaves the earlier ones saved. Resolves
+ * `true` when every write was saved.
  */
 export async function reorderInList(
-  all: readonly Task[],
+  listHref: string,
   task: Task,
   visible: readonly Task[],
   toIndex: number,
   zone: string,
 ): Promise<boolean> {
+  if (findCalendar(listHref)?.completedLoaded === false) await loadCompleted(listHref)
+  const all = tasks.value.filter((each) => each.listHref === listHref)
   for (const write of reorderWrites(all, visible, task.uid, toIndex, zone)) {
     if (!reportReorderFailure(await saveTask(write.task, write.edit))) return false
   }

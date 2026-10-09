@@ -38,12 +38,11 @@ export function ListView() {
     if (listHref && showCompleted.value) void loadCompleted(listHref)
   }, [listHref, showCompleted.value])
 
-  const listTasks = tasks.value.filter((task) => task.listHref === list?.href)
   if (!list) return calendarsLoaded.value ? <NotFoundView /> : null
   return (
     <ListScreen
       list={list}
-      tasks={listTasks}
+      tasks={tasks.value.filter((task) => task.listHref === list.href)}
       zone={browserZone()}
       now={now}
       loading={!calendarsLoaded.value}
@@ -56,7 +55,7 @@ export function ListView() {
       onComplete={(task, done) => void completeWithUndo(task, done)}
       onOpen={(task) => navigate(taskPath(task))}
       onReorder={(task, siblings, to) =>
-        void reorderInList(listTasks, task, siblings, to, browserZone())}
+        void reorderInList(list.href, task, siblings, to, browserZone())}
       onQuickAdd={(parsed) => void quickAdd.add(parsed)}
       quickAddBusy={quickAdd.busy.value}
       navigate={navigate}

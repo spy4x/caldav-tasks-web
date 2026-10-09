@@ -144,7 +144,7 @@ Deno.test(`dragging a task writes its new position to the server and leaves the 
     const siblings = tasks.value.toSorted((a, b) => a.sortOrder! - b.sortOrder!)
     const before = hrefs.map((href) => server.objects.get(href)!.ics)
 
-    const saved = await reorderInList(tasks.value, siblings[2], siblings, 0, `UTC`)
+    const saved = await reorderInList(LIST_HREF, siblings[2], siblings, 0, `UTC`)
 
     expect(saved).toBe(true)
     const after = hrefs.map((href) => server.objects.get(href)!.ics)
@@ -165,9 +165,61 @@ Deno.test(`a drag whose write fails shows why`, async () => {
     const siblings = tasks.value.toSorted((x, y) => x.sortOrder! - y.sortOrder!)
     const gone = { ...siblings[0], href: `${LIST_HREF}missing.ics`, etag: `"stale"` }
 
-    const saved = await reorderInList([gone, siblings[1]], gone, [gone, siblings[1]], 1, `UTC`)
+    const saved = await reorderInList(LIST_HREF, gone, [gone, siblings[1]], 1, `UTC`)
 
     expect(saved).toBe(false)
     expect(lastToast().body).toMatch(/^Could not save the new order/)
+  })
+})
+
+/** Seeds Alpha, Bravo, Hidden, Charlie and Delta with sort orders 10 to 14, one per object. */
+function seedFive(server: FakeServer, hidden: string[]) {
+  server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+  const names = [`Alpha`, `Bravo`, `Hidden`, `Charlie`, `Delta`]
+  names.forEach((name, index) => {
+    const lines = [`X-APPLE-SORT-ORDER:${10 + index}`]
+    const done = name === `Hidden` && hidden.includes(`completed`)
+    if (done) lines.push(`STATUS:COMPLETED`)
+    server.seed(`${LIST_HREF}${name}.ics`, LIST_HREF, fixture(name, name, lines), done)
+  })
+}
+
+/** The titles in the order the server now holds them. */
+function serverOrder(server: FakeServer) {
+  return [...server.objects.values()]
+    .map(({ ics }) => ({
+      title: ics.match(/SUMMARY:(.*)/)![1].trim(),
+      order: Number(ics.match(/X-APPLE-SORT-ORDER:(-?\d+)/)![1]),
+    }))
+    .toSorted((a, b) => a.order - b.order)
+    .map(({ title }) => title)
+}
+
+Deno.test(`a drag counts the list's loaded tasks that are not shown, so a hidden one keeps its place`, async () => {
+  await withApp(async (server) => {
+    toasts.clear()
+    seedFive(server, [])
+    await refresh()
+    const visible = tasks.value
+      .filter((task) => task.title !== `Hidden`)
+      .toSorted((a, b) => a.sortOrder! - b.sortOrder!)
+
+    expect(await reorderInList(LIST_HREF, visible[3], visible, 1, `UTC`)).toBe(true)
+
+    expect(serverOrder(server)).toEqual([`Alpha`, `Delta`, `Bravo`, `Hidden`, `Charlie`])
+  })
+})
+
+Deno.test(`the first drag in a list loads its completed tasks, so a completed one keeps its place`, async () => {
+  await withApp(async (server) => {
+    toasts.clear()
+    seedFive(server, [`completed`])
+    await refresh()
+    expect(tasks.value.some((task) => task.title === `Hidden`)).toBe(false)
+    const visible = tasks.value.toSorted((a, b) => a.sortOrder! - b.sortOrder!)
+
+    expect(await reorderInList(LIST_HREF, visible[3], visible, 1, `UTC`)).toBe(true)
+
+    expect(serverOrder(server)).toEqual([`Alpha`, `Delta`, `Bravo`, `Hidden`, `Charlie`])
   })
 })
