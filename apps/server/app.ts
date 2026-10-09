@@ -3,7 +3,7 @@ import { serveStatic } from "@spy4x/server/static"
 import { fromFileUrl } from "@std/path"
 import { ApiErrorCode } from "@api/errors.ts"
 import { type AuthOptions, createAuth } from "./auth/routes.ts"
-import { caldavRoutes } from "./caldav/routes.ts"
+import { type CalDavRoutesOptions, createCaldavRoutes } from "./caldav/routes.ts"
 import type { Config } from "./config.ts"
 import { securityHeaders } from "./security-headers.ts"
 
@@ -16,6 +16,8 @@ export interface AppOptions {
   staticRoot?: string
   /** Test seams for sign-in, such as the clock. */
   auth?: AuthOptions
+  /** Test seams for the CalDAV relay, such as the client. */
+  caldav?: CalDavRoutesOptions
 }
 
 /**
@@ -46,7 +48,7 @@ export async function createApp(config: Config, options: AppOptions = {}): Promi
 
   // Each lane owns one route module.
   app.route("/api/auth", auth.routes)
-  app.route("/api/caldav", caldavRoutes)
+  app.route("/api/caldav", createCaldavRoutes(config, options.caldav))
 
   // An unknown API path is a JSON 404, never the SPA's HTML.
   app.all("/api/*", (c) => c.json({ code: ApiErrorCode.NotFound, message: "Not found" }, 404))
