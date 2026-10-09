@@ -59,13 +59,13 @@ test("a quick-add line with a tag, a time and a priority shows chips and saves a
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
   await expect(page.getByRole(`button`, { name: `Seeded errand` })).toBeVisible()
 
-  await page.getByTestId(`quick-add-input`).fill(`Call Anna #work tomorrow 3pm !high`)
+  await page.getByTestId(`quick-add-input`).fill(`Call Anna #work 2099-01-05 3pm !high`)
   const chips = page.getByTestId(`quick-add-chips`)
   await expect(chips).toContainText(`Tag work`)
-  await expect(chips).toContainText(`Due Tomorrow 15:00`)
+  await expect(chips).toContainText(/Due .*15:00/)
   await expect(chips).toContainText(`High priority`)
   await expect(page.getByTestId(`quick-add-live`)).toHaveText(
-    `Tag work, Due Tomorrow 15:00, High priority`,
+    /^Tag work, Due .*15:00, High priority$/,
   )
 
   await page.getByTestId(`quick-add-input`).press(`Enter`)
@@ -75,7 +75,7 @@ test("a quick-add line with a tag, a time and a priority shows chips and saves a
   const todo = ics.split(`BEGIN:VTODO`).find((part) => part.includes(`SUMMARY:Call Anna`))!
   expect(todo).toContain(`CATEGORIES:work`)
   expect(todo).toContain(`PRIORITY:1`)
-  expect(todo).toMatch(/DUE:\d{8}T\d{6}Z/)
+  expect(todo).toContain(`DUE:20990105T150000\r\n`)
 })
 
 test("an edit keeps the reminder and the property this app does not know on the server", async ({ page }) => {

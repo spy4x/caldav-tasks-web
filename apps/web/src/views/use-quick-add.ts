@@ -3,12 +3,13 @@ import { QuickAddPriority, type QuickAddResult } from "@spy4x/platform"
 import { IcalDateKind } from "@spy4x/time/ical"
 import type { NewTaskFields } from "@spy4x/time/ical-tasks-edit"
 import type { TaskDate } from "@spy4x/time/ical-tasks-model"
+import { floatingDue } from "@ui/due-label.ts"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { addTask } from "../state/task-writes.ts"
 import { toasts } from "../state/toasts.ts"
 import { WriteKind } from "../state/tasks.ts"
-import { isoDateInTz, zonedDateTime } from "@spy4x/time/tz"
+import { isoDateInTz } from "@spy4x/time/tz"
 import { browserZone } from "./clock.ts"
 
 /** Where a quick-added task goes: the named list, else the first one, or why there is none. */
@@ -35,7 +36,7 @@ const PRIORITY: Record<QuickAddPriority, number> = {
 
 /**
  * The task a parsed line stands for. A typed date wins; with none, `dueToday` dates it today. A
- * typed time is the person's wall clock in `zone`, saved as the UTC instant it names. A `@context`
+ * typed time is a floating wall clock, as the task editor writes a new time. A `@context`
  * is kept as a tag, so no typed word is lost.
  */
 export function newTaskFromQuickAdd(
@@ -44,16 +45,9 @@ export function newTaskFromQuickAdd(
 ): NewTaskFields {
   const { due, tags, contexts, priority } = parsed
   let taskDue: TaskDate | undefined
-  if (due?.time !== undefined) {
-    const instant = zonedDateTime(due.date, due.time, options.zone).toISOString()
-    taskDue = {
-      kind: IcalDateKind.Utc,
-      date: instant.slice(0, 10),
-      time: instant.slice(11, 19),
-    }
-  } else if (due) {
-    taskDue = { kind: IcalDateKind.Date, date: due.date }
-  } else if (options.dueToday) {
+  if (due?.time !== undefined) taskDue = floatingDue(due.date, due.time)
+  else if (due) taskDue = { kind: IcalDateKind.Date, date: due.date }
+  else if (options.dueToday) {
     taskDue = { kind: IcalDateKind.Date, date: isoDateInTz(options.now, options.zone) }
   }
   const allTags = [...tags, ...contexts]

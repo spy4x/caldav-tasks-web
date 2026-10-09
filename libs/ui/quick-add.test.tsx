@@ -3,8 +3,9 @@ import { expect } from "@std/expect"
 import type { Window } from "happy-dom"
 import { renderToString } from "preact-render-to-string"
 import { QuickAddPriority, type QuickAddResult } from "@spy4x/platform"
+import { act } from "preact/test-utils"
 import { focused, mount, must } from "./mount.test.tsx"
-import { QuickAdd } from "./quick-add.tsx"
+import { ANNOUNCE_PAUSE_MS, QuickAdd } from "./quick-add.tsx"
 
 const input = (root: ParentNode) => must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`)
 const ZONE = `Asia/Ho_Chi_Minh`
@@ -20,6 +21,38 @@ const type = (window: Window, root: ParentNode, text: string) => {
 const chips = (root: ParentNode) =>
   [...root.querySelectorAll(`[data-e2e="quick-add-chips"] li`)].map((li) => li.textContent)
 const live = (root: ParentNode) => must(root, `[data-e2e="quick-add-live"]`).textContent
+
+/** Replaces `setTimeout` with a clock the test moves by hand, and puts the real one back after. */
+async function withFakeTimers(
+  test: (clock: { advance: (ms: number) => Promise<void> }) => Promise<void>,
+): Promise<void> {
+  const real = { set: globalThis.setTimeout, clear: globalThis.clearTimeout }
+  let nowMs = 0
+  let nextId = 1
+  const pending = new Map<number, { at: number; run: () => void }>()
+  globalThis.setTimeout = ((run: () => void, ms = 0) => {
+    const id = nextId++
+    pending.set(id, { at: nowMs + ms, run })
+    return id
+  }) as never
+  globalThis.clearTimeout = ((id: number) => void pending.delete(id)) as never
+  try {
+    await test({
+      advance: async (ms) => {
+        nowMs += ms
+        for (const [id, timer] of [...pending]) {
+          if (timer.at <= nowMs) {
+            pending.delete(id)
+            await act(() => timer.run())
+          }
+        }
+      },
+    })
+  } finally {
+    globalThis.setTimeout = real.set
+    globalThis.clearTimeout = real.clear
+  }
+}
 
 const form = (root: ParentNode) => must<HTMLFormElement>(root, `[data-e2e="quick-add"]`)
 
@@ -86,15 +119,67 @@ Deno.test("two quick adds on a page point at their own hints", () => {
   expect(ids[0]).not.toBe(ids[1])
 })
 
-Deno.test("typing tokens shows each recognised part as a chip and reads them out politely", async () => {
-  await mount(add(), async ({ root, window, act }) => {
-    await act(() => type(window, root, `Call Anna #work tomorrow 3pm !high`))
-    expect(chips(root)).toEqual([`Tag work`, `Due Tomorrow 15:00`, `High priority`])
-    expect(live(root)).toBe(`Tag work, Due Tomorrow 15:00, High priority`)
-    const region = must(root, `[data-e2e="quick-add-live"]`)
-    expect(region.getAttribute(`aria-live`)).toBe(`polite`)
-    expect(region.getAttribute(`role`)).toBe(`status`)
+Deno.test("typing tokens shows each recognised part as a chip at once and reads them out politely", async () => {
+  await withFakeTimers(async (clock) => {
+    await mount(add(), async ({ root, window, act }) => {
+      await act(() => type(window, root, `Call Anna #work tomorrow 3pm !high`))
+      expect(chips(root)).toEqual([`Tag work`, `Due Tomorrow 15:00`, `High priority`])
+      await clock.advance(ANNOUNCE_PAUSE_MS)
+      expect(live(root)).toBe(`Tag work, Due Tomorrow 15:00, High priority`)
+      const region = must(root, `[data-e2e="quick-add-live"]`)
+      expect(region.getAttribute(`aria-live`)).toBe(`polite`)
+      expect(region.getAttribute(`role`)).toBe(`status`)
+    })
   })
+})
+
+Deno.test("typing a tag letter by letter changes the chips each time but is announced once, after a pause", async () => {
+  await withFakeTimers(async (clock) => {
+    await mount(add(), async ({ root, window, act }) => {
+      for (const line of [`a #w`, `a #wo`, `a #wor`, `a #work`]) {
+        await act(() => type(window, root, line))
+        await clock.advance(ANNOUNCE_PAUSE_MS - 100)
+        expect(live(root)).toBe(``)
+      }
+      expect(chips(root)).toEqual([`Tag work`])
+      await clock.advance(100)
+      expect(live(root)).toBe(`Tag work`)
+    })
+  })
+})
+
+Deno.test("a send with only tokens says why nothing was added, and typing again clears it", async () => {
+  await mount(add(), async ({ root, window, act }) => {
+    await act(() => type(window, root, `#work !high`))
+    await act(() => form(root).requestSubmit())
+    expect(live(root)).toBe(`Add a title to create the task`)
+    await act(() => type(window, root, `#work !high x`))
+    expect(live(root)).toBe(``)
+  })
+})
+
+Deno.test("a hint given as a function follows the parsed line", async () => {
+  const hint = (parsed: QuickAddResult) => parsed.due ? `dated` : `undated`
+  await mount(<QuickAdd onAdd={() => {}} zone={ZONE} now={NOW} hint={hint} />, async (m) => {
+    expect(m.root.textContent).toContain(`undated`)
+    await m.act(() => type(m.window, m.root, `x tomorrow`))
+    expect(m.root.textContent).toContain(`dated`)
+    expect(m.root.textContent).not.toContain(`undated`)
+  })
+})
+
+Deno.test("on the spring-forward day the chip shows the time that is saved, not the shifted hour", async () => {
+  const added: QuickAddResult[] = []
+  const berlin = () => new Date(`2027-03-27T12:00:00Z`)
+  await mount(
+    <QuickAdd onAdd={(parsed) => added.push(parsed)} zone="Europe/Berlin" now={berlin} />,
+    async ({ root, window, act }) => {
+      await act(() => type(window, root, `Call tomorrow 2:30am`))
+      expect(chips(root)).toEqual([`Due Tomorrow 02:30`])
+      await act(() => form(root).requestSubmit())
+      expect(added[0].due).toEqual({ date: `2027-03-28`, time: `02:30` })
+    },
+  )
 })
 
 Deno.test("a plain title shows no chips and the live region stays empty but present", async () => {

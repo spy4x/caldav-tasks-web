@@ -59,7 +59,8 @@ export function TodayScreen(props: TodayScreenProps): JSX.Element {
           onAdd={props.onQuickAdd}
           zone={props.zone}
           busy={props.quickAddBusy}
-          hint="Added to your default list, due today"
+          hint={(parsed) =>
+            parsed.due ? `Added to your default list` : `Added to your default list, due today`}
         />
       }
     >

@@ -10,6 +10,7 @@ import { isoDateInTz } from "@spy4x/time/tz"
 import { browserZone } from "./clock.ts"
 import { parseQuickAdd, type QuickAddResult } from "@spy4x/platform"
 import { IcalDateKind } from "@spy4x/time/ical"
+import { floatingDue } from "@ui/due-label.ts"
 import { newTaskFromQuickAdd, quickAddTarget, useQuickAdd } from "./use-quick-add.ts"
 
 const ZONE = `Asia/Ho_Chi_Minh`
@@ -63,13 +64,14 @@ Deno.test(`a quick add from Today creates the task due today in the browser's zo
   })
 })
 
-Deno.test(`a line with tag, time and priority becomes those fields, the time saved as UTC`, () => {
+Deno.test(`a line with tag, time and priority becomes those fields, the time floating like the editor's`, () => {
   expect(fields(`Call Anna #work tomorrow 3pm !high`)).toEqual({
     title: `Call Anna`,
     tags: [`work`],
-    due: { kind: IcalDateKind.Utc, date: `2026-10-11`, time: `08:00:00` },
+    due: { kind: IcalDateKind.Floating, date: `2026-10-11`, time: `15:00:00` },
     priority: 1,
   })
+  expect(fields(`Call Anna tomorrow 3pm`).due).toEqual(floatingDue(`2026-10-11`, `15:00`))
 })
 
 Deno.test(`the three priority words map to 1, 5 and 9`, () => {
@@ -84,13 +86,11 @@ Deno.test(`a date with no time is a whole-day due`, () => {
   expect(fields(`Pay rent in 3 days`).due).toEqual({ kind: IcalDateKind.Date, date: `2026-10-13` })
 })
 
-Deno.test(`a time late in the evening lands on the next UTC day only when the zone says so`, () => {
-  // 01:30 in Ho Chi Minh on the 11th is 18:30 UTC on the 10th.
-  expect(fields(`Wake up tomorrow 1:30am`).due).toEqual({
-    kind: IcalDateKind.Utc,
-    date: `2026-10-10`,
-    time: `18:30:00`,
-  })
+Deno.test(`a time inside a spring-forward gap is saved as typed, not shifted an hour`, () => {
+  const now = new Date(`2027-03-27T12:00:00Z`)
+  const parsed = parseQuickAdd(`Call tomorrow 2:30am`, { now, timeZone: `Europe/Berlin` })
+  const due = newTaskFromQuickAdd(parsed, { now, zone: `Europe/Berlin` }).due
+  expect(due).toEqual({ kind: IcalDateKind.Floating, date: `2027-03-28`, time: `02:30:00` })
 })
 
 Deno.test(`Today dates a task with no typed date today, and a typed date wins`, () => {
