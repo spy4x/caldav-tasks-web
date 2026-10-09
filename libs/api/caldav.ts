@@ -98,6 +98,12 @@ export const createObjectRequestSchema = type({
   /** The calendar's href. */
   calendar: "string > 0",
   ics: "string > 0",
+  /**
+   * The object's file name, such as `<uid>.ics`, so a create that is sent twice (an offline queue
+   * repeating it after a lost answer) finds its own object instead of making a second. Letters,
+   * digits, `.`, `_`, `~` and `-` only. Without it the server picks a random name.
+   */
+  "name?": "string > 0",
   "+": "reject",
 })
 
