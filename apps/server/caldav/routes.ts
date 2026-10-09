@@ -233,6 +233,9 @@ function toWriteResult(write: { url: string; etag: string | null }): WriteResult
   return { href: hrefOf(write.url), etag: write.etag }
 }
 
+/** What a request body over {@link CALDAV_MAX_REQUEST_BYTES} answers: this server refused it. */
+export const REQUEST_TOO_LARGE = "The request is larger than this server accepts"
+
 /** Reads and checks a JSON body under {@link CALDAV_MAX_REQUEST_BYTES}, or answers the refusal. */
 async function readRequest<T>(c: Context, schema: Type<T>): Promise<T | Response> {
   const contentType = c.req.header("content-type") ?? ""
@@ -245,7 +248,9 @@ async function readRequest<T>(c: Context, schema: Type<T>): Promise<T | Response
   } catch (error) {
     if (!(error instanceof HTTPException)) throw error
     // readJsonBody throws only 400, 408 and 413, each with a message that holds no body.
-    if (error.status === 413) return failed(c, CALDAV_FAILURES[CalDavErrorCode.TooLarge])
+    if (error.status === 413) {
+      return c.json({ code: ApiErrorCode.TooLarge, message: REQUEST_TOO_LARGE }, 413)
+    }
     return refuse(c, error.status as RefusalStatus, error.message)
   }
   const request = schema(body)
