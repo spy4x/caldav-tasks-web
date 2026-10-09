@@ -1,11 +1,18 @@
 import { signal } from "@preact/signals"
 import { CALDAV_PATHS, taskObjectSchema, writeResultSchema } from "@api/caldav.ts"
 import { ApiErrorCode } from "@api/errors.ts"
-import { completeTask, reopenTask } from "@tasks/complete.ts"
-import { type EditField, editTask, type TaskEdit } from "@tasks/edit.ts"
-import { parseTask } from "@tasks/model.ts"
-import { keepMine, rebaseEdit, RebaseKind } from "@tasks/rebase.ts"
-import { type Task, TaskStatus } from "@tasks/types.ts"
+import {
+  completeTask,
+  type EditField,
+  editTask,
+  keepMine,
+  rebaseEdit,
+  RebaseKind,
+  reopenTask,
+  type TaskEdit,
+} from "@spy4x/time/ical-tasks-edit"
+import { parseTask, type Task, TaskStatus } from "@spy4x/time/ical-tasks-model"
+import { completeMessage } from "@tasks/identity.ts"
 import { offline, OFFLINE_NOTICE, relay } from "./connection.ts"
 import { type CachedTask, cacheUnavailable, getStorage } from "./db.ts"
 
@@ -81,7 +88,7 @@ const CHANGED_AGAIN = `The task changed again while saving. Try again.`
 
 /**
  * Saves an edit. Offline it is refused, never queued. A 412 reads the fresh copy, re-applies the
- * edit to it with the rebase from `@tasks/rebase.ts` and sends once more; fields that both sides
+ * edit to it with the rebase from `rebaseEdit` in `@spy4x/time/ical-tasks-edit` and sends once more; fields that both sides
  * changed come back as a conflict. Moving a task to another list is not handled here yet.
  */
 export function saveTask(task: Task, edit: TaskEdit, now = new Date()): Promise<WriteResult> {
@@ -118,7 +125,7 @@ export function setTaskDone(task: Task, done: boolean, now = new Date()): Promis
     const result = done ? completeTask(current, now) : reopenTask(current, now)
     return result.success
       ? { ok: true, task: result.output.task, ics: result.output.ics }
-      : { ok: false, message: result.error.message }
+      : { ok: false, message: completeMessage(result.error) }
   }
   if ((task.status === TaskStatus.Completed) === done) {
     return Promise.resolve({ kind: WriteKind.Saved, task })

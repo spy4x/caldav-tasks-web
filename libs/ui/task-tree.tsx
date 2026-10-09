@@ -1,7 +1,7 @@
 import type { JSX } from "preact"
 import { useState } from "preact/hooks"
-import { flattenTree } from "../tasks/tree.ts"
-import type { Task, TaskNode } from "../tasks/types.ts"
+import { flattenTree } from "@spy4x/platform/universal/ical-tasks-view"
+import type { Task, TaskNode } from "@spy4x/time/ical-tasks-model"
 import { type RowList, TaskRow } from "./task-row.tsx"
 
 /** Props of {@link TaskTree}. */

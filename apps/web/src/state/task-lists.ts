@@ -1,6 +1,5 @@
 import { computed } from "@preact/signals"
-import { isOpen } from "@tasks/model.ts"
-import type { TaskList } from "@tasks/types.ts"
+import { isOpen, type TaskList } from "@spy4x/time/ical-tasks-model"
 import { calendars } from "./calendars.ts"
 import { tasks } from "./tasks.ts"
 

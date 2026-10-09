@@ -14,8 +14,14 @@ import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { RadioGroup } from "@spy4x/preact-ui/radio"
 import { TagInput } from "@spy4x/preact-ui/tag-input"
 import { UnsavedGuard } from "@spy4x/preact-ui/unsaved-guard"
-import { IcalDateKind, PriorityBand, type Task, type TaskDate, TaskStatus } from "@tasks/types.ts"
-import type { TaskList } from "@tasks/types.ts"
+import { IcalDateKind } from "@spy4x/time/ical"
+import {
+  PriorityBand,
+  type Task,
+  type TaskDate,
+  type TaskList,
+  TaskStatus,
+} from "@spy4x/time/ical-tasks-model"
 import { ConflictDialog } from "./conflict-dialog.tsx"
 import { ReminderList } from "./reminder-list.tsx"
 

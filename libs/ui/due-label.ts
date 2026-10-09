@@ -1,9 +1,8 @@
 import { relativeDayLabel } from "@spy4x/time/locale"
 import { hhmmInTz, isoDateInTz } from "@spy4x/time/tz"
 import { IcalDateKind } from "@spy4x/time/ical"
-import { dateDay, dateInstant } from "../tasks/model.ts"
-import { isOverdue } from "../tasks/views.ts"
-import type { TaskDate } from "../tasks/types.ts"
+import { dateDay, dateInstant, type TaskDate } from "@spy4x/time/ical-tasks-model"
+import { isOverdue } from "@spy4x/platform/universal/ical-tasks-view"
 
 /** How a due value should be coloured: late, due today, or neither. */
 export enum DueTone {

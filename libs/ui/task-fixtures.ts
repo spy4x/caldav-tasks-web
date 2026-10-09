@@ -1,6 +1,6 @@
 import { IcalDateKind } from "@spy4x/time/ical"
 import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
-import { type Task, type TaskReminder, TaskStatus } from "../tasks/types.ts"
+import { type Task, type TaskReminder, TaskStatus } from "@spy4x/time/ical-tasks-model"
 
 /** The list the test tasks belong to unless a test says otherwise. */
 export const FIXTURE_LIST_HREF = `/dav/tasks/home/`

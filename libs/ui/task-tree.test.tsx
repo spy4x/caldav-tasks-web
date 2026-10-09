@@ -3,7 +3,7 @@ import { expect } from "@std/expect"
 import { mount, must, texts } from "./mount.test.tsx"
 import { makeTask } from "./task-fixtures.ts"
 import { TaskTree } from "./task-tree.tsx"
-import { buildTree } from "../tasks/tree.ts"
+import { buildTree } from "@spy4x/platform/universal/ical-tasks-view"
 
 const NOW = new Date(`2026-10-08T09:00:00Z`)
 const TASKS = [

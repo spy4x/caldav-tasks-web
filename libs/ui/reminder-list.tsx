@@ -1,7 +1,7 @@
 import type { JSX } from "preact"
 import { describeAlarmTrigger } from "@spy4x/time/ical-tasks"
 import { IconBell } from "@spy4x/preact-icons"
-import type { TaskReminder } from "@tasks/types.ts"
+import type { TaskReminder } from "@spy4x/time/ical-tasks-model"
 
 /** Props of {@link ReminderList}. */
 export interface ReminderListProps {

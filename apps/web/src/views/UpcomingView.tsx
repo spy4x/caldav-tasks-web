@@ -1,5 +1,5 @@
 import { useLocation } from "wouter-preact"
-import { upcomingView } from "@tasks/views.ts"
+import { upcomingView } from "@spy4x/platform/universal/ical-tasks-view"
 import { UpcomingScreen } from "@ui/upcoming-screen.tsx"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"

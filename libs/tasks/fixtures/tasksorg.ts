@@ -11,8 +11,8 @@
  * order is written down by hand from those numbers; it was not read off a Tasks.org screen.
  */
 
-import { parseTask } from "../model.ts"
-import type { Task } from "../types.ts"
+import { parseTask } from "@spy4x/time/ical-tasks-model"
+import type { Task } from "@spy4x/time/ical-tasks-model"
 
 export const LIST_HREF = `/dav/tasks/errands/`
 

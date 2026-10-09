@@ -1,7 +1,7 @@
 import type { JSX } from "preact"
 import { IconList, IconPlus } from "@spy4x/preact-icons"
 import { PageAction, PageHeader } from "@spy4x/preact-ui/page-header"
-import type { TaskList } from "../tasks/types.ts"
+import type { TaskList } from "@spy4x/time/ical-tasks-model"
 import { EmptyBody, LoadingBody, ScreenLayout } from "./task-screen.tsx"
 
 /** Props of {@link ListsScreen}. */

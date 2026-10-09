@@ -1,5 +1,5 @@
 import { useLocation } from "wouter-preact"
-import { todayView } from "@tasks/views.ts"
+import { todayView } from "@spy4x/platform/universal/ical-tasks-view"
 import { TodayScreen } from "@ui/today-screen.tsx"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"

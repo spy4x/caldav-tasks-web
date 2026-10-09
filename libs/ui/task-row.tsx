@@ -2,8 +2,13 @@ import type { JSX } from "preact"
 import { IconArrowPath, IconBell, IconChevronRight, IconFlag } from "@spy4x/preact-icons"
 import { Checkbox } from "@spy4x/preact-ui/checkbox"
 import { dueLabel, DueTone } from "./due-label.ts"
-import { isOpen, priorityBand } from "../tasks/model.ts"
-import { PriorityBand, type Task, type TaskList } from "../tasks/types.ts"
+import {
+  isOpen,
+  PriorityBand,
+  priorityBand,
+  type Task,
+  type TaskList,
+} from "@spy4x/time/ical-tasks-model"
 
 /** The list a row names in its meta line: a colour dot and the name. */
 export type RowList = Pick<TaskList, "name" | "color">
