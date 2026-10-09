@@ -64,11 +64,12 @@
     // #endregion Aliases
 
     // #region Dependencies
-    // spy4x/ts-libs 1.39.0, the current release. hono and arktype must stay on the exact versions
-    // these packages were published with, or two copies load and their types stop matching.
+    // spy4x/ts-libs 1.39.0, except @spy4x/time at 1.40.0 (completeTodo, reopenTodo). hono and
+    // arktype must stay on the exact versions these packages were published with, or two copies
+    // load and their types stop matching.
     "@spy4x/platform": "jsr:@spy4x/platform@1.39.0",
     "@spy4x/server": "jsr:@spy4x/server@1.39.0",
-    "@spy4x/time": "jsr:@spy4x/time@1.39.0",
+    "@spy4x/time": "jsr:@spy4x/time@1.40.0",
     "hono": "jsr:@hono/hono@4.13.8",
     "arktype": "npm:arktype@2.2.3",
 
