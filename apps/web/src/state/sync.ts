@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals"
 import { watchPageResume } from "@spy4x/realtime/page-lifecycle"
 import { CALDAV_PATHS, calendarListSchema, objectListSchema } from "@api/caldav.ts"
-import { type ConnectionTarget, relay, watchConnection } from "./connection.ts"
+import { connection, relay } from "./connection.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { type CachedCalendar, type CachedTask, cacheUnavailable, getStorage } from "./db.ts"
 import { setCachedTasks } from "./tasks.ts"
@@ -117,9 +117,9 @@ export async function loadCompleted(calendarHref: string): Promise<boolean> {
  */
 export function startSync(
   target?: Parameters<typeof watchPageResume>[1],
-  connectionTarget?: ConnectionTarget,
+  connectionTarget?: Parameters<typeof connection.watch>[0],
 ): () => void {
-  const stopConnection = watchConnection(connectionTarget)
+  const stopConnection = connection.watch(connectionTarget)
   const stop = watchPageResume(() => void refresh(), target)
   void loadCache().then(refresh)
   return () => {

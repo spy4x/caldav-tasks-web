@@ -6,11 +6,11 @@ import { completeTask } from "@tasks/complete.ts"
 import { EditField } from "@tasks/edit.ts"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { TaskStatus } from "@tasks/types.ts"
-import { browserOnline, notice, OFFLINE_NOTICE } from "./connection.ts"
+import { notice, OFFLINE_NOTICE } from "./connection.ts"
 import { cacheUnavailable, getStorage, useStorage } from "./db.ts"
 import { refresh } from "./sync.ts"
 import { keepMineAfterConflict, saveTask, setTaskDone, tasks, WriteKind } from "./tasks.ts"
-import { error, type FakeServer, withApp } from "./testing.ts"
+import { error, type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
 
 const HREF = `${LIST_HREF}one.ics`
 const NOW = new Date(`2026-10-09T10:00:00.000Z`)
@@ -60,12 +60,12 @@ Deno.test(`a saved edit sends the etag it was read with and caches the new text 
 Deno.test(`a write while offline is refused with the notice and nothing is sent`, async () => {
   await withApp(async (server) => {
     const before = await start(server)
-    browserOnline.value = false
+    setBrowserOnline(false)
     const result = await saveTask(before, { title: `Changed` }, NOW)
     expect(result).toEqual({ kind: WriteKind.Offline, notice: OFFLINE_NOTICE })
     expect(server.sent).toEqual([])
     // Never queued: going online again sends nothing by itself.
-    browserOnline.value = true
+    setBrowserOnline(true)
     expect(server.sent).toEqual([])
     expect(tasks.value[0].title).toBe(`Buy milk`)
   })

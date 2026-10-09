@@ -2,7 +2,7 @@
 // Dexie reads `indexedDB` when it loads, so the fake must be imported before anything that uses it.
 import "fake-indexeddb/auto"
 import { CALDAV_PATHS } from "@api/caldav.ts"
-import { resetConnection } from "./connection.ts"
+import { connection, resetConnection } from "./connection.ts"
 import { createDexieStorage, useStorage } from "./db.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { cacheUnavailable, lastSyncedAt } from "./sync.ts"
@@ -102,6 +102,13 @@ export function error(status: number, code: string, message = `Message for ${cod
 
 let databases = 0
 
+const browserEvents = new Map<string, () => void>()
+
+/** Fires the browser's `offline` (false) or `online` (true) event inside {@link withApp}. */
+export function setBrowserOnline(online: boolean): void {
+  browserEvents.get(online ? `online` : `offline`)!()
+}
+
 /**
  * Runs `test` with `fetch` answered by a fresh {@link FakeServer}, an empty IndexedDB (a fake one,
  * named per test) and every store reset, and undoes all of it afterwards.
@@ -115,9 +122,14 @@ export async function withApp(test: (server: FakeServer) => Promise<void>): Prom
     )
   useStorage(createDexieStorage(`test-${++databases}`))
   reset()
+  const stopWatching = connection.watch({
+    addEventListener: (type, listener) => void browserEvents.set(type, listener),
+    removeEventListener: (type) => void browserEvents.delete(type),
+  })
   try {
     await test(server)
   } finally {
+    stopWatching()
     globalThis.fetch = own
     useStorage(undefined)
     reset()

@@ -1,7 +1,9 @@
 import { computed, signal } from "@preact/signals"
 import type { Type } from "arktype"
 import { type } from "arktype"
-import { ApiErrorCode, apiErrorSchema } from "@api/errors.ts"
+import { createOnlineStatus } from "@spy4x/preact-signals/online"
+import { apiFetch } from "@spy4x/platform/api"
+import { ApiErrorCode } from "@api/errors.ts"
 
 /** What went wrong with the CalDAV server behind the relay, when the relay itself answered. */
 export enum ServerProblemKind {
@@ -21,8 +23,11 @@ export interface ServerProblem {
 /** Shown while the browser has no network or the last request never got an answer. */
 export const OFFLINE_NOTICE = `Offline: showing your last copy, changes are paused`
 
-/** Whether the browser says it has a network. */
-export const browserOnline = signal(globalThis.navigator?.onLine ?? true)
+/**
+ * Whether the browser says it has a network. `connection.watch()` follows the online and offline
+ * events; {@link startSync} calls it.
+ */
+export const connection = createOnlineStatus()
 
 /** Whether the last request to the app server got no answer at all. */
 const requestFailed = signal(false)
@@ -31,7 +36,7 @@ const requestFailed = signal(false)
 export const serverProblem = signal<ServerProblem | null>(null)
 
 /** True when the app cannot reach its server: writes are paused and the last copy is shown. */
-export const offline = computed(() => !browserOnline.value || requestFailed.value)
+export const offline = computed(() => !connection.online.value || requestFailed.value)
 
 /**
  * The notice to show on every screen, or `null`. Offline wins over a server problem: with no
@@ -51,32 +56,10 @@ export const notice = computed<string | null>(() => {
   }
 })
 
-/** The parts of `window` the watcher uses, so a test can supply them. */
-export interface ConnectionTarget {
-  addEventListener(type: `online` | `offline`, listener: () => void): void
-  removeEventListener(type: `online` | `offline`, listener: () => void): void
-}
-
-/** Follows the browser's online and offline events. Returns the function that stops it. */
-export function watchConnection(target: ConnectionTarget = globalThis.window): () => void {
-  const up = () => {
-    browserOnline.value = true
-  }
-  const down = () => {
-    browserOnline.value = false
-  }
-  browserOnline.value = globalThis.navigator?.onLine ?? true
-  target.addEventListener(`online`, up)
-  target.addEventListener(`offline`, down)
-  return () => {
-    target.removeEventListener(`online`, up)
-    target.removeEventListener(`offline`, down)
-  }
-}
-
 /** Forgets every problem. For a test. */
 export function resetConnection(): void {
-  browserOnline.value = true
+  // Reads `navigator.onLine` again, which is online where there is none (Deno).
+  connection.watch(null)()
   requestFailed.value = false
   serverProblem.value = null
 }
@@ -107,25 +90,23 @@ const CODE_TO_PROBLEM: Partial<Record<ApiErrorCode, ServerProblemKind>> = {
   [ApiErrorCode.CalDavFailed]: ServerProblemKind.Failed,
 }
 
+const ERROR_CODES = new Set<string>(Object.values(ApiErrorCode))
+
 /**
  * Sends one request to the relay and reports the outcome instead of throwing. It also keeps the
  * {@link notice} up to date: an answer clears the offline state, and a CalDAV failure code sets the
  * server problem. `schema` checks a success body; one that does not match is a failure.
- *
- * `apiFetch` from `@spy4x/platform/api` is not used: it reads an error's text from `error`, while
- * this contract sends `{ code, message }`, and the code is what tells a refusal from an outage.
  */
 export async function relay<T>(
   path: string,
   request: RelayRequest = {},
   schema?: Type<T>,
 ): Promise<RelayResult<T>> {
-  let response: Response
+  let result
   try {
-    response = await fetch(path, {
+    result = await apiFetch<unknown>(path, {
       method: request.method ?? `GET`,
       credentials: `same-origin`,
-      headers: request.body === undefined ? undefined : { "content-type": `application/json` },
       body: request.body === undefined ? undefined : JSON.stringify(request.body),
     })
   } catch {
@@ -133,31 +114,24 @@ export async function relay<T>(
     return { ok: false, status: 0, code: null, message: OFFLINE_NOTICE, offline: true }
   }
   requestFailed.value = false
-  if (response.ok) {
+  if (result.ok) {
     serverProblem.value = null
-    if (!schema) {
-      await response.body?.cancel()
-      return { ok: true, status: response.status, data: undefined as T }
-    }
-    const parsed = schema(await response.json().catch(() => null))
+    if (!schema) return { ok: true, status: result.status, data: undefined as T }
+    const parsed = schema(result.data)
     if (parsed instanceof type.errors) {
-      return fail(response.status, ApiErrorCode.CalDavFailed, `The server sent an unusable reply.`)
+      return fail(result.status, ApiErrorCode.CalDavFailed, `The server sent an unusable reply.`)
     }
-    return { ok: true, status: response.status, data: parsed as T }
+    return { ok: true, status: result.status, data: parsed as T }
   }
-  const body = apiErrorSchema(await response.json().catch(() => null))
-  if (body instanceof type.errors) {
-    return fail(response.status, null, `The request failed (${response.status}).`)
+  const { status, error } = result
+  // An answer without a code from the contract (a proxy's error page) has no message to trust.
+  if (!error.code || !ERROR_CODES.has(error.code)) {
+    return fail(status, null, `The request failed (${status}).`)
   }
-  const kind = CODE_TO_PROBLEM[body.code]
-  serverProblem.value = kind ? { kind, status: response.status } : null
-  return {
-    ok: false,
-    status: response.status,
-    code: body.code,
-    message: body.message,
-    offline: false,
-  }
+  const code = error.code as ApiErrorCode
+  const kind = CODE_TO_PROBLEM[code]
+  serverProblem.value = kind ? { kind, status } : null
+  return { ok: false, status, code, message: error.message, offline: false }
 }
 
 function fail(status: number, code: ApiErrorCode | null, message: string): RelayResult<never> {

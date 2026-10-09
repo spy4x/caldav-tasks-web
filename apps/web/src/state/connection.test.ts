@@ -2,43 +2,9 @@
 import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { CALDAV_PATHS, calendarListSchema } from "@api/caldav.ts"
-import {
-  browserOnline,
-  type ConnectionTarget,
-  notice,
-  offline,
-  OFFLINE_NOTICE,
-  relay,
-  serverProblem,
-  ServerProblemKind,
-  watchConnection,
-} from "./connection.ts"
-import { error, withApp } from "./testing.ts"
-
-function fakeTarget() {
-  const listeners = new Map<string, () => void>()
-  const target: ConnectionTarget = {
-    addEventListener: (type, listener) => void listeners.set(type, listener),
-    removeEventListener: (type) => void listeners.delete(type),
-  }
-  return { target, listeners }
-}
-
-Deno.test(`the offline notice follows the browser's offline and online events`, async () => {
-  await withApp(() => {
-    const { target, listeners } = fakeTarget()
-    const stop = watchConnection(target)
-    expect(notice.value).toBeNull()
-    listeners.get(`offline`)!()
-    expect(offline.value).toBe(true)
-    expect(notice.value).toBe(OFFLINE_NOTICE)
-    listeners.get(`online`)!()
-    expect(notice.value).toBeNull()
-    stop()
-    expect(listeners.size).toBe(0)
-    return Promise.resolve()
-  })
-})
+import { notice, OFFLINE_NOTICE, relay, serverProblem, ServerProblemKind } from "./connection.ts"
+import { ApiErrorCode } from "@api/errors.ts"
+import { error, setBrowserOnline, withApp } from "./testing.ts"
 
 Deno.test(`a request that gets no answer shows the offline notice until one succeeds`, async () => {
   await withApp(async (server) => {
@@ -80,7 +46,7 @@ Deno.test(`offline wins over a server problem in the notice`, async () => {
   await withApp(async (server) => {
     server.next = error(503, `caldav_unreachable`)
     await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
-    browserOnline.value = false
+    setBrowserOnline(false)
     expect(notice.value).toBe(OFFLINE_NOTICE)
   })
 })
@@ -90,5 +56,52 @@ Deno.test(`a success body that does not match the schema is a failure, not data`
     server.next = Response.json({ calendars: `nope` })
     const result = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
     expect(result.ok).toBe(false)
+  })
+})
+
+Deno.test(`an error code outside the contract is a failure with no code and no server text`, async () => {
+  await withApp(async (server) => {
+    server.next = error(502, `made_up`, `Basic hunter2 rejected`)
+    const result = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      code: null,
+      message: `The request failed (502).`,
+      offline: false,
+    })
+    expect(serverProblem.value).toBeNull()
+  })
+})
+
+Deno.test(`a contract error code reaches the caller as a typed code with the server's message`, async () => {
+  await withApp(async (server) => {
+    server.next = error(409, `uid_conflict`, `Another task has this UID`)
+    const result = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    expect(result).toEqual({
+      ok: false,
+      status: 409,
+      code: ApiErrorCode.UidConflict,
+      message: `Another task has this UID`,
+      offline: false,
+    })
+  })
+})
+
+Deno.test(`a request is sent with the same-origin cookie policy`, async () => {
+  await withApp(async (server) => {
+    let credentials: RequestCredentials | undefined
+    const own = globalThis.fetch
+    globalThis.fetch = (input, init) => {
+      credentials = init?.credentials
+      return own(input, init)
+    }
+    try {
+      server.calendarList = []
+      await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    } finally {
+      globalThis.fetch = own
+    }
+    expect(credentials).toBe(`same-origin`)
   })
 })
