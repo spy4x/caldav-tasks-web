@@ -184,7 +184,11 @@
       ]
     },
     "@spy4x/realtime@1.44.0": {
-      "integrity": "34027378b62c4857dbc84cf640912771e8f4aa0bc94e8dcacc101886b768177c"
+      "integrity": "34027378b62c4857dbc84cf640912771e8f4aa0bc94e8dcacc101886b768177c",
+      "dependencies": [
+        "jsr:@spy4x/platform@^1.44.0",
+        "npm:arktype"
+      ]
     },
     "@spy4x/server@1.44.0": {
       "integrity": "2f72ac319568d91b8b392b32c0f2f7ddcc531dde285dd737e8a419f9577f5350",
