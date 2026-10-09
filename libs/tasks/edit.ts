@@ -79,8 +79,7 @@ export function editTask(task: Task, edit: TaskEdit, now: Date): EditResult {
 function toPatch(edit: TaskEdit): TodoPatch {
   const patch: TodoPatch = {}
   if (edit.title !== undefined) patch.summary = edit.title
-  // An empty note leaves no DESCRIPTION line behind.
-  if (edit.notes !== undefined) patch.description = edit.notes === `` ? null : edit.notes
+  if (edit.notes !== undefined) patch.description = edit.notes
   if (edit.due !== undefined) patch.due = edit.due
   if (edit.start !== undefined) patch.start = edit.start
   if (edit.priority !== undefined) patch.priority = edit.priority
