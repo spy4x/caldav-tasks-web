@@ -3,6 +3,9 @@ ARG DENO_VERSION=2.9.7
 
 FROM denoland/deno:${DENO_VERSION} AS build
 WORKDIR /app
+# The release pipeline passes the tag; the Settings screen shows it.
+ARG APP_VERSION=development
+ENV APP_VERSION=${APP_VERSION}
 COPY . .
 RUN deno install --frozen
 RUN deno task build
