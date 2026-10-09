@@ -30,6 +30,13 @@ export type SignInRequest = typeof signInRequestSchema.infer
 export const sessionSchema = type({
   /** When the session ends, as an ISO 8601 instant. */
   expiresAt: "string",
+  /**
+   * The CalDAV server this install talks to, for the Settings screen. The server refuses an
+   * address that carries credentials, so there are none in it.
+   */
+  caldavUrl: "string",
+  /** The CalDAV account the install signs in with. Never its password. */
+  caldavUsername: "string",
 })
 
 /** What `GET /api/auth/session` answers while signed in. */

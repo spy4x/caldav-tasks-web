@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals"
 import { type } from "arktype"
-import { AUTH_PATHS } from "@api/auth.ts"
+import { AUTH_PATHS, sessionSchema } from "@api/auth.ts"
 import { apiErrorSchema } from "@api/errors.ts"
 
 /** Whether the owner is signed in, as far as the app knows. */
@@ -13,6 +13,13 @@ export enum SessionStatus {
 
 /** The session as the app knows it. The cookie itself is HttpOnly and never read here. */
 export const sessionStatus = signal(SessionStatus.Unknown)
+
+/**
+ * The CalDAV server and account this install uses, as the last session answer reported them, for
+ * the Settings screen. `null` before the first answer and on a start without a network. The
+ * password is never sent to the browser.
+ */
+export const caldavAccount = signal<{ url: string; username: string } | null>(null)
 
 const UNREACHABLE = "Cannot reach the server. Check the connection and try again."
 
@@ -52,9 +59,16 @@ export async function loadSession(): Promise<void> {
   let signedIn: boolean | undefined
   try {
     const response = await fetch(AUTH_PATHS.session, { credentials: "same-origin" })
-    await response.body?.cancel()
-    if (response.ok) signedIn = true
-    else if (response.status === 401) signedIn = false
+    if (response.ok) {
+      signedIn = true
+      const body = sessionSchema(await response.json().catch(() => null))
+      if (!(body instanceof type.errors)) {
+        caldavAccount.value = { url: body.caldavUrl, username: body.caldavUsername }
+      }
+    } else {
+      await response.body?.cancel()
+      if (response.status === 401) signedIn = false
+    }
   } catch {
     // Offline or the server is out of reach.
   }
@@ -104,6 +118,7 @@ export async function signOut(): Promise<string | null> {
     return UNREACHABLE
   }
   rememberSignedIn(false)
+  caldavAccount.value = null
   sessionStatus.value = SessionStatus.SignedOut
   return null
 }

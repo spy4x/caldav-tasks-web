@@ -71,7 +71,12 @@ const sessionPayload = type({ sid: "string == 36", expiresAt: "number.integer", 
 /** What the auth module needs from the configuration. */
 export type AuthConfig = Pick<
   Config,
-  "PUBLIC_URL" | "OWNER_PASSWORD_HASH" | "AUTH_PEPPER" | "SESSION_SECRET"
+  | "PUBLIC_URL"
+  | "OWNER_PASSWORD_HASH"
+  | "AUTH_PEPPER"
+  | "SESSION_SECRET"
+  | "CALDAV_URL"
+  | "CALDAV_USERNAME"
 >
 
 /** Test seams. */
@@ -222,7 +227,13 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
     // The guard has already checked it; read again for the expiry. A sign-out may land in between.
     const session = await readSession(c)
     if (!session) return fail(c, 401, ApiErrorCode.Unauthorized, "Sign in first")
-    return c.json({ expiresAt: new Date(session.expiresAt).toISOString() } satisfies Session)
+    return c.json(
+      {
+        expiresAt: new Date(session.expiresAt).toISOString(),
+        caldavUrl: config.CALDAV_URL,
+        caldavUsername: config.CALDAV_USERNAME,
+      } satisfies Session,
+    )
   })
   routes.post("/sign-out", async (c) => {
     const session = await readSession(c)

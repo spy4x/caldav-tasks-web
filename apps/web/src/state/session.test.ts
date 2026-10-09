@@ -2,6 +2,7 @@
 import { expect } from "@std/expect"
 import { AUTH_PATHS } from "@api/auth.ts"
 import {
+  caldavAccount,
   loadSession,
   SessionStatus,
   sessionStatus,
@@ -178,4 +179,25 @@ Deno.test("signing out marks the session signed out only once the server ended i
       AUTH_PATHS.signOut,
     ])
   })
+})
+
+Deno.test("loading the session keeps the CalDAV server and account for Settings", async () => {
+  const body = {
+    expiresAt: "2026-11-07T12:00:00.000Z",
+    caldavUrl: "https://dav.example.com/dav/",
+    caldavUsername: "owner",
+  }
+  await withFetch(() => json(200, body), async () => {
+    caldavAccount.value = null
+    await loadSession()
+    expect(caldavAccount.value).toEqual({ url: "https://dav.example.com/dav/", username: "owner" })
+  }, new Map())
+})
+
+Deno.test("signing out forgets the CalDAV account", async () => {
+  await withFetch(() => new Response(null, { status: 204 }), async () => {
+    caldavAccount.value = { url: "https://dav.example.com/dav/", username: "owner" }
+    await signOut()
+    expect(caldavAccount.value).toBeNull()
+  }, new Map())
 })
