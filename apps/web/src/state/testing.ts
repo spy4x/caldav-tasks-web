@@ -27,7 +27,14 @@ export interface SentRequest {
 
 /** A CalDAV relay in memory: the routes the data layer uses, with real etag checking. */
 export class FakeServer {
-  calendarList: { href: string; displayName: string; changeMarker?: string }[] = []
+  calendarList: {
+    href: string
+    displayName: string
+    color?: string
+    changeMarker?: string
+    /** What the calendar accepts; tasks only unless a test says otherwise. */
+    components?: string[]
+  }[] = []
   objects = new Map<string, FakeObject>()
   sent: SentRequest[] = []
   /** Every request throws as `fetch` does with no network. */
@@ -74,9 +81,39 @@ export class FakeServer {
       this.next = undefined
       return response
     }
+    if (url.pathname === CALDAV_PATHS.calendars && request.method === `POST`) {
+      return request.json().then((body: { displayName: string; color?: string }) => {
+        const href = `/cal/list-${++this.version}/`
+        this.calendarList.push({
+          href,
+          displayName: body.displayName,
+          ...(body.color === undefined ? {} : { color: `${body.color.toUpperCase()}FF` }),
+          changeMarker: `c${this.version}`,
+        })
+        return Response.json({ href }, { status: 201 })
+      })
+    }
+    if (url.pathname === CALDAV_PATHS.calendar) {
+      return request.json().then((body: { href: string; displayName?: string; color?: string }) => {
+        const index = this.calendarList.findIndex((c) => c.href === body.href)
+        if (index === -1) return error(400, `bad_request`)
+        if (request.method === `DELETE`) {
+          this.calendarList.splice(index, 1)
+          for (const [href, object] of this.objects) {
+            if (object.calendar === body.href) this.objects.delete(href)
+          }
+        } else {
+          const calendar = this.calendarList[index]
+          if (body.displayName !== undefined) calendar.displayName = body.displayName
+          if (body.color !== undefined) calendar.color = `${body.color.toUpperCase()}FF`
+          calendar.changeMarker = `c${++this.version}`
+        }
+        return new Response(null, { status: 204 })
+      })
+    }
     if (url.pathname === CALDAV_PATHS.calendars) {
       return Response.json({
-        calendars: this.calendarList.map((c) => ({ ...c, components: [`VTODO`] })),
+        calendars: this.calendarList.map((c) => ({ ...c, components: c.components ?? [`VTODO`] })),
       })
     }
     if (url.pathname === CALDAV_PATHS.objects && request.method === `POST`) {

@@ -8,7 +8,7 @@ import { calendarsLoaded } from "../state/calendars.ts"
 import { loadCompleted } from "../state/sync.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { tasks } from "../state/tasks.ts"
-import { findListBySlug, taskPath } from "../routes.ts"
+import { findListBySlug, listSettingsPath, taskPath } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { sortFromParam, sortToParam, tagsFromParam, tagsToParam } from "./list-filters.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
@@ -57,6 +57,9 @@ export function ListView() {
       onQuickAdd={(parsed) => void quickAdd.add(parsed)}
       quickAddBusy={quickAdd.busy.value}
       navigate={navigate}
+      // Name, colour and delete share one settings page; Delete lives in its "More actions".
+      onRename={() => navigate(listSettingsPath(list))}
+      onChangeColor={() => navigate(listSettingsPath(list))}
     />
   )
 }

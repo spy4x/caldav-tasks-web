@@ -12,6 +12,7 @@ import { toasts } from "./state/toasts.ts"
 import { SyncBar } from "./views/SyncBar.tsx"
 import { ListsView } from "./views/ListsView.tsx"
 import { ListView } from "./views/ListView.tsx"
+import { ListSettingsView } from "./views/ListSettingsView.tsx"
 import { NotFoundView } from "./views/NotFoundView.tsx"
 import { SearchView } from "./views/SearchView.tsx"
 import { SettingsView } from "./views/SettingsView.tsx"
@@ -62,6 +63,8 @@ function SignedInApp() {
         <Route path={ROUTES.upcoming} component={UpcomingView} />
         <Route path={ROUTES.lists} component={ListsView} />
         <Route path={ROUTES.list} component={ListView} />
+        <Route path={ROUTES.listSettings} component={ListSettingsView} />
+        <Route path={ROUTES.newList} component={ListSettingsView} />
         <Route path={ROUTES.task} component={TaskEditorView} />
         <Route path={ROUTES.search} component={SearchView} />
         <Route path={ROUTES.settings} component={SettingsView} />

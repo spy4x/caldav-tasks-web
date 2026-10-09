@@ -79,7 +79,7 @@ export type RelayResult<T> =
   }
 
 export interface RelayRequest {
-  method?: `GET` | `POST` | `PUT` | `DELETE`
+  method?: `GET` | `POST` | `PUT` | `PATCH` | `DELETE`
   /** Sent as JSON. */
   body?: unknown
 }

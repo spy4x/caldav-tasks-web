@@ -1,6 +1,4 @@
-import { type Context, Hono } from "hono"
-import { HTTPException } from "hono/http-exception"
-import { type Type, type } from "arktype"
+import { Hono } from "hono"
 import {
   type CalDavCalendar,
   type CalDavClient,
@@ -8,10 +6,7 @@ import {
   type CalDavResult,
   createCalDavClient,
 } from "@spy4x/caldav"
-import { readJsonBody } from "@spy4x/server/http/bounded-body"
-import { ApiErrorCode } from "@api/errors.ts"
 import {
-  CALDAV_MAX_REQUEST_BYTES,
   type Calendar,
   type CalendarList,
   createObjectRequestSchema,
@@ -23,7 +18,11 @@ import {
 } from "@api/caldav.ts"
 import type { Config } from "../config.ts"
 import { CALDAV_FAILURES, type CalDavFailure, UNEXPECTED_FAILURE } from "./errors.ts"
+import { failed, outside, readRequest, refuse } from "./http.ts"
 import { canonicalPath, hrefOf, parentCalendar } from "./scope.ts"
+import { createCalendarAdminRoutes } from "./calendar-admin.ts"
+
+export { REQUEST_TOO_LARGE } from "./http.ts"
 
 /** What the CalDAV routes need from the configuration. */
 export type CalDavConfig = Pick<Config, "CALDAV_URL" | "CALDAV_USERNAME" | "CALDAV_PASSWORD">
@@ -35,10 +34,7 @@ export interface CalDavRoutesOptions {
 }
 
 /** The outcome of one or more CalDAV calls: the value, or how to answer the browser. */
-type Outcome<T> = { ok: true; value: T } | { ok: false; failure: CalDavFailure }
-
-/** The statuses a refusal of the request itself uses. */
-type RefusalStatus = 400 | 408 | 413 | 415
+export type Outcome<T> = { ok: true; value: T } | { ok: false; failure: CalDavFailure }
 
 /**
  * The `/api/caldav` routes: a relay between the browser and the one CalDAV account in the
@@ -49,6 +45,9 @@ type RefusalStatus = 400 | 408 | 413 | 415
  * anything else is refused with 400 before any request leaves the server. A calendar created
  * elsewhere is found by listing the calendars again once. Discovery runs on the first request and
  * is kept once it succeeds, so a CalDAV server that is down at start does not stop the app.
+ *
+ * Lists are created, renamed, recoloured and deleted through the routes in `calendar-admin.ts`,
+ * which share this relay's calendars and containment.
  *
  * Writes pass the browser's etag through exactly; a stale one answers 412 `conflict`. Failures are
  * logged with their code and status only, never a credential, a task's text or an etag.
@@ -214,6 +213,17 @@ export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOp
     return c.body(null, 204)
   })
 
+  routes.route(
+    "/",
+    createCalendarAdminRoutes({
+      client,
+      call,
+      homes: discoverHomes,
+      findCalendar,
+      forget: (href) => calendars.delete(href),
+    }),
+  )
+
   return routes
 }
 
@@ -239,41 +249,4 @@ function toTaskObject(object: { url: string; etag: string | null; data: string }
 
 function toWriteResult(write: { url: string; etag: string | null }): WriteResult {
   return { href: hrefOf(write.url), etag: write.etag }
-}
-
-/** What a request body over {@link CALDAV_MAX_REQUEST_BYTES} answers: this server refused it. */
-export const REQUEST_TOO_LARGE = "The request is larger than this server accepts"
-
-/** Reads and checks a JSON body under {@link CALDAV_MAX_REQUEST_BYTES}, or answers the refusal. */
-async function readRequest<T>(c: Context, schema: Type<T>): Promise<T | Response> {
-  const contentType = c.req.header("content-type") ?? ""
-  if (!/^application\/json\s*(;|$)/i.test(contentType)) {
-    return refuse(c, 415, "Send the request as JSON")
-  }
-  let body: unknown
-  try {
-    body = await readJsonBody(c, { maxBytes: CALDAV_MAX_REQUEST_BYTES })
-  } catch (error) {
-    if (!(error instanceof HTTPException)) throw error
-    // readJsonBody throws only 400, 408 and 413, each with a message that holds no body.
-    if (error.status === 413) {
-      return c.json({ code: ApiErrorCode.TooLarge, message: REQUEST_TOO_LARGE }, 413)
-    }
-    return refuse(c, error.status as RefusalStatus, error.message)
-  }
-  const request = schema(body)
-  if (request instanceof type.errors) return refuse(c, 400, "The request is not valid")
-  return request as T
-}
-
-function refuse(c: Context, status: RefusalStatus, message: string): Response {
-  return c.json({ code: ApiErrorCode.BadRequest, message }, status)
-}
-
-function outside(c: Context): Response {
-  return refuse(c, 400, "Not a task list or task this server lists")
-}
-
-function failed(c: Context, failure: CalDavFailure): Response {
-  return c.json({ code: failure.code, message: failure.message }, failure.status)
 }

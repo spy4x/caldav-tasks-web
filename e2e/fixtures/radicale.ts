@@ -151,3 +151,24 @@ export async function retitleOnServer(taskUrl: string, title: string): Promise<v
 export async function deleteOnServer(taskUrl: string): Promise<void> {
   await caldav(`DELETE`, taskUrl, {}, ``, [200, 204, 404])
 }
+
+/** A calendar's name and colour as Radicale stores them, or `null` when it no longer exists. */
+export async function readCalendar(
+  calendarUrl: string,
+): Promise<{ displayName: string; color: string } | null> {
+  const response = await caldav(
+    `PROPFIND`,
+    calendarUrl,
+    { Depth: `0`, "Content-Type": `application/xml; charset=utf-8` },
+    `<?xml version="1.0" encoding="utf-8"?>
+<propfind xmlns="DAV:" xmlns:A="http://apple.com/ns/ical/">
+  <prop><displayname/><A:calendar-color/></prop>
+</propfind>`,
+    [207, 404],
+  )
+  const text = await response.text()
+  if (response.status === 404) return null
+  const value = (name: string) =>
+    new RegExp(`<[^>]*${name}[^>]*>([^<]*)<`).exec(text)?.[1]?.trim() ?? ``
+  return { displayName: value(`displayname`), color: value(`calendar-color`) }
+}
