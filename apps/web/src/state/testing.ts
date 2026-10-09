@@ -1,5 +1,5 @@
 /// <reference lib="deno.ns" />
-// The cache reads `indexedDB` when it loads, so the fake must be imported before anything that uses it.
+// The cache reads the global `indexedDB` when it first opens, so the fake is installed first.
 import "fake-indexeddb/auto"
 import { CALDAV_PATHS } from "@api/caldav.ts"
 import { connection, resetConnection } from "./connection.ts"

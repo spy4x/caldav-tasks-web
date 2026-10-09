@@ -107,7 +107,7 @@ Deno.test(`a deleted task is gone from the cache`, async () => {
 /** Creates a database the way Dexie did: its version is ten times its schema version. */
 async function createLegacyDatabase(name: string, factory: IDBFactory = indexedDB): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const request = factory.open(name, 40)
+    const request = factory.open(name, 10)
     request.onupgradeneeded = () => {
       request.result.createObjectStore(`tasks`, { keyPath: `href` })
     }
@@ -124,6 +124,7 @@ const databaseNames = async (): Promise<string[]> =>
 
 Deno.test(`the database of the old Dexie cache is deleted and the new cache is left alone`, async () => {
   await createLegacyDatabase(LEGACY_DATABASE)
+  await createLegacyDatabase(`caldav-tasks-outbox`)
   await withStorage(async (s) => {
     await s.replaceCalendars([cal(`/a/`)])
     expect(await databaseNames()).toContain(LEGACY_DATABASE)
@@ -138,6 +139,7 @@ Deno.test(`the database of the old Dexie cache is deleted and the new cache is l
       await new Promise((resolve) => setTimeout(resolve, 5))
     }
     expect(await databaseNames()).not.toContain(LEGACY_DATABASE)
+    expect(await databaseNames()).toContain(`caldav-tasks-outbox`)
     expect((await s.listCalendars()).map((c) => c.href)).toEqual([`/a/`])
   })
 })
