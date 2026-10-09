@@ -8,8 +8,8 @@ import { QuickAdd } from "./quick-add.tsx"
 
 const input = (root: ParentNode) => must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`)
 const ZONE = `Asia/Ho_Chi_Minh`
-// Saturday 10 October 2026, 19:00 in Ho Chi Minh (UTC+7).
-const NOW = () => new Date(`2026-10-10T12:00:00Z`)
+// 01:00 on Sunday 11 October 2026 in Ho Chi Minh (UTC+7), still Saturday the 10th in UTC.
+const NOW = () => new Date(`2026-10-10T18:00:00Z`)
 const add = (onAdd: (parsed: QuickAddResult) => void = () => {}) => (
   <QuickAdd onAdd={onAdd} zone={ZONE} now={NOW} />
 )
@@ -113,7 +113,7 @@ Deno.test("sending a line with tokens passes the title, tag, due and priority pa
     expect(added).toHaveLength(1)
     expect(added[0].title).toBe(`Call Anna`)
     expect(added[0].tags).toEqual([`work`])
-    expect(added[0].due).toEqual({ date: `2026-10-11`, time: `15:00` })
+    expect(added[0].due).toEqual({ date: `2026-10-12`, time: `15:00` })
     expect(added[0].priority).toBe(QuickAddPriority.High)
     expect(chips(root)).toEqual([])
     expect(input(root).value).toBe(``)
