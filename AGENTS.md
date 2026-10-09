@@ -33,7 +33,9 @@ libs/ui/              screens: pure, props in and callbacks out
 e2e/                  Playwright; fixtures seed Radicale
 tests/                guard tests: ui-boundary and spacing
 infra/compose.dev.yml Radicale for development and e2e
-.woodpecker/ci.yml    check, build, e2e on pull requests and main
+.woodpecker/ci.yml    check, build, e2e on pull requests, main and tags
+.woodpecker/release.yml  on a v* tag, after ci: image to Docker Hub (repo trusted for volumes:
+                      it mounts the agent's Docker socket)
 ```
 
 Aliases: `@api/` is `libs/api/`, `@tasks/` is `libs/tasks/`, `@ui/` is `libs/ui/`.

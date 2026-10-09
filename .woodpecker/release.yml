@@ -5,6 +5,8 @@
 # server's global secrets, enabled for the tag event. Every runtime variable is written `$$`, so
 # Woodpecker leaves it for the shell.
 
+depends_on: [ci]
+
 when:
   - event: tag
     ref: refs/tags/v[0-9]*
