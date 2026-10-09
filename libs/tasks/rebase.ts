@@ -4,11 +4,13 @@
  * both changed the same field to different values, the colliding fields are reported so the screen
  * can ask "Keep mine / Use theirs".
  *
- * "Keep mine" is `editTask(theirs, edit, now)`; "Use theirs" drops the edit. Both are the caller's.
+ * "Keep mine" is {@link keepMine}; "Use theirs" drops the edit. Both are the caller's. Never apply
+ * the whole edit with `editTask` to the fresh copy: a form sends every field, and the untouched
+ * ones would revert what the other side changed.
  */
 
-import { EditField, type EditOutput, editTask, type TaskEdit } from "./edit.ts"
-import type { Task } from "./types.ts"
+import { EditField, type EditOutput, type EditResult, editTask, type TaskEdit } from "./edit.ts"
+import type { Task, TaskDate } from "./types.ts"
 
 export enum RebaseKind {
   /** The edit was applied to the fresh copy. */
@@ -32,9 +34,17 @@ export function rebaseEdit(base: Task, edit: TaskEdit, theirs: Task, now: Date):
   if (fields.length) {
     return { success: true, output: { kind: RebaseKind.Collision, fields }, error: null }
   }
-  const applied = editTask(theirs, changesOf(base, edit), now)
+  const applied = keepMine(base, edit, theirs, now)
   if (!applied.success) return applied
   return { success: true, output: { kind: RebaseKind.Applied, ...applied.output }, error: null }
+}
+
+/**
+ * "Keep mine": applies the fields `edit` really changed (against `base`) to `theirs`, overwriting
+ * the server's value where both changed the same field and leaving every other server change alone.
+ */
+export function keepMine(base: Task, edit: TaskEdit, theirs: Task, now: Date): EditResult {
+  return editTask(theirs, changesOf(base, edit), now)
 }
 
 /**
@@ -74,5 +84,15 @@ const FIELDS: { field: EditField; key: keyof TaskEdit; read: (task: Task) => unk
 ]
 
 function same(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, at) => same(item, b[at]))
+  }
+  if (isDate(a) && isDate(b)) {
+    return a.kind === b.kind && a.date === b.date && a.time === b.time && a.tzid === b.tzid
+  }
+  return (a ?? null) === (b ?? null)
+}
+
+function isDate(value: unknown): value is TaskDate {
+  return typeof value === `object` && value !== null && `kind` in value
 }

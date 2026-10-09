@@ -35,7 +35,10 @@ export interface TaskEdit {
   /** The iCalendar `PRIORITY`, 0 to 9. */
   priority?: number
   tags?: string[]
-  /** The `href` of another list. The task moves there: see {@link EditOutput.moveToList}. */
+  /**
+   * The `href` of another list. The task moves there: see {@link EditOutput.moveToList}. Its
+   * subtasks stay in the old list (a v1 decision), so a parent's move does not move them.
+   */
   listHref?: string
   sortOrder?: number | null
 }
@@ -51,10 +54,13 @@ export interface EditOutput {
   /** The patched text to send. */
   ics: string
   /**
-   * Set when the edit moves the task to another list. The caller creates the resource there with
-   * `ics` and deletes the old one; a CalDAV resource cannot change calendar in place.
+   * Set when the edit moves the task to another list. The caller creates the resource at
+   * `moveToHref` with `ics` and deletes the old one only after the new one exists, so a failed
+   * move never loses the task. A CalDAV resource cannot change calendar in place.
    */
   moveToList?: string
+  /** Where the moved resource goes: the target list plus the old file name. */
+  moveToHref?: string
 }
 
 /**
@@ -69,17 +75,25 @@ export function editTask(task: Task, edit: TaskEdit, now: Date): EditResult {
   const ics = serializeIcal(parsed.output)
   // The list is where the task lives, not a property of the text, so it is carried over as given.
   const listHref = edit.listHref ?? task.listHref
-  const read = parseTask({ href: task.href, etag: task.etag, listHref, ics })
+  const moved = listHref !== task.listHref
+  const href = moved
+    ? `${listHref.endsWith(`/`) ? listHref : `${listHref}/`}${task.href.split(`/`).pop()}`
+    : task.href
+  const read = parseTask({ href, etag: task.etag, listHref, ics })
   if (!read.success) return { success: false, output: null, error: read.error }
   const output: EditOutput = { task: read.output, ics }
-  if (listHref !== task.listHref) output.moveToList = listHref
+  if (moved) {
+    output.moveToList = listHref
+    output.moveToHref = href
+  }
   return { success: true, output, error: null }
 }
 
 function toPatch(edit: TaskEdit): TodoPatch {
   const patch: TodoPatch = {}
   if (edit.title !== undefined) patch.summary = edit.title
-  if (edit.notes !== undefined) patch.description = edit.notes
+  // Empty notes remove the line; an empty `DESCRIPTION:` would be left otherwise.
+  if (edit.notes !== undefined) patch.description = edit.notes === `` ? null : edit.notes
   if (edit.due !== undefined) patch.due = edit.due
   if (edit.start !== undefined) patch.start = edit.start
   if (edit.priority !== undefined) patch.priority = edit.priority

@@ -124,8 +124,17 @@ Deno.test(`clearing due, start, notes and tags removes their lines`, () => {
     `CATEGORIES:a,b`,
   ])
   const { ics: after, task: read } = edited(ics, { notes: ``, due: null, start: null, tags: [] })
-  expect(after).not.toMatch(/^(DESCRIPTION:Some|DUE|DTSTART|CATEGORIES)/m)
+  // The reminder keeps its own DESCRIPTION line; the task's is gone.
+  expect(lines(after).filter((line) => line.startsWith(`DESCRIPTION:`))).toEqual([
+    `DESCRIPTION:Default Tasks.org description`,
+  ])
+  expect(after).not.toMatch(/^(DUE|DTSTART|CATEGORIES)/m)
   expect([read.notes, read.due, read.start, read.tags]).toEqual([``, undefined, undefined, []])
+})
+
+Deno.test(`empty notes on a task without notes write no empty DESCRIPTION line`, () => {
+  const { ics: after } = edited(task(`1`, `No notes`), { notes: `` })
+  expect(lines(after)).not.toContain(`DESCRIPTION:`)
 })
 
 Deno.test(`an edit keeps the href, the etag and the identity of the task`, () => {
@@ -145,13 +154,17 @@ Deno.test(`choosing another list asks the caller to move the task and keeps its 
   const result = editTask(fixtureTask(task(`1`, `Move me`)), { listHref: `/dav/tasks/work/` }, NOW)
   if (!result.success) throw new Error(result.error)
   expect(result.output.moveToList).toBe(`/dav/tasks/work/`)
+  // The new resource keeps the file name; the old one is deleted only once it exists.
+  expect(result.output.moveToHref).toBe(`/dav/tasks/work/x.ics`)
+  expect(result.output.task.href).toBe(`/dav/tasks/work/x.ics`)
   expect(result.output.task.listHref).toBe(`/dav/tasks/work/`)
   expect(result.output.ics).toBe(task(`1`, `Move me`))
 })
 
 Deno.test(`choosing the list the task is already in does not ask for a move`, () => {
-  const { moveToList } = edited(task(`1`, `Stay`), { listHref: LIST_HREF, title: `Stay put` })
-  expect(moveToList).toBeUndefined()
+  const output = edited(task(`1`, `Stay`), { listHref: LIST_HREF, title: `Stay put` })
+  expect([output.moveToList, output.moveToHref]).toEqual([undefined, undefined])
+  expect(output.task.href).toBe(`${LIST_HREF}x.ics`)
 })
 
 Deno.test(`a zoned date with no time zone definition is refused and nothing is written`, () => {

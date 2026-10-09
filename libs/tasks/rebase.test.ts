@@ -3,7 +3,7 @@ import { expect } from "@std/expect"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { EditField, editTask, type TaskEdit } from "./edit.ts"
 import { fixtureTask, task } from "./fixtures/tasksorg.ts"
-import { rebaseEdit, RebaseKind } from "./rebase.ts"
+import { keepMine, rebaseEdit, RebaseKind } from "./rebase.ts"
 import type { Task } from "./types.ts"
 
 const NOW = new Date(`2026-10-08T12:30:45.678Z`)
@@ -89,12 +89,21 @@ Deno.test(`clearing a field the server changed is a collision`, () => {
   })
 })
 
-Deno.test(`"Keep mine" is the same edit applied to the fresh copy`, () => {
-  const theirs = elsewhere({ title: `Their title`, notes: `Their notes` })
-  const kept = editTask(theirs, { title: `My title` }, LATER)
+Deno.test(`"Keep mine" with a form that sends every field keeps what the server changed elsewhere`, () => {
+  const theirs = elsewhere({ title: `Their title`, notes: `Phone notes` })
+  const wholeForm: TaskEdit = {
+    title: `My title`,
+    notes: BASE.notes,
+    due: BASE.due,
+    start: BASE.start ?? null,
+    priority: BASE.priority,
+    tags: BASE.tags,
+    listHref: BASE.listHref,
+  }
+  const kept = keepMine(BASE, wholeForm, theirs, LATER)
   if (!kept.success) throw new Error(kept.error)
   expect(kept.output.task.title).toBe(`My title`)
-  expect(kept.output.task.notes).toBe(`Their notes`)
+  expect(kept.output.task.notes).toBe(`Phone notes`)
 })
 
 Deno.test(`a refused edit on the fresh copy is a failure with a message`, () => {

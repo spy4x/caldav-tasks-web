@@ -17,7 +17,17 @@ import {
 import { parseTask } from "./model.ts"
 import type { Task } from "./types.ts"
 
-export { CompleteTodoErrorCode as CompleteErrorCode, CompleteTodoKind as CompleteKind }
+export { CompleteTodoErrorCode as CompleteErrorCode }
+
+/** What a successful change did to the task. */
+export enum CompleteKind {
+  /** A repeating task moved to its next occurrence and is still open. */
+  Advanced = 1,
+  /** The task is completed. */
+  Completed,
+  /** A completed task is open again. */
+  Reopened,
+}
 
 /** What the screen shows when a repeat rule or date is outside what can be reproduced. */
 export const COMPLETE_IN_TASKS_ORG = `Complete this one in Tasks.org`
@@ -34,7 +44,7 @@ export type CompleteResult =
 
 export interface CompleteOutput {
   /** Whether the task advanced to its next occurrence or is completed. */
-  kind: CompleteTodoKind
+  kind: CompleteKind
   /** The task as it reads after the change. */
   task: Task
   /** The text to send. */
@@ -54,7 +64,12 @@ export function completeTask(task: Task, now: Date): CompleteResult {
   return change(task, (root) => {
     const result = completeTodo(root, { now })
     return result.success
-      ? { success: true, kind: result.output.kind }
+      ? {
+        success: true,
+        kind: result.output.kind === CompleteTodoKind.Advanced
+          ? CompleteKind.Advanced
+          : CompleteKind.Completed,
+      }
       : { success: false, error: result.error }
   })
 }
@@ -67,13 +82,13 @@ export function reopenTask(task: Task, now: Date): CompleteResult {
   return change(task, (root) => {
     const result = reopenTodo(root, { now })
     return result.success
-      ? { success: true, kind: CompleteTodoKind.Completed }
+      ? { success: true, kind: CompleteKind.Reopened }
       : { success: false, error: result.error }
   })
 }
 
 type Step =
-  | { success: true; kind: CompleteTodoKind }
+  | { success: true; kind: CompleteKind }
   | { success: false; error: { code: CompleteTodoErrorCode; message: string } }
 
 function change(task: Task, run: (root: IcalComponent) => Step): CompleteResult {

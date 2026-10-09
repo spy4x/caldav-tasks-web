@@ -102,6 +102,7 @@ Deno.test(`completing a task that is already completed is refused with the libra
 Deno.test(`reopening a completed task makes it open again and drops COMPLETED`, () => {
   const result = reopenTask(fixtureTask(COMPLETED), COMPLETE_NOW)
   if (!result.success) throw new Error(result.error.message)
+  expect(result.output.kind).toBe(CompleteKind.Reopened)
   expect(result.output.task.status).toBe(TaskStatus.NeedsAction)
   expect(result.output.ics).not.toContain(`COMPLETED:`)
   expect(result.output.ics).not.toContain(`PERCENT-COMPLETE`)
