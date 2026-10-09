@@ -112,3 +112,84 @@ Deno.test(`Keep mine after a conflict sends the form as it stands now, not as it
     })
   })
 })
+
+async function choose(root: ParentNode, name: string, value: string) {
+  const select = e2e<HTMLSelectElement>(root, name)
+  await act(() => {
+    select.value = value
+    select.dispatchEvent(
+      new (select.ownerDocument.defaultView!.Event as typeof Event)(`change`, { bubbles: true }),
+    )
+  })
+}
+
+const DUE = `DUE;VALUE=DATE:20261012`
+
+Deno.test(`a repeat and a reminder set in the editor reach the server, and removing them takes them away`, async () => {
+  await withApp(async (server) => {
+    await start(server, [DUE, `X-KEEP:still here`])
+    await onPage(editor(), async ({ root }) => {
+      await choose(root, `task-repeat-freq`, `2`)
+      await choose(root, `task-reminders-unit`, `H`)
+      await type(root, `task-reminders-amount`, `1`)
+      await press(root, `task-reminder-add`)
+      await press(root, `task-save`)
+    })
+    const written = server.objects.get(HREF)!.ics
+    expect(written).toContain(`RRULE:FREQ=WEEKLY;INTERVAL=1`)
+    expect(written).toContain(`TRIGGER;RELATED=END:-PT1H`)
+    // The reminder Tasks.org wrote and the property this app does not know are still there.
+    expect(written).toContain(`TRIGGER;RELATED=END:PT0S`)
+    expect(written).toContain(`X-KEEP:still here`)
+
+    await onPage(editor(), async ({ root }) => {
+      expect(e2e<HTMLSelectElement>(root, `task-repeat-freq`).value).toBe(`2`)
+      expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(2)
+      await choose(root, `task-repeat-freq`, `none`)
+      for (let left = 2; left > 0; left--) await press(root, `task-reminder-remove`)
+      await press(root, `task-save`)
+    })
+    const cleared = server.objects.get(HREF)!.ics
+    expect(cleared).not.toContain(`RRULE`)
+    expect(cleared).not.toContain(`VALARM`)
+    expect(cleared).toContain(`X-KEEP:still here`)
+  })
+})
+
+Deno.test(`a repeat changed on both sides is a conflict, and Keep mine writes the repeat from the form`, async () => {
+  await withApp(async (server) => {
+    await start(server, [DUE, `RRULE:FREQ=DAILY;INTERVAL=1`])
+    const stored = server.objects.get(HREF)!
+    await onPage(editor(), async ({ root }) => {
+      await choose(root, `task-repeat-freq`, `3`)
+      server.objects.set(HREF, {
+        ...stored,
+        etag: server.nextEtag(),
+        ics: stored.ics.replace(`RRULE:FREQ=DAILY;INTERVAL=1`, `RRULE:FREQ=YEARLY;INTERVAL=1`),
+      })
+      await press(root, `task-save`)
+      expect(server.objects.get(HREF)!.ics).toContain(`FREQ=YEARLY`)
+      await press(root, `task-conflict-keep-mine`)
+      expect(server.objects.get(HREF)!.ics).toContain(`RRULE:FREQ=MONTHLY;INTERVAL=1`)
+    })
+  })
+})
+
+Deno.test(`a repeat set here is kept when another client changed only the title`, async () => {
+  await withApp(async (server) => {
+    await start(server, [DUE])
+    const stored = server.objects.get(HREF)!
+    await onPage(editor(), async ({ root }) => {
+      await choose(root, `task-repeat-freq`, `1`)
+      server.objects.set(HREF, {
+        ...stored,
+        etag: server.nextEtag(),
+        ics: stored.ics.replace(`SUMMARY:Buy milk`, `SUMMARY:Buy cheese`),
+      })
+      await press(root, `task-save`)
+      const merged = server.objects.get(HREF)!.ics
+      expect(merged).toContain(`SUMMARY:Buy cheese`)
+      expect(merged).toContain(`RRULE:FREQ=DAILY;INTERVAL=1`)
+    })
+  })
+})

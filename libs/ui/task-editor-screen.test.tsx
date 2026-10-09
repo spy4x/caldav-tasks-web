@@ -151,6 +151,8 @@ Deno.test("Save hands over the whole form, and untouched dates and priority come
       priority: 3,
       listHref: "/cal/home/",
       tags: ["home", "garden"],
+      repeatRule: null,
+      reminders: [],
     })
     expect(saved[0].due).toBe(stored.due!)
   }, props({ task: stored, onSave: (draft) => saved.push(draft) }))
@@ -441,37 +443,108 @@ Deno.test("a time set on a task with no time is saved as a floating wall clock, 
   }, props({ task: timeless, timeZone: "Asia/Tokyo", onSave: (draft) => saved.push(draft) }))
 })
 
-Deno.test("the repeat rule is read-only and described in words, and a rule the library cannot read is shown as written", () => {
+/** Picks an option of a select the way a person does: sets the value, then fires `change`. */
+async function choose(root: ParentNode, name: string, value: string): Promise<void> {
+  const select = e2e(root, name) as HTMLSelectElement
+  await act(() => {
+    select.value = value
+    select.dispatchEvent(
+      new (select.ownerDocument.defaultView!.Event as typeof Event)("change", { bubbles: true }),
+    )
+  })
+}
+
+/** Saves the form as it stands and hands back what the screen sent. */
+async function saveDraft(root: ParentNode, saved: TaskDraft[]): Promise<TaskDraft> {
+  await press(e2e(root, "task-save"))
+  return saved.at(-1)!
+}
+
+Deno.test("a plain repeat rule shows as its frequency and interval, and no rule as Does not repeat", () => {
   const weekly = renderToString(
-    <TaskEditorScreen
-      {...props({ task: task({ repeatRule: "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH" }) })}
-    />,
+    <TaskEditorScreen {...props({ task: task({ repeatRule: "FREQ=WEEKLY;INTERVAL=2" }) })} />,
   )
-  expect(weekly).toMatch(/data-e2e="task-repeat-label">Every 2 weeks on Mon, Thu</)
-  expect(weekly).toMatch(/<h2[^>]*>Repeats<\/h2>/)
-  expect(weekly).not.toMatch(/name="repeat/)
+  expect(weekly).toMatch(/<option selected value="2">Weekly</)
+  expect(weekly).toMatch(/name="task-repeat-interval"[^>]*value="2"/)
+  expect(weekly).toMatch(/data-e2e="task-repeat-label">Every 2 weeks</)
+
+  const none = renderToString(<TaskEditorScreen {...props()} />)
+  expect(none).toMatch(/<option selected value="none">Does not repeat</)
+  expect(none).not.toContain("task-repeat-interval")
+})
+
+Deno.test("a rule the control cannot build is shown in words and saved back exactly as read", async () => {
+  const saved: TaskDraft[] = []
+  const rule = "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
+  await mount(async (root) => {
+    expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).toBe("custom")
+    expect(e2e(root, "task-repeat-label").textContent).toBe("Every 2 weeks on Mon, Thu")
+    expect(root.querySelector(`[data-e2e="task-repeat-interval"]`)).toBeNull()
+    expect((await saveDraft(root, saved)).repeatRule).toBe(rule)
+  }, props({ task: task({ repeatRule: rule }), onSave: (draft) => saved.push(draft) }))
 
   const odd = renderToString(
     <TaskEditorScreen {...props({ task: task({ repeatRule: "FREQ=SECONDLY;BYSETPOS=1" }) })} />,
   )
   expect(odd).toContain(">FREQ=SECONDLY;BYSETPOS=1<")
-
-  expect(renderToString(<TaskEditorScreen {...props()} />)).not.toContain("task-repeat")
 })
 
-Deno.test("reminders are listed under a heading and cannot be edited", () => {
+Deno.test("picking a frequency and an interval writes the rule, and Does not repeat clears it", async () => {
+  const saved: TaskDraft[] = []
+  await mount(async (root) => {
+    expect((await saveDraft(root, saved)).repeatRule).toBeNull()
+    await choose(root, "task-repeat-freq", "2")
+    await type(root, "task-repeat-interval", "3")
+    expect((await saveDraft(root, saved)).repeatRule).toBe("FREQ=WEEKLY;INTERVAL=3")
+    // A month is a different unit: the interval the person typed carries over.
+    await choose(root, "task-repeat-freq", "3")
+    expect((await saveDraft(root, saved)).repeatRule).toBe("FREQ=MONTHLY;INTERVAL=3")
+    await choose(root, "task-repeat-freq", "none")
+    expect((await saveDraft(root, saved)).repeatRule).toBeNull()
+  }, props({ onSave: (draft) => saved.push(draft) }))
+})
+
+Deno.test("an interval that is not a whole number of 1 or more does not change the rule", async () => {
+  const saved: TaskDraft[] = []
+  await mount(async (root) => {
+    for (const bad of ["0", "-2", "1.5", ""]) {
+      await type(root, "task-repeat-interval", bad)
+      // The label is written from the rule itself, so it shows whether the rule moved.
+      expect(e2e(root, "task-repeat-label").textContent).toBe("Every 4 days")
+    }
+  }, props({ task: task({ repeatRule: "FREQ=DAILY;INTERVAL=4" }), onSave: (d) => saved.push(d) }))
+})
+
+Deno.test("a repeat on a task with no start and no due date is refused where the person can see it", async () => {
+  const saved: TaskDraft[] = []
+  await mount(async (root) => {
+    await type(root, "task-due-date", "")
+    await type(root, "task-due-time", "")
+    await choose(root, "task-repeat-freq", "1")
+    await press(e2e(root, "task-save"))
+    expect(saved).toHaveLength(0)
+    expect(root.textContent).toContain("A task needs a start or due date to repeat from.")
+    expect(e2e(root, "task-repeat-freq").getAttribute("aria-invalid")).toBe("true")
+    // A start date is enough to repeat from.
+    await type(root, "task-start-date", "2026-10-13")
+    expect((await saveDraft(root, saved)).repeatRule).toBe("FREQ=DAILY;INTERVAL=1")
+  }, props({ onSave: (draft) => saved.push(draft) }))
+})
+
+const END_DUE = reminder("-PT15M", AlarmRelated.End)
+const fixedAt = (time: string) => ({
+  trigger: time,
+  alarm: {
+    kind: AlarmTriggerKind.Absolute as const,
+    at: { kind: IcalDateKind.Utc, date: "2026-10-10", time: "08:00:00" },
+  },
+})
+
+Deno.test("reminders are listed in words, each with a Remove button named for it", () => {
   const html = renderToString(
     <TaskEditorScreen
       {...props({
-        task: task({
-          reminders: [reminder("-PT15M", AlarmRelated.End), reminder("-PT1H"), {
-            trigger: "20261010T080000Z",
-            alarm: {
-              kind: AlarmTriggerKind.Absolute,
-              at: { kind: IcalDateKind.Utc, date: "2026-10-10", time: "08:00:00" },
-            },
-          }],
-        }),
+        task: task({ reminders: [END_DUE, reminder("-PT1H"), fixedAt("20261010T080000Z")] }),
         timeZone: "Asia/Ho_Chi_Minh",
       })}
     />,
@@ -481,8 +554,192 @@ Deno.test("reminders are listed under a heading and cannot be edited", () => {
   expect(html).toContain("15 minutes before due")
   expect(html).toContain("1 hour before start")
   expect(html).toContain("15:00")
-  expect(html).not.toMatch(/name="remind/)
-  expect(renderToString(<TaskEditorScreen {...props()} />)).not.toContain("task-reminders")
+  expect(html.match(/data-e2e="task-reminder-remove"/g)).toHaveLength(3)
+  expect(html).toContain(`aria-label="Remove reminder: 15 minutes before due"`)
+  expect(renderToString(<TaskEditorScreen {...props()} />)).toContain("No reminders.")
+})
+
+Deno.test("adding and removing reminders sends the whole list, untouched ones as they were read", async () => {
+  const saved: TaskDraft[] = []
+  await mount(
+    async (root) => {
+      expect((await saveDraft(root, saved)).reminders).toEqual([{ trigger: END_DUE.alarm }])
+      await type(root, "task-reminders-amount", "2")
+      await choose(root, "task-reminders-unit", "H")
+      await press(e2e(root, "task-reminder-add"))
+      await choose(root, "task-reminders-anchor", "at-start")
+      await press(e2e(root, "task-reminder-add"))
+      const added = await saveDraft(root, saved)
+      expect(added.reminders).toEqual([
+        { trigger: END_DUE.alarm },
+        {
+          trigger: {
+            kind: AlarmTriggerKind.Relative,
+            duration: "-PT2H",
+            related: AlarmRelated.End,
+          },
+        },
+        {
+          trigger: {
+            kind: AlarmTriggerKind.Relative,
+            duration: "PT0S",
+            related: AlarmRelated.Start,
+          },
+        },
+      ])
+      expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(3)
+
+      const remove = (at: number) =>
+        press(root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)[at] as HTMLElement)
+      // The middle one goes: the others stay, in order.
+      await remove(1)
+      expect((await saveDraft(root, saved)).reminders).toEqual([
+        added.reminders[0],
+        added.reminders[2],
+      ])
+      await remove(1)
+      await remove(0)
+      expect((await saveDraft(root, saved)).reminders).toEqual([])
+    },
+    props({
+      task: task({
+        start: { kind: IcalDateKind.Date, date: "2026-10-11" },
+        reminders: [END_DUE],
+      }),
+      onSave: (draft) => saved.push(draft),
+    }),
+  )
+})
+
+Deno.test("a fixed reminder time is typed in the viewer's zone and written as UTC", async () => {
+  const saved: TaskDraft[] = []
+  await mount(async (root) => {
+    await choose(root, "task-reminders-anchor", "fixed")
+    await type(root, "task-reminders-moment", "2026-10-10T15:00")
+    await press(e2e(root, "task-reminder-add"))
+    expect(e2e(root, "task-reminder-label").textContent).toContain("15:00")
+    expect((await saveDraft(root, saved)).reminders[0].trigger).toEqual({
+      kind: AlarmTriggerKind.Absolute,
+      at: { kind: IcalDateKind.Utc, date: "2026-10-10", time: "08:00:00" },
+    })
+  }, props({ timeZone: "Asia/Ho_Chi_Minh", onSave: (draft) => saved.push(draft) }))
+})
+
+/** The text of the element(s) a control's `aria-describedby` points at. */
+function describedBy(control: HTMLElement): string {
+  const ids = (control.getAttribute("aria-describedby") ?? "").split(" ").filter(Boolean)
+  return ids.map((id) => control.ownerDocument.getElementById(id)?.textContent ?? "").join(" ")
+}
+
+Deno.test("a reminder counted from a date the task does not have, or with a bad amount or time, is not added, and the error belongs to its control", async () => {
+  await mount(async (root) => {
+    const none = () => expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(0)
+    // The task has a due date but no start date.
+    const anchor = e2e(root, "task-reminders-anchor")
+    await choose(root, "task-reminders-anchor", "before-start")
+    await press(e2e(root, "task-reminder-add"))
+    expect(anchor.getAttribute("aria-invalid")).toBe("true")
+    expect(describedBy(anchor)).toContain("Set a start date first")
+    none()
+
+    await choose(root, "task-reminders-anchor", "before-due")
+    expect(anchor.getAttribute("aria-invalid")).toBeNull()
+    await type(root, "task-reminders-amount", "0")
+    await press(e2e(root, "task-reminder-add"))
+    const amount = e2e(root, "task-reminders-amount")
+    expect(amount.getAttribute("aria-invalid")).toBe("true")
+    expect(describedBy(amount)).toContain("whole number")
+    expect(anchor.getAttribute("aria-invalid")).toBeNull()
+    none()
+
+    await choose(root, "task-reminders-anchor", "fixed")
+    await press(e2e(root, "task-reminder-add"))
+    const moment = e2e(root, "task-reminders-moment")
+    expect(moment.getAttribute("aria-invalid")).toBe("true")
+    expect(describedBy(moment)).toContain("Pick the date and time")
+    none()
+  }, props())
+})
+
+Deno.test("after Remove, focus goes to the next reminder's Remove button, then the previous one, then the add row", async () => {
+  await mount(
+    async (root) => {
+      const buttons = () =>
+        [...root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)] as HTMLElement[]
+      // Compared by position, not as elements: a failing comparison of two DOM nodes never
+      // finishes printing them.
+      const focusedRemove = () => buttons().indexOf(root.ownerDocument.activeElement as HTMLElement)
+      await press(buttons()[1])
+      // The third reminder moved up into the removed one's place.
+      expect(buttons()).toHaveLength(2)
+      expect(focusedRemove()).toBe(1)
+      await press(buttons()[1])
+      // Nothing follows, so the one before takes focus.
+      expect(focusedRemove()).toBe(0)
+      await press(buttons()[0])
+      expect(buttons()).toHaveLength(0)
+      expect(root.ownerDocument.activeElement?.getAttribute("data-e2e")).toBe(
+        "task-reminders-anchor",
+      )
+    },
+    props({
+      task: task({ reminders: [END_DUE, reminder("-PT1H"), reminder("-P1D")] }),
+    }),
+  )
+})
+
+Deno.test("a title-only save of a repeating task with no dates goes through, but a new rule on it is refused", async () => {
+  const saved: TaskDraft[] = []
+  const undated = task({
+    due: undefined,
+    repeatRule: "FREQ=WEEKLY;INTERVAL=1",
+  })
+  await mount(async (root) => {
+    await type(root, "task-title", "Renamed")
+    const draft = await saveDraft(root, saved)
+    expect(draft.title).toBe("Renamed")
+    expect(draft.repeatRule).toBe("FREQ=WEEKLY;INTERVAL=1")
+    expect(root.textContent).not.toContain("to repeat from")
+
+    await choose(root, "task-repeat-freq", "1")
+    await press(e2e(root, "task-save"))
+    expect(saved).toHaveLength(1)
+    expect(root.textContent).toContain("A task needs a start or due date to repeat from.")
+  }, props({ task: undated, onSave: (d) => saved.push(d) }))
+})
+
+Deno.test("rules with an end date or a count show as Custom, and keep their end when saved", async () => {
+  for (
+    const rule of [
+      "FREQ=WEEKLY;INTERVAL=2;UNTIL=20261231T000000Z",
+      "FREQ=DAILY;INTERVAL=1;COUNT=5",
+    ]
+  ) {
+    const saved: TaskDraft[] = []
+    await mount(async (root) => {
+      expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).toBe("custom")
+      expect(root.querySelector(`[data-e2e="task-repeat-interval"]`)).toBeNull()
+      expect((await saveDraft(root, saved)).repeatRule).toBe(rule)
+    }, props({ task: task({ repeatRule: rule }), onSave: (draft) => saved.push(draft) }))
+  }
+})
+
+Deno.test("Enter in the amount box adds the reminder and does not save the task", async () => {
+  const saved: TaskDraft[] = []
+  await mount(async (root) => {
+    const amount = e2e(root, "task-reminders-amount")
+    await act(() => {
+      amount.dispatchEvent(
+        new (amount.ownerDocument.defaultView!.KeyboardEvent as typeof KeyboardEvent)("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+    })
+    expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(1)
+    expect(saved).toHaveLength(0)
+  }, props({ onSave: (draft) => saved.push(draft) }))
 })
 
 Deno.test("subtasks are listed, and Add subtask sends the trimmed title and clears the field", async () => {

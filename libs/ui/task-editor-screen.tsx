@@ -1,8 +1,6 @@
 import type { JSX } from "preact"
 import { useEffect, useRef, useState } from "preact/hooks"
-import { describeRrule, parseRrule } from "@spy4x/time/rrule"
 import { hhmmInTz, isoDateInTz, resolveWallClock } from "@spy4x/time/tz"
-import { IconArrowPath } from "@spy4x/preact-icons"
 import { Button } from "@spy4x/preact-ui/button"
 import { ConfirmDialog } from "@spy4x/preact-ui/confirm-dialog"
 import { DropdownItem } from "@spy4x/preact-ui/dropdown"
@@ -15,6 +13,7 @@ import { RadioGroup } from "@spy4x/preact-ui/radio"
 import { TagInput } from "@spy4x/preact-ui/tag-input"
 import { UnsavedGuard } from "@spy4x/preact-ui/unsaved-guard"
 import { IcalDateKind } from "@spy4x/time/ical"
+import { type AlarmInput } from "@spy4x/time/ical-tasks"
 import { floatingDue } from "./due-label.ts"
 import {
   PriorityBand,
@@ -24,7 +23,8 @@ import {
   TaskStatus,
 } from "@spy4x/time/ical-tasks-model"
 import { ConflictDialog } from "./conflict-dialog.tsx"
-import { ReminderList } from "./reminder-list.tsx"
+import { RemindersField } from "./reminders-field.tsx"
+import { RepeatField } from "./repeat-field.tsx"
 
 /** What the editor hands back on Save: every field it shows, not only the ones that changed. */
 export interface TaskDraft {
@@ -39,6 +39,10 @@ export interface TaskDraft {
   /** The `href` of the list the task belongs to. */
   listHref: string
   tags: string[]
+  /** The `RRULE` value (no prefix), or `null` for no repeat. Unchanged, it is the task's own text. */
+  repeatRule: string | null
+  /** The reminders the task has afterwards. Unchanged, they are the ones it was read with. */
+  reminders: AlarmInput[]
 }
 
 /** Why a save was refused, by field. The screen adds its own checks for the title and the dates. */
@@ -46,6 +50,7 @@ export interface TaskEditorErrors {
   title?: string
   due?: string
   start?: string
+  repeat?: string
   /** Something no single field explains, such as a network failure. */
   form?: string
 }
@@ -105,6 +110,8 @@ interface Fields {
   priority: number
   listHref: string
   tags: string[]
+  repeatRule: string | null
+  reminders: AlarmInput[]
 }
 
 const PRIORITY_NUMBER: Record<PriorityBand, number> = {
@@ -157,6 +164,8 @@ function fieldsOf(task: Task, zone: string): Fields {
     priority: task.priority,
     listHref: task.listHref,
     tags: [...task.tags],
+    repeatRule: task.repeatRule ?? null,
+    reminders: task.reminders.map((reminder) => ({ trigger: reminder.alarm })),
   }
 }
 
@@ -194,24 +203,25 @@ function dateOf(
 }
 
 /** What is wrong with the form itself, before anything is sent. */
-function check(fields: Fields): TaskEditorErrors {
+function check(fields: Fields, baseline: Fields): TaskEditorErrors {
   const errors: TaskEditorErrors = {}
   if (!fields.title.trim()) errors.title = "Enter a title."
   if (!fields.dueDate && fields.dueTime) errors.due = "Pick a due date for this time."
   if (!fields.startDate && fields.startTime) errors.start = "Pick a start date for this time."
+  // Like the library: a rule the task already has is not refused, only a new or changed one.
+  if (
+    fields.repeatRule && fields.repeatRule !== baseline.repeatRule && !fields.dueDate &&
+    !fields.startDate
+  ) {
+    errors.repeat = "A task needs a start or due date to repeat from."
+  }
   return errors
-}
-
-/** The repeat rule in words; a rule the library cannot read is shown as written. */
-function repeatLabel(rule: string): string {
-  const parsed = parseRrule(rule)
-  return parsed.success ? describeRrule(parsed.output) : rule
 }
 
 /**
  * The task editor: a page with title, notes, due and start (native date and optional time),
- * priority, list and tags, and the repeat rule and reminders read-only, because v1 writes only what
- * it can write without loss.
+ * priority, list, tags, the repeat rule ({@link RepeatField}) and reminders
+ * ({@link RemindersField}).
  *
  * The screen holds the form's values itself and hands the whole form to `onSave`. Leaving with
  * changes asks first (`UnsavedGuard`). A refused save focuses the first field in error. Delete lives
@@ -242,7 +252,9 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
   }, [task, props.conflict])
 
   const errors: TaskEditorErrors = { ...props.errors, ...checked }
-  const errorKey = `${errors.title ?? ""}|${errors.due ?? ""}|${errors.start ?? ""}`
+  const errorKey = `${errors.title ?? ""}|${errors.due ?? ""}|${errors.start ?? ""}|${
+    errors.repeat ?? ""
+  }`
   // Focus the first field in error, in page order. `attempt` makes a repeated refusal count.
   useEffect(() => {
     form.current?.querySelector<HTMLElement>(`[aria-invalid="true"]`)?.focus()
@@ -262,10 +274,12 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
     priority: fields.priority,
     listHref: fields.listHref,
     tags: fields.tags,
+    repeatRule: fields.repeatRule,
+    reminders: fields.reminders,
   })
 
   const save = () => {
-    const problems = check(fields)
+    const problems = check(fields, baseline)
     setChecked(problems)
     if (Object.keys(problems).length > 0) {
       setAttempt((count) => count + 1)
@@ -372,17 +386,22 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
               suggestions={props.tagSuggestions}
             />
           </Field>
-          {task.repeatRule && (
-            <section aria-labelledby="task-repeat-heading" data-e2e="task-repeat">
-              <h2 id="task-repeat-heading" class="pc-label">Repeats</h2>
-              <p class="mt-2 flex items-center gap-2 text-sm text-muted">
-                <IconArrowPath class="size-4" aria-hidden="true" />
-                <span data-e2e="task-repeat-label">{repeatLabel(task.repeatRule)}</span>
-              </p>
-              <p class="mt-2 text-sm text-muted">The repeat rule is changed in Tasks.org.</p>
-            </section>
-          )}
-          <ReminderList reminders={task.reminders} timeZone={zone} />
+          <RepeatField
+            id="task-repeat"
+            value={fields.repeatRule}
+            onChange={(repeatRule) => set({ repeatRule })}
+            error={errors.repeat}
+            disabled={saving}
+          />
+          <RemindersField
+            id="task-reminders"
+            value={fields.reminders}
+            onChange={(reminders) => set({ reminders })}
+            hasDue={fields.dueDate !== ""}
+            hasStart={fields.startDate !== ""}
+            timeZone={zone}
+            disabled={saving}
+          />
           {errors.form && (
             <p role="alert" class="text-sm text-danger" data-e2e="task-form-error">
               {errors.form}
