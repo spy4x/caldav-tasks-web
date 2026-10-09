@@ -6,8 +6,10 @@
     "jsr:@hono/hono@4.13.8": "4.13.8",
     "jsr:@iuioiua/redis@1.1.10": "1.1.10",
     "jsr:@libs/qrcode@3.1.0": "3.1.0",
+    "jsr:@spy4x/caldav@1.42.0": "1.42.0",
     "jsr:@spy4x/email@^1.39.0": "1.39.0",
     "jsr:@spy4x/net@^1.39.0": "1.39.0",
+    "jsr:@spy4x/net@^1.42.0": "1.42.0",
     "jsr:@spy4x/platform@1.10.0": "1.10.0",
     "jsr:@spy4x/platform@1.39.0": "1.39.0",
     "jsr:@spy4x/platform@^1.39.0": "1.39.0",
@@ -24,6 +26,7 @@
     "jsr:@spy4x/time@1.10.0": "1.10.0",
     "jsr:@spy4x/time@1.40.0": "1.40.0",
     "jsr:@spy4x/time@^1.39.0": "1.40.0",
+    "jsr:@spy4x/time@^1.42.0": "1.42.0",
     "jsr:@spy4x/validation@1.10.0": "1.10.0",
     "jsr:@spy4x/validation@^1.10.0": "1.39.0",
     "jsr:@spy4x/validation@^1.39.0": "1.39.0",
@@ -42,7 +45,7 @@
     "npm:@deno/vite-plugin@1.0.6": "1.0.6_vite@7.3.6",
     "npm:@noble/ciphers@^2.1.1": "2.4.0",
     "npm:@noble/curves@^2.0.1": "2.0.1",
-    "npm:@noble/hashes@^2.0.1": "2.4.0",
+    "npm:@noble/hashes@^2.0.1": "2.0.1",
     "npm:@noble/post-quantum@~0.5.3": "0.5.4",
     "npm:@playwright/test@1.57.0": "1.57.0",
     "npm:@preact/preset-vite@2.10.2": "2.10.2_@babel+core@7.29.7_vite@7.3.6_preact@10.29.8_preact-render-to-string@6.7.0",
@@ -87,6 +90,14 @@
     "@libs/qrcode@3.1.0": {
       "integrity": "1d65698d3cbaf1d5e2e0b025f7d8572e8b2c485dcfa81d485e0bf0ce607e9c2b"
     },
+    "@spy4x/caldav@1.42.0": {
+      "integrity": "5595aebb7bae1471dde50db28044a3767004c7d48ae9d5ec298872f87f5ef9fe",
+      "dependencies": [
+        "jsr:@spy4x/net@^1.42.0",
+        "jsr:@spy4x/time@^1.42.0",
+        "jsr:@std/encoding"
+      ]
+    },
     "@spy4x/email@1.39.0": {
       "integrity": "7b6aad93b96319c84195edabd3aa0d013cc67dcab21a2ace389730d773dee185",
       "dependencies": [
@@ -95,6 +106,9 @@
     },
     "@spy4x/net@1.39.0": {
       "integrity": "4a9709b310184b6bab664483a6a9fea1286a9a16ae9eeea3607309e2ff8dc826"
+    },
+    "@spy4x/net@1.42.0": {
+      "integrity": "30a6be5a37e1da04a42733244593da3f4621b38e9fef4cde9cf92ba95d722f74"
     },
     "@spy4x/platform@1.10.0": {
       "integrity": "b69d04fdd4dcdea21db70114ac4f382e2d4a84fef29a6c3479057e16eae17ea5",
@@ -107,7 +121,7 @@
       "dependencies": [
         "jsr:@hono/hono",
         "jsr:@spy4x/email",
-        "jsr:@spy4x/net",
+        "jsr:@spy4x/net@^1.39.0",
         "jsr:@spy4x/time@^1.39.0",
         "jsr:@spy4x/validation@^1.39.0",
         "jsr:@std/crypto",
@@ -180,7 +194,7 @@
         "jsr:@iuioiua/redis",
         "jsr:@libs/qrcode",
         "jsr:@spy4x/email",
-        "jsr:@spy4x/net",
+        "jsr:@spy4x/net@^1.39.0",
         "jsr:@spy4x/platform@^1.39.0",
         "jsr:@spy4x/validation@^1.39.0",
         "jsr:@std/encoding",
@@ -194,6 +208,9 @@
     },
     "@spy4x/time@1.40.0": {
       "integrity": "47444915ae3fef162f6c16d218e7c722150a3c53a5a946c76366162b1e750bc6"
+    },
+    "@spy4x/time@1.42.0": {
+      "integrity": "cd03e38e77820d7cdeba505e24c16ac1d2b39e49ade0e5d9cb3aa91411ca4533"
     },
     "@spy4x/validation@1.10.0": {
       "integrity": "255e6c78f08149fb1b073ad76bf437ad7e15958ccd13a2630fd96e7b2df8f95b",
@@ -593,20 +610,17 @@
     "@noble/curves@2.0.1": {
       "integrity": "sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw==",
       "dependencies": [
-        "@noble/hashes@2.0.1"
+        "@noble/hashes"
       ]
     },
     "@noble/hashes@2.0.1": {
       "integrity": "sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw=="
     },
-    "@noble/hashes@2.4.0": {
-      "integrity": "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="
-    },
     "@noble/post-quantum@0.5.4": {
       "integrity": "sha512-leww0zzIirrvwaYMPI9fj6aRIlA/c6Y0/lifQQ1YOOyHEr0MNH3yYpjXeiVG+tWdPps4XxGclFWX2INPO3Yo5w==",
       "dependencies": [
         "@noble/curves",
-        "@noble/hashes@2.0.1"
+        "@noble/hashes"
       ]
     },
     "@playwright/test@1.57.0": {
@@ -1448,6 +1462,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@hono/hono@4.13.8",
+      "jsr:@spy4x/caldav@1.42.0",
       "jsr:@spy4x/platform@1.39.0",
       "jsr:@spy4x/preact-icons@3.7.0",
       "jsr:@spy4x/preact-signals@3.7.0",
