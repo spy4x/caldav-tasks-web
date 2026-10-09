@@ -64,6 +64,8 @@ export type WriteResult =
 /** The patched text of a write, or why there is none, or the fields that collided. */
 type Step =
   | { ok: true; task: Task; ics: string }
+  /** Nothing to send: the server's copy already shows the change. */
+  | { ok: true; alreadyDone: true }
   | { ok: false; message: string }
   | { ok: false; fields: EditField[] }
 
@@ -74,6 +76,7 @@ interface Plan {
   rebase(base: Task, theirs: Task): Step
 }
 
+const CHANGED_ON_SERVER = `The task changed on the server. Reload it and try again.`
 const CHANGED_AGAIN = `The task changed again while saving. Try again.`
 
 /**
@@ -98,6 +101,17 @@ export function saveTask(task: Task, edit: TaskEdit, now = new Date()): Promise<
   }, edit)
 }
 
+const isDone = (task: Task) => task.status === TaskStatus.Completed
+const sameDates = (a: Task, b: Task) => sameDate(a.due, b.due) && sameDate(a.start, b.start)
+/** A repeating task that someone completed moves its dates on while it stays open. */
+const datesMoved = (base: Task, theirs: Task) =>
+  !!base.repeatRule && !sameDates(base, theirs) && theirs.status === base.status
+
+function sameDate(a: Task[`due`], b: Task[`due`]): boolean {
+  if (!a || !b) return a === b
+  return a.kind === b.kind && a.date === b.date && a.time === b.time && a.tzid === b.tzid
+}
+
 /**
  * Completes an open task or reopens a completed one. After a 412 the same change is made on the
  * fresh copy; there is no field to collide on.
@@ -112,7 +126,16 @@ export function setTaskDone(task: Task, done: boolean, now = new Date()): Promis
   if ((task.status === TaskStatus.Completed) === done) {
     return Promise.resolve({ kind: WriteKind.Saved, task })
   }
-  return commit(task, { first: change, rebase: (_base, theirs) => change(theirs) })
+  return commit(task, {
+    first: change,
+    rebase: (base, theirs) => {
+      // Re-applying to a copy someone else already completed would advance a repeating task twice.
+      if (isDone(theirs) === done) return { ok: true, alreadyDone: true }
+      if (sameDates(base, theirs) && theirs.status === base.status) return change(theirs)
+      if (datesMoved(base, theirs) && done) return { ok: true, alreadyDone: true }
+      return { ok: false, message: CHANGED_ON_SERVER }
+    },
+  })
 }
 
 /**
@@ -145,24 +168,24 @@ const offlineResult = (): WriteResult => ({ kind: WriteKind.Offline, notice: OFF
 
 async function commit(base: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
   if (offline.value) return offlineResult()
-  // A task the server sent without an etag cannot be written until it is read again with one.
-  if (!base.etag) {
-    const fresh = await readTask(base)
-    if (!fresh.ok) return fresh.result
-    base = fresh.task
+  // A task with no etag cannot be written until it is read again with one. The cached copy stays
+  // the base, so what the server changed meanwhile is rebased, never silently overwritten.
+  if (base.etag) {
+    const first = plan.first(base)
+    if (!first.ok) return stepFailure(first, base, edit, undefined)
+    if (`alreadyDone` in first) return { kind: WriteKind.Saved, task: base }
+    const put = await send(base.href, base.etag, first.ics)
+    if (put.ok) return await saved(first.task, first.ics, put.etag)
+    if (put.offline) return offlineResult()
+    if (put.code !== ApiErrorCode.Conflict) return failed(put.message)
   }
-  const first = plan.first(base)
-  if (!first.ok) return stepFailure(first, base, edit, undefined)
-  const put = await send(base.href, base.etag, first.ics)
-  if (put.ok) return await saved(first.task, first.ics, put.etag)
-  if (put.offline) return offlineResult()
-  if (put.code !== ApiErrorCode.Conflict) return failed(put.message)
 
   const fresh = await readTask(base)
   if (!fresh.ok) return fresh.result
   const theirs = fresh.task
   const second = plan.rebase(base, theirs)
   if (!second.ok) return stepFailure(second, base, edit, theirs)
+  if (`alreadyDone` in second) return { kind: WriteKind.Saved, task: theirs }
   const retry = await send(theirs.href, theirs.etag, second.ics)
   if (retry.ok) return await saved(second.task, second.ics, retry.etag)
   if (retry.offline) return offlineResult()

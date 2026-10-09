@@ -2,6 +2,7 @@
 import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { CALDAV_PATHS } from "@api/caldav.ts"
+import { completeTask } from "@tasks/complete.ts"
 import { EditField } from "@tasks/edit.ts"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { TaskStatus } from "@tasks/types.ts"
@@ -187,5 +188,75 @@ Deno.test(`moving a task to another list is refused until it is supported`, asyn
     const result = await saveTask(before, { listHref: `/dav/tasks/other/` }, NOW)
     expect(result.kind).toBe(WriteKind.Failed)
     expect(server.sent).toEqual([])
+  })
+})
+
+Deno.test(`completing a repeating task that the phone completed first advances it once`, async () => {
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(
+      HREF,
+      LIST_HREF,
+      fixture(`1`, `Water plants`, [`DUE;VALUE=DATE:20261009`, `RRULE:FREQ=DAILY`]),
+    )
+    await refresh()
+    server.sent.length = 0
+    const before = tasks.value[0]
+    // The phone completes it first: due moves to 10 October.
+    const phone = completeTask(before, NOW)
+    if (!phone.success) throw new Error(phone.error.message)
+    const found = server.objects.get(HREF)!
+    server.objects.set(HREF, { ...found, etag: server.nextEtag(), ics: phone.output.ics })
+
+    const result = await setTaskDone(before, true, NOW)
+
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(server.objects.get(HREF)!.ics).toBe(phone.output.ics)
+    expect(result.task.due).toEqual(phone.output.task.due)
+    // Only the refused first attempt was sent: nothing completed it a second time.
+    expect(puts(server)).toBe(1)
+  })
+})
+
+Deno.test(`completing a task that someone else already completed sends nothing more`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    const phone = completeTask(before, NOW)
+    if (!phone.success) throw new Error(phone.error.message)
+    const found = server.objects.get(HREF)!
+    server.objects.set(HREF, { ...found, etag: server.nextEtag(), ics: phone.output.ics })
+
+    const result = await setTaskDone(before, true, NOW)
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect(puts(server)).toBe(1)
+    expect(tasks.value[0].status).toBe(TaskStatus.Completed)
+  })
+})
+
+Deno.test(`a task cached without an etag is rebased on the fresh copy, so a same-field change is a conflict`, async () => {
+  await withApp(async (server) => {
+    const cached = await start(server)
+    editElsewhere(server, `SUMMARY:Buy milk`, `SUMMARY:Buy cheese`)
+
+    const result = await saveTask({ ...cached, etag: `` }, { title: `Buy oat milk` }, NOW)
+
+    if (result.kind !== WriteKind.Conflict) throw new Error(`expected conflict, got ${result.kind}`)
+    expect(result.conflict.fields).toEqual([EditField.Title])
+    expect(puts(server)).toBe(0)
+  })
+})
+
+Deno.test(`a task cached without an etag saves an edit of other fields on the fresh copy`, async () => {
+  await withApp(async (server) => {
+    const cached = await start(server)
+    editElsewhere(server, `DESCRIPTION:Two litres`, `DESCRIPTION:Three litres`)
+
+    const result = await saveTask({ ...cached, etag: `` }, { title: `Buy oat milk` }, NOW)
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`SUMMARY:Buy oat milk`)
+    expect(onServer).toContain(`DESCRIPTION:Three litres`)
   })
 })
