@@ -6,17 +6,19 @@ import { LIST_HREF, task } from "@tasks/fixtures/tasksorg.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { type TaskStorage, useStorage } from "./db.ts"
 import { notice, OFFLINE_NOTICE } from "./connection.ts"
-import { tasks } from "./tasks.ts"
+import { pendingEntries } from "./pending.ts"
+import { saveTask, tasks } from "./tasks.ts"
 import {
   cacheUnavailable,
   lastSyncedAt,
   loadCache,
   loadCompleted,
   refresh,
+  runnerState,
   startSync,
   syncing,
 } from "./sync.ts"
-import { error, type FakeServer, withApp } from "./testing.ts"
+import { error, type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
 
 const OPEN = `${LIST_HREF}open.ics`
 const DONE = `${LIST_HREF}done.ics`
@@ -189,6 +191,53 @@ Deno.test(`sync refreshes on start, when the page is shown again and when the ne
     stop()
     expect(listeners.size).toBe(0)
     expect(connection.size).toBe(0)
+  })
+})
+
+Deno.test(`sync sends the queued writes before it refreshes, when the network returns`, async () => {
+  await withApp(async (server) => {
+    seedList(server)
+    await refresh()
+    const before = tasks.value.find((t) => t.title === `Buy milk`)!
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` })
+    expect(server.objects.get(OPEN)!.ics).toContain(`SUMMARY:Buy milk`)
+    // Starting the app reads the browser's own state again, which says online: the server is down.
+    server.down = true
+
+    const listeners = new Map<string, (event: Event) => void>()
+    const connection = new Map<string, () => void>()
+    const stop = startSync({
+      document: {
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        visibilityState: `visible`,
+      },
+      addEventListener: (type, listener) => void listeners.set(type, listener),
+      removeEventListener: (type) => void listeners.delete(type),
+    }, {
+      addEventListener: (type, listener) => void connection.set(type, listener),
+      removeEventListener: (type) => void connection.delete(type),
+    })
+    try {
+      // The first try finds no server: the write stays queued and a retry is planned.
+      for (let waited = 0; !runnerState.value?.failures && waited < 200; waited++) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+      expect(pendingEntries.value.length).toBe(1)
+      expect(server.objects.get(OPEN)!.ics).toContain(`SUMMARY:Buy milk`)
+
+      server.down = false
+      listeners.get(`online`)!(new Event(`online`))
+      for (let waited = 0; pendingEntries.value.length > 0 && waited < 200; waited++) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+
+      expect(server.objects.get(OPEN)!.ics).toContain(`SUMMARY:Oat milk`)
+      expect(pendingEntries.value).toEqual([])
+    } finally {
+      stop()
+    }
   })
 })
 
