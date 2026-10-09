@@ -64,8 +64,8 @@
     // #endregion Aliases
 
     // #region Dependencies
-    // spy4x/ts-libs 1.44.0. Every package moves together, so only one copy of their shared
-    // dependencies (@spy4x/time, @spy4x/net) loads. hono and arktype must stay on the exact
+    // spy4x/ts-libs 1.44.0. Every package moves together. preact-components pins its own ts-libs
+    // version, so a second copy of @spy4x/time and @spy4x/platform may load next to this one. hono and arktype must stay on the exact
     // versions these packages were published with, or two copies load and their types stop matching.
     "@spy4x/platform": "jsr:@spy4x/platform@1.44.0",
     "@spy4x/server": "jsr:@spy4x/server@1.44.0",

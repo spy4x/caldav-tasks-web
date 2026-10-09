@@ -1,10 +1,10 @@
 /**
  * Applies an editor change to a task as a lossless patch of its original iCalendar text. Only the
  * changed properties are rewritten; `@spy4x/time`'s `patchTodo` also stamps `DTSTAMP` and
- * `LAST-MODIFIED`, raises `SEQUENCE` only when dates, the repeat rule or the status change, and
- * writes every other line back byte for byte, so reminders
- * and `X-` properties that Tasks.org or another client wrote survive. Nothing here reads the clock
- * or the network.
+ * `LAST-MODIFIED`, and raises `SEQUENCE` whenever the edit includes `due` or `start`, changed or
+ * not (a title, notes, tags or priority alone leave it). Every other line is written back byte for
+ * byte, so reminders and `X-` properties that Tasks.org or another client wrote survive. Nothing
+ * here reads the clock or the network.
  */
 
 import { parseIcal, serializeIcal } from "@spy4x/time/ical"
