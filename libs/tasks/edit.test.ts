@@ -51,24 +51,25 @@ function edited(ics: string, edit: Parameters<typeof editTask>[1]) {
 }
 
 for (const [name, ics] of EVERY_FIXTURE) {
-  Deno.test(`editing the title of ${name} changes only SUMMARY, DTSTAMP, LAST-MODIFIED and SEQUENCE`, () => {
+  Deno.test(`editing the title of ${name} changes only SUMMARY, DTSTAMP and LAST-MODIFIED`, () => {
     const { ics: after } = edited(ics, { title: `Renamed` })
     const removed = difference(lines(ics), lines(after))
     const added = difference(lines(after), lines(ics))
-    const allowed = /^(SUMMARY|DTSTAMP|LAST-MODIFIED|SEQUENCE)[:;]/
+    const allowed = /^(SUMMARY|DTSTAMP|LAST-MODIFIED)[:;]/
     expect(removed.filter((line) => !allowed.test(line))).toEqual([])
     expect(added.filter((line) => !allowed.test(line))).toEqual([])
     expect(added).toContain(`SUMMARY:Renamed`)
     expect(added).toContain(`DTSTAMP:${STAMP}`)
     expect(added).toContain(`LAST-MODIFIED:${STAMP}`)
-    expect(added.some((line) => line.startsWith(`SEQUENCE:`))).toBe(true)
+    expect(added.some((line) => line.startsWith(`SEQUENCE:`))).toBe(false)
   })
 }
 
-Deno.test(`an edit raises SEQUENCE by one each time it is saved`, () => {
-  const first = edited(task(`1`, `A`), { title: `B` })
+Deno.test(`a due date edit raises SEQUENCE by one each time it is saved`, () => {
+  const due = (date: string) => ({ kind: IcalDateKind.Date, date }) as const
+  const first = edited(task(`1`, `A`), { due: due(`2026-11-02`) })
   expect(lines(first.ics)).toContain(`SEQUENCE:1`)
-  const second = editTask(first.task, { title: `C` }, NOW)
+  const second = editTask(first.task, { due: due(`2026-11-03`) }, NOW)
   if (!second.success) throw new Error(second.error)
   expect(lines(second.output.ics)).toContain(`SEQUENCE:2`)
 })

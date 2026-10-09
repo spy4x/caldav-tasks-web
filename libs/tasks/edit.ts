@@ -1,7 +1,8 @@
 /**
  * Applies an editor change to a task as a lossless patch of its original iCalendar text. Only the
- * changed properties are rewritten; `@spy4x/time`'s `patchTodo` also stamps `DTSTAMP`,
- * `LAST-MODIFIED` and `SEQUENCE` (+1), and writes every other line back byte for byte, so reminders
+ * changed properties are rewritten; `@spy4x/time`'s `patchTodo` also stamps `DTSTAMP` and
+ * `LAST-MODIFIED`, raises `SEQUENCE` only when dates, the repeat rule or the status change, and
+ * writes every other line back byte for byte, so reminders
  * and `X-` properties that Tasks.org or another client wrote survive. Nothing here reads the clock
  * or the network.
  */
