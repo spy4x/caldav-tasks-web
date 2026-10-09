@@ -143,6 +143,9 @@ Deno.test("More actions offers only the actions the caller can do, and Delete is
       await act(() => must<HTMLButtonElement>(root, `[aria-label="More actions"]`).click())
       const items = texts(root, `[role="menuitem"]`)
       expect(items).toEqual([`Rename list`, `Delete list`])
+      const [rename, del] = [...root.querySelectorAll<HTMLElement>(`[role="menuitem"]`)]
+      expect(rename.className).not.toContain(`text-red`)
+      expect(del.className).toContain(`text-red`)
       await act(() => [...root.querySelectorAll<HTMLElement>(`[role="menuitem"]`)][1].click())
       expect(calls).toEqual([`delete`])
     },
