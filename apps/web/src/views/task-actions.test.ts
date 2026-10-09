@@ -150,6 +150,7 @@ Deno.test(`dragging a task writes its new position to the server and leaves the 
     const after = hrefs.map((href) => server.objects.get(href)!.ics)
     expect(after[0]).toBe(before[0])
     expect(after[1]).toBe(before[1])
+    expect(after[2]).toContain(`SUMMARY:Task 2`)
     expect(Number(after[2].match(/X-APPLE-SORT-ORDER:(-?\d+)/)![1])).toBeLessThan(100)
   })
 })
