@@ -1,9 +1,14 @@
 import { signal } from "@preact/signals"
+import {
+  type CalDavSyncStore,
+  type CalDavSyncTransport,
+  createCalDavSync,
+} from "@spy4x/caldav/sync"
 import { watchPageResume } from "@spy4x/realtime/page-lifecycle"
-import { CALDAV_PATHS, calendarListSchema, objectListSchema } from "@api/caldav.ts"
+import { CALDAV_PATHS, type Calendar, calendarListSchema, objectListSchema } from "@api/caldav.ts"
 import { connection, relay } from "./connection.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
-import { type CachedCalendar, type CachedTask, cacheUnavailable, getStorage } from "./db.ts"
+import { cacheUnavailable, getStorage } from "./db.ts"
 import { setCachedTasks } from "./tasks.ts"
 
 /** True while a refresh is running. */
@@ -32,38 +37,46 @@ export async function loadCache(): Promise<void> {
   calendarsLoaded.value = true
 }
 
-let running: Promise<void> | undefined
+/** Reaches the server through the relay, as the sync engine's transport. */
+const transport: CalDavSyncTransport<Calendar> = {
+  async listCalendars() {
+    const listed = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    return listed.ok
+      ? { ok: true, data: listed.data.calendars }
+      : { ok: false, offline: listed.offline }
+  },
+  async listObjects(calendar, { includeCompleted }) {
+    const query = `calendar=${encodeURIComponent(calendar.href)}${
+      includeCompleted ? `&completed=true` : ``
+    }`
+    const result = await relay(`${CALDAV_PATHS.objects}?${query}`, {}, objectListSchema)
+    return result.ok
+      ? { ok: true, data: result.data.objects }
+      : { ok: false, offline: result.offline }
+  },
+}
+
+/** The cache the engine writes to: whichever storage the app has open at the time of the call. */
+const store: CalDavSyncStore<Calendar> = {
+  listCalendars: () => getStorage().listCalendars(),
+  listVersions: (calendarHref) => getStorage().listVersions(calendarHref),
+  replaceCalendars: (list) => getStorage().replaceCalendars(list),
+  applyChanges: (calendar, changes) => getStorage().applyChanges(calendar, changes),
+}
+
+const engine = createCalDavSync(transport, store)
 
 /**
  * Brings the cache up to date: reads the list of calendars, and fetches the tasks of each one whose
- * change marker differs from the one its cached tasks came from. Calls that overlap share one run.
- * With no answer from the server the cache stays as it is.
+ * change marker differs from the one its cached tasks came from, writing only the tasks whose etag
+ * changed. Calls that overlap share one run. With no answer from the server the cache stays as it
+ * is.
  */
-export function refresh(): Promise<void> {
-  return running ??= run().finally(() => {
-    running = undefined
-  })
-}
-
-async function run(): Promise<void> {
+export async function refresh(): Promise<void> {
   syncing.value = true
   try {
-    const listed = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
-    if (!listed.ok) return
-    const storage = getStorage()
-    const before = new Map((await storage.listCalendars()).map((c) => [c.href, c]))
-    const next = listed.data.calendars.map((calendar): CachedCalendar => ({
-      ...calendar,
-      syncedMarker: before.get(calendar.href)?.syncedMarker,
-      completedLoaded: before.get(calendar.href)?.completedLoaded ?? false,
-    }))
-    await storage.replaceCalendars(next)
-    for (const calendar of next) {
-      const unchanged = calendar.changeMarker !== undefined &&
-        calendar.changeMarker === calendar.syncedMarker
-      if (!unchanged && !await fetchTasks(calendar, calendar.completedLoaded)) break
-    }
-    lastSyncedAt.value = new Date()
+    const outcome = await engine.refresh()
+    if (outcome.answered) lastSyncedAt.value = new Date()
   } catch {
     cacheUnavailable.value = true
   } finally {
@@ -74,36 +87,13 @@ async function run(): Promise<void> {
 }
 
 /**
- * Fetches the tasks of `calendar` and replaces its cached ones. Resolves false when the server did
- * not answer, so the caller stops asking.
- */
-async function fetchTasks(calendar: CachedCalendar, completed: boolean): Promise<boolean> {
-  const query = `calendar=${encodeURIComponent(calendar.href)}${completed ? `&completed=true` : ``}`
-  const result = await relay(`${CALDAV_PATHS.objects}?${query}`, {}, objectListSchema)
-  if (!result.ok) return !result.offline
-  const rows: CachedTask[] = result.data.objects.map((object) => ({
-    href: object.href,
-    calendarHref: calendar.href,
-    etag: object.etag,
-    ics: object.ics,
-  }))
-  await getStorage().replaceCalendarTasks(
-    { ...calendar, syncedMarker: calendar.changeMarker, completedLoaded: completed },
-    rows,
-  )
-  return true
-}
-
-/**
  * Loads the completed tasks of one list too, for the screen that shows them. The list keeps them
  * in later refreshes.
  */
 export async function loadCompleted(calendarHref: string): Promise<boolean> {
-  const calendar = calendars.value.find((c) => c.href === calendarHref)
-  if (!calendar) return false
   let ok = false
   try {
-    ok = await fetchTasks(calendar, true)
+    ok = await engine.loadCompleted(calendarHref)
   } catch {
     cacheUnavailable.value = true
   }

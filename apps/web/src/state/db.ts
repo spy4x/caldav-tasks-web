@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals"
 import { Dexie, type EntityTable } from "dexie"
+import type { SyncChanges, SyncObjectVersion } from "@spy4x/caldav/sync"
 import type { Calendar } from "@api/caldav.ts"
 
 /** A calendar as the cache keeps it: what the server listed, plus how far the tasks are in step. */
@@ -31,8 +32,10 @@ export interface TaskStorage {
   listTasks(): Promise<CachedTask[]>
   /** Keeps exactly these calendars. A calendar missing from `calendars` loses its tasks too. */
   replaceCalendars(calendars: CachedCalendar[]): Promise<void>
-  /** Swaps every cached task of `calendar` for `tasks` and stores `calendar`, in one step. */
-  replaceCalendarTasks(calendar: CachedCalendar, tasks: CachedTask[]): Promise<void>
+  /** The address and etag of every cached task of one calendar. */
+  listVersions(calendarHref: string): Promise<SyncObjectVersion[]>
+  /** Stores `calendar` and applies `changes` to its cached tasks, in one step. */
+  applyChanges(calendar: CachedCalendar, changes: SyncChanges): Promise<void>
   putTask(task: CachedTask): Promise<void>
   deleteTask(href: string): Promise<void>
   close(): void
@@ -58,10 +61,13 @@ export function createDexieStorage(name = `caldav-tasks`): TaskStorage {
         await db.calendars.bulkDelete(gone)
         await db.calendars.bulkPut(calendars)
       }),
-    replaceCalendarTasks: (calendar, tasks) =>
+    listVersions: async (calendarHref) =>
+      (await db.tasks.where(`calendarHref`).equals(calendarHref).toArray())
+        .map(({ href, etag }) => ({ href, etag })),
+    applyChanges: (calendar, { upsert, remove }) =>
       db.transaction(`rw`, db.calendars, db.tasks, async () => {
-        await db.tasks.where(`calendarHref`).equals(calendar.href).delete()
-        await db.tasks.bulkPut(tasks)
+        await db.tasks.bulkDelete(remove)
+        await db.tasks.bulkPut(upsert.map((object) => ({ ...object, calendarHref: calendar.href })))
         await db.calendars.put(calendar)
       }),
     putTask: async (task) => void await db.tasks.put(task),
