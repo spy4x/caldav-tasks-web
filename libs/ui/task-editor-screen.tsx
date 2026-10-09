@@ -374,7 +374,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
               <p class="mt-2 text-sm text-muted">The repeat rule is changed in Tasks.org.</p>
             </section>
           )}
-          <ReminderList reminders={task.reminders} />
+          <ReminderList reminders={task.reminders} timeZone={zone} />
           {errors.form && (
             <p role="alert" class="text-sm text-danger" data-e2e="task-form-error">
               {errors.form}

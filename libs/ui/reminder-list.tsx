@@ -1,4 +1,5 @@
 import type { JSX } from "preact"
+import { describeAlarmTrigger } from "@spy4x/time/ical-tasks"
 import { IconBell } from "@spy4x/preact-icons"
 import type { TaskReminder } from "@tasks/types.ts"
 
@@ -6,17 +7,21 @@ import type { TaskReminder } from "@tasks/types.ts"
 export interface ReminderListProps {
   /** The reminders the task carries, as `readTodo` returned them. */
   reminders: readonly TaskReminder[]
+  /** The IANA zone a fixed reminder moment is shown in. Defaults to `UTC`. */
+  timeZone?: string
 }
 
 /**
  * The task's reminders, read-only: v1 shows them so nobody wonders whether they exist, but changing
  * them stays in Tasks.org. Renders nothing for a task without reminders.
  *
- * Each trigger is shown as written (`-PT15M`, or `20261010T080000Z` for a fixed moment).
- * TODO: describe them in words ("15 minutes before due") once `@spy4x/time/ical-tasks` has a
- * describer for an alarm trigger; it is a library gap, so no local formatter lives here.
+ * Each trigger is described in words by `describeAlarmTrigger` ("15 minutes before due", "at
+ * start"), so a reminder counted from the end reads differently from one counted from the start.
+ * One the library cannot describe is shown as written (`-PT15M`).
  */
-export function ReminderList({ reminders }: ReminderListProps): JSX.Element | null {
+export function ReminderList(
+  { reminders, timeZone = `UTC` }: ReminderListProps,
+): JSX.Element | null {
   if (reminders.length === 0) return null
   return (
     <section aria-labelledby="task-reminders-heading" data-e2e="task-reminders">
@@ -25,7 +30,7 @@ export function ReminderList({ reminders }: ReminderListProps): JSX.Element | nu
         {reminders.map((reminder, index) => (
           <li key={index} class="flex items-center gap-2" data-e2e="task-reminder">
             <IconBell class="size-4" aria-hidden="true" />
-            <code>{reminder.trigger}</code>
+            {describeAlarmTrigger(reminder.alarm, { timeZone }) ?? <code>{reminder.trigger}</code>}
           </li>
         ))}
       </ul>

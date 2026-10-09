@@ -4,12 +4,14 @@ import { Window } from "happy-dom"
 import { render } from "preact"
 import { act } from "preact/test-utils"
 import { renderToString } from "preact-render-to-string"
+import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
 import { IcalDateKind, PriorityBand, type Task, type TaskList, TaskStatus } from "@tasks/types.ts"
 import {
   type TaskDraft,
   TaskEditorScreen,
   type TaskEditorScreenProps,
 } from "./task-editor-screen.tsx"
+import { reminder } from "./task-fixtures.ts"
 
 const LISTS: TaskList[] = [
   { href: "/cal/home/", name: "Home", openCount: 3 },
@@ -444,13 +446,24 @@ Deno.test("reminders are listed under a heading and cannot be edited", () => {
   const html = renderToString(
     <TaskEditorScreen
       {...props({
-        task: task({ reminders: [{ trigger: "-PT15M" }, { trigger: "20261010T080000Z" }] }),
+        task: task({
+          reminders: [reminder("-PT15M", AlarmRelated.End), reminder("-PT1H"), {
+            trigger: "20261010T080000Z",
+            alarm: {
+              kind: AlarmTriggerKind.Absolute,
+              at: { kind: IcalDateKind.Utc, date: "2026-10-10", time: "08:00:00" },
+            },
+          }],
+        }),
+        timeZone: "Asia/Ho_Chi_Minh",
       })}
     />,
   )
   expect(html).toMatch(/<h2[^>]*>Reminders<\/h2>/)
-  expect(html).toContain("<code>-PT15M</code>")
-  expect(html).toContain("<code>20261010T080000Z</code>")
+  // Counted from due is not counted from start, and a fixed moment reads in the viewer's zone.
+  expect(html).toContain("15 minutes before due")
+  expect(html).toContain("1 hour before start")
+  expect(html).toContain("15:00")
   expect(html).not.toMatch(/name="remind/)
   expect(renderToString(<TaskEditorScreen {...props()} />)).not.toContain("task-reminders")
 })

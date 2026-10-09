@@ -5,6 +5,7 @@
  */
 
 import type { IcalDateValue } from "@spy4x/time/ical"
+import type { AlarmTrigger } from "@spy4x/time/ical-tasks"
 
 export { IcalDateKind, type IcalDateValue } from "@spy4x/time/ical"
 
@@ -37,8 +38,13 @@ export type TaskDate = IcalDateValue
 
 /** A reminder the task carries. Read-only in v1. */
 export interface TaskReminder {
-  /** The `VALARM` trigger as written, e.g. `-PT15M`. */
+  /** The `VALARM` trigger as written, e.g. `-PT15M`: what to show when `alarm` cannot be described. */
   trigger: string
+  /**
+   * The trigger with what it is counted from (`RELATED=START` or `END`), so "before due" and
+   * "before start" stay apart. Feed it to `describeAlarmTrigger`.
+   */
+  alarm: AlarmTrigger
 }
 
 /** One task as a screen shows it. */

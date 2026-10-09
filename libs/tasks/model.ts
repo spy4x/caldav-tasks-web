@@ -91,9 +91,11 @@ function stampOf(root: IcalComponent): TaskDate | undefined {
 function toReminder(alarm: Todo[`alarms`][number]): TaskReminder[] {
   const trigger = alarm.trigger
   if (!trigger) return []
-  if (trigger.kind === AlarmTriggerKind.Relative) return [{ trigger: trigger.duration }]
+  if (trigger.kind === AlarmTriggerKind.Relative) {
+    return [{ trigger: trigger.duration, alarm: trigger }]
+  }
   const { date, time = `00:00:00` } = trigger.at
-  return [{ trigger: `${date.replace(/-/g, ``)}T${time.replace(/:/g, ``)}Z` }]
+  return [{ trigger: `${date.replace(/-/g, ``)}T${time.replace(/:/g, ``)}Z`, alarm: trigger }]
 }
 
 /** Tasks.org's grouping of the iCalendar priority: 1 to 4 high, 5 medium, 6 to 9 low, 0 none. */
