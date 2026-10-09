@@ -1,26 +1,14 @@
 import { signal } from "@preact/signals"
 import { Dexie, type EntityTable } from "dexie"
-import type { SyncChanges, SyncObjectVersion } from "@spy4x/caldav/sync"
+import type { StoredCalendar, SyncChanges, SyncObject, SyncObjectVersion } from "@spy4x/caldav/sync"
 import type { Calendar } from "@api/caldav.ts"
 
 /** A calendar as the cache keeps it: what the server listed, plus how far the tasks are in step. */
-export interface CachedCalendar extends Calendar {
-  /**
-   * The `changeMarker` the cached tasks of this calendar were fetched under. When the server still
-   * reports the same marker, nothing changed and the fetch is skipped.
-   */
-  syncedMarker?: string
-  /** Whether the cached tasks include the completed ones. Open-only until a list asks for more. */
-  completedLoaded: boolean
-}
+export type CachedCalendar = StoredCalendar<Calendar>
 
 /** One task as the cache keeps it: the raw text is what keeps every edit lossless. */
-export interface CachedTask {
-  href: string
+export interface CachedTask extends SyncObject {
   calendarHref: string
-  /** Exactly what the server sent, quotes included, or `null` when it sent none. */
-  etag: string | null
-  ics: string
 }
 
 /**
