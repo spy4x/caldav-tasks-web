@@ -194,3 +194,12 @@ Deno.test("a second shortcut replaces the first one's wait for its field", async
     expect(focused(window)).toBe(`input search-input`)
   })
 })
+
+Deno.test("moving into the task editor after mount turns off the shortcuts that leave it", async () => {
+  const log: string[] = []
+  await mount(<Page log={log} />, async ({ window, rerender }) => {
+    await rerender(<Page log={log} path="/tasks/abc" />)
+    for (const name of [`g`, `t`]) await key(window as never, window.document.body as never, name)
+    expect(log).toEqual([])
+  })
+})
