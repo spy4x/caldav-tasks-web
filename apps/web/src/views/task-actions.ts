@@ -1,7 +1,8 @@
 import type { Task } from "@spy4x/time/ical-tasks-model"
 import { toasts } from "../state/toasts.ts"
 import { deleteTask, restoreTask } from "../state/task-writes.ts"
-import { setTaskDone, undoWrite, WriteKind, type WriteResult } from "../state/tasks.ts"
+import { reorderWrites } from "@tasks/reorder.ts"
+import { saveTask, setTaskDone, undoWrite, WriteKind, type WriteResult } from "../state/tasks.ts"
 
 const NO_HEADING = ``
 
@@ -57,5 +58,22 @@ export async function deleteWithUndo(task: Task): Promise<boolean> {
     body: `Deleted "${task.title}"`,
     action: { label: `Undo`, onAction: () => undo(() => restoreTask(task), `Restored`) },
   })
+  return true
+}
+
+/**
+ * Moves a task to `toIndex` among its `siblings` in manual order. Writes the moved task alone, or
+ * the few siblings whose values `reorderTask` had to spread out, one after another. Failures show a
+ * toast. Resolves `true` when every write was saved.
+ */
+export async function reorderInList(
+  task: Task,
+  siblings: readonly Task[],
+  toIndex: number,
+  zone: string,
+): Promise<boolean> {
+  for (const write of reorderWrites(siblings, task.uid, toIndex, zone)) {
+    if (!reportFailure(await saveTask(write.task, write.edit))) return false
+  }
   return true
 }

@@ -24,6 +24,11 @@ export interface ListScreenProps {
   loading?: boolean
   sort: SortMode
   onSortChange: (sort: SortMode) => void
+  /**
+   * A drag finished in manual order: the moved task, the tasks that share its parent as shown and
+   * the index it takes among the others. Left out, rows have no drag handle.
+   */
+  onReorder?: (task: Task, siblings: readonly Task[], toIndex: number) => void
   /** The tags the list is narrowed to. A task shows when it has at least one of them. */
   activeTags: readonly string[]
   onActiveTagsChange: (tags: string[]) => void
@@ -181,6 +186,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                     now={props.now}
                     onComplete={props.onComplete}
                     onOpen={props.onOpen}
+                    onReorder={props.sort === SortMode.Manual ? props.onReorder : undefined}
                   />
                 </FocusKeeper>
               )}

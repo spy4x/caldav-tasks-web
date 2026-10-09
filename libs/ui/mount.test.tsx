@@ -22,7 +22,12 @@ export async function mount(
 ): Promise<void> {
   const window = new Window({ url: `http://app.localhost/` })
   const own = globalThis.document
-  Object.assign(globalThis, { document: window.document })
+  const ownStyle = globalThis.getComputedStyle
+  // preact-ui's modal scroll lock reads `getComputedStyle` as a global.
+  Object.assign(globalThis, {
+    document: window.document,
+    getComputedStyle: window.getComputedStyle.bind(window),
+  })
   const root = window.document.createElement(`div`) as unknown as HTMLElement
   window.document.body.append(root as never)
   const rerender = (next: ComponentChildren) => act(() => render(next, root))
@@ -39,7 +44,7 @@ export async function mount(
     })
   } finally {
     await act(() => render(null, root))
-    Object.assign(globalThis, { document: own })
+    Object.assign(globalThis, { document: own, getComputedStyle: ownStyle })
     await window.happyDOM.close()
   }
 }

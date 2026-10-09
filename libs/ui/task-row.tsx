@@ -33,6 +33,8 @@ export interface TaskRowProps {
   onComplete: (task: Task, done: boolean) => void
   /** The row (not its check) was pressed. */
   onOpen: (task: Task) => void
+  /** Draws a `div` instead of an `li`, for a row that sits inside another list's item. */
+  bare?: boolean
 }
 
 const INDENT = [`ps-0`, `ps-6`, `ps-12`, `ps-16`] as const
@@ -83,8 +85,9 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
     }
   }
 
+  const Tag = (props.bare ? `div` : `li`) as `li`
   return (
-    <li
+    <Tag
       class={`isolate relative flex items-start gap-1 border-b border-subtle ${
         INDENT[Math.min(depth, 3)]
       }`}
@@ -163,6 +166,6 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
           />
         </button>
       )}
-    </li>
+    </Tag>
   )
 }
