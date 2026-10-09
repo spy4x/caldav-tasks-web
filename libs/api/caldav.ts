@@ -27,8 +27,20 @@ import { type } from "arktype"
 
 /** Where each CalDAV route lives. Every one needs the owner's session. */
 export const CALDAV_PATHS = {
-  /** `GET`; answers 200 with a {@link CalendarList} of the calendars that can hold tasks. */
+  /**
+   * `GET`; answers 200 with a {@link CalendarList} of the calendars that can hold tasks.
+   *
+   * `POST` a {@link CreateCalendarRequest}; creates a task list in the account's calendar home and
+   * answers 201 with a {@link CalendarCreated}.
+   */
   calendars: "/api/caldav/calendars",
+  /**
+   * `PATCH` an {@link UpdateCalendarRequest}; renames or recolours a listed calendar, answers 204.
+   *
+   * `DELETE` with a {@link DeleteCalendarRequest} body; deletes a listed calendar and every task in
+   * it, answers 204.
+   */
+  calendar: "/api/caldav/calendar",
   /**
    * `GET ?calendar=<href>`, optionally `&completed=true`; answers 200 with an {@link ObjectList}
    * of the calendar's open tasks, or of all its tasks with `completed=true`.
@@ -144,3 +156,53 @@ export const writeResultSchema = type({
 
 /** What a create or update answers. */
 export type WriteResult = typeof writeResultSchema.infer
+
+/** A list's name: not blank, at most 255 characters. */
+const listNameSchema = type("string <= 255").and(/\S/)
+
+/**
+ * A list's colour as the browser sends it: `#rrggbb`. The server writes it to the CalDAV server as
+ * `#RRGGBBFF`, the form Tasks.org writes and reads.
+ */
+export const listColorSchema = type(/^#[0-9a-fA-F]{6}$/)
+
+/** The body of `POST /api/caldav/calendars`: a new task list. */
+export const createCalendarRequestSchema = type({
+  displayName: listNameSchema,
+  "color?": listColorSchema,
+  "+": "reject",
+})
+
+/** The body of `POST /api/caldav/calendars`. */
+export type CreateCalendarRequest = typeof createCalendarRequestSchema.infer
+
+/** What `POST /api/caldav/calendars` answers: where the new list lives. */
+export const calendarCreatedSchema = type({ href: "string" })
+
+/** What `POST /api/caldav/calendars` answers. */
+export type CalendarCreated = typeof calendarCreatedSchema.infer
+
+/** The body of `PATCH /api/caldav/calendar`: a new name, a new colour, or both. */
+export const updateCalendarRequestSchema = type({
+  /** The calendar's href, as listed. */
+  href: "string > 0",
+  "displayName?": listNameSchema,
+  "color?": listColorSchema,
+  "+": "reject",
+}).narrow((body, ctx) =>
+  body.displayName !== undefined || body.color !== undefined ||
+  ctx.mustBe(`a change of name or colour`)
+)
+
+/** The body of `PATCH /api/caldav/calendar`. */
+export type UpdateCalendarRequest = typeof updateCalendarRequestSchema.infer
+
+/** The body of `DELETE /api/caldav/calendar`. */
+export const deleteCalendarRequestSchema = type({
+  /** The calendar's href, as listed. */
+  href: "string > 0",
+  "+": "reject",
+})
+
+/** The body of `DELETE /api/caldav/calendar`. */
+export type DeleteCalendarRequest = typeof deleteCalendarRequestSchema.infer
