@@ -30,8 +30,9 @@ export const pendingEntries = signal<readonly TaskEntry[]>([])
 
 /**
  * A number for an etag, because the outbox compares versions as numbers and CalDAV's are strings.
- * Equal etags give equal numbers; two different etags meeting is a 1 in 4 billion chance and
- * would at worst show a conflict that is not one.
+ * Equal etags give equal numbers; two different etags meeting is a 1 in 4 billion chance, and
+ * then a write based on the old etag would be sent with the newer one and go over a change on the
+ * server without a conflict being shown: a collision hides a real conflict.
  */
 export function versionOf(etag: string | null): number {
   const text = etag ?? ``

@@ -378,3 +378,51 @@ Deno.test(`a refresh while a write waits keeps showing the written copy`, async 
     expect(tasks.value[0].title).toBe(`Oat milk`)
   })
 })
+
+Deno.test(`an edit made while the offline create is being sent is sent after it, on the created task`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+    setBrowserOnline(true)
+    let edit: Promise<unknown> | undefined
+    const original = server.handle.bind(server)
+    server.handle = (request: Request) => {
+      if (request.method === `POST` && !edit) {
+        edit = saveTask(
+          tasks.value.find((t) => t.uid === `rent`)!,
+          { title: `Pay rent today` },
+          NOW,
+        )
+      }
+      return original(request)
+    }
+
+    await getOutbox().flush()
+    await edit
+    await getOutbox().flush()
+
+    expect(server.objects.get(`${LIST_HREF}rent.ics`)!.ics).toContain(`SUMMARY:Pay rent today`)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+// Waits for the ts-libs release that makes a refused merged entry a conflict (1.51.0): until then
+// the outbox drops the whole entry, offline edit included, when its interactive send is refused.
+Deno.test({
+  name: `an offline edit survives a second edit made right after reconnect`,
+  ignore: true,
+  fn: async () => {
+    await withApp(async (server) => {
+      const before = await start(server)
+      setBrowserOnline(false)
+      await saveTask(before, { title: `Oat milk` }, NOW)
+      editElsewhere(server, `Phone title`)
+      setBrowserOnline(true)
+
+      await setTaskDone(tasks.value[0], true, NOW)
+
+      expect(titles()).toContain(`Oat milk`)
+    })
+  },
+})

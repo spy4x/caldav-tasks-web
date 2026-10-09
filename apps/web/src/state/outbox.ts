@@ -183,6 +183,29 @@ const transport = createCalDavWriteTransport<TaskPayload, TaskSnapshot>({
   },
 })
 
+/** The sends under way, by entity id, so a follow-up write can wait for its task's send. */
+const inFlight = new Set<string>()
+
+const trackedSend: typeof transport.send = async (command, key) => {
+  inFlight.add(command.entityId)
+  try {
+    return await transport.send(command, key)
+  } finally {
+    inFlight.delete(command.entityId)
+  }
+}
+
+/**
+ * The copy of `task` to build a new write on. While a send for the task is under way its etag is
+ * about to change (a created task has none yet), so this waits for that send to settle and returns
+ * the cached copy it left. Otherwise returns `task` itself.
+ */
+export async function settle(task: Task): Promise<Task> {
+  if (!inFlight.has(entityIdOf(task))) return task
+  await getOutbox().flush()
+  return serverTasks.value.find((other) => other.href === task.href) ?? task
+}
+
 /** Reads a server snapshot as a task, or `null` when its text cannot be read. */
 function taskOf(snapshot: TaskSnapshot): Task | null {
   const parsed = parseTask({
@@ -213,7 +236,7 @@ export function getOutbox(): TaskOutbox {
   const outbox = createOutbox<TaskPayload, TaskSnapshot>({
     store: storeOverride ??
       createIndexedDbOutboxStore<TaskPayload, TaskSnapshot>({ name: `caldav-tasks-outbox` }),
-    send: transport.send,
+    send: trackedSend,
     fetchServer: transport.fetchServer,
     classify: transport.classify,
     lock: defaultLock(),

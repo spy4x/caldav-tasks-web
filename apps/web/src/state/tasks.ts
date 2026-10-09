@@ -14,7 +14,7 @@ import { parseTask, type Task, TaskStatus } from "@spy4x/time/ical-tasks-model"
 import type { Outcome } from "@spy4x/realtime/outbox"
 import { completeMessage } from "@tasks/identity.ts"
 import { offline, relay } from "./connection.ts"
-import { queuedFor, queueUpdate, withdrawQueued } from "./outbox.ts"
+import { queuedFor, queueUpdate, settle, withdrawQueued } from "./outbox.ts"
 import type { TaskSnapshot } from "./pending.ts"
 import { remember, tasks } from "./task-store.ts"
 
@@ -214,7 +214,8 @@ async function queueFirst(base: Task, plan: Plan, edit?: TaskEdit): Promise<Writ
   return await queueStep(base, first)
 }
 
-async function commit(base: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
+async function commit(sent: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
+  const base = await settle(sent)
   // Offline, or behind a write that still waits: this one joins the queue, in order.
   if (offline.value || queuedFor(base)) return await queueFirst(base, plan, edit)
   // A task with no etag cannot be written until it is read again with one. The cached copy stays

@@ -10,6 +10,7 @@ import {
   queueCreate,
   queueDelete,
   queuedFor,
+  settle,
   withdrawQueued,
 } from "./outbox.ts"
 import { forget, remember } from "./task-store.ts"
@@ -111,7 +112,8 @@ async function queuedDelete(task: Task): Promise<WriteResult> {
  * the server's copy changed since it was read, so a delete never removes an edit it has not seen.
  * Subtasks are not touched. Resolves with the deleted task, so Undo can {@link restoreTask} it.
  */
-export async function deleteTask(task: Task): Promise<WriteResult> {
+export async function deleteTask(given: Task): Promise<WriteResult> {
+  const task = await settle(given)
   if (offline.value || queuedFor(task)) return await queuedDelete(task)
   if (!task.etag) return { kind: WriteKind.Failed, message: CHANGED_ON_SERVER }
   const result = await relay(CALDAV_PATHS.object, {
