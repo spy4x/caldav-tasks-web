@@ -1,9 +1,14 @@
 # Publishes antonshubin/caldav-tasks-web to Docker Hub when a v<digit>* tag is pushed.
 #
-# The step talks to the agent's Docker daemon through its socket, so the repository must be
-# trusted for volumes in Woodpecker. DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are the Woodpecker
-# server's global secrets, enabled for the tag event. Every runtime variable is written `$$`, so
-# Woodpecker leaves it for the shell.
+# The repository is untrusted in Woodpecker: no step mounts a volume or runs privileged. The only
+# agent runs on a home server, and a pipeline that could mount its Docker socket would be root on
+# that machine. Kaniko builds the image inside an ordinary container and pushes it to Docker Hub
+# itself, without a Docker daemon.
+#
+# DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are the Woodpecker server's global secrets, enabled for the
+# tag event. Only the release step reads them, and only after the guard step has passed. Every
+# runtime variable is written `$$`, so Woodpecker leaves it for the shell. Images are pinned by tag
+# and digest, because the release step holds the Docker Hub token.
 
 depends_on: [ci]
 
@@ -12,26 +17,45 @@ when:
     ref: refs/tags/v[0-9]*
 
 steps:
+  guard:
+    # Only a commit that is already on main is published: a tag pushed on an unmerged branch
+    # commit stops here, before any step sees the Docker Hub secrets. The clone is shallow, so
+    # main is fetched explicitly.
+    image: alpine/git:2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
+    commands:
+      - git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      - |
+          if ! git merge-base --is-ancestor "$${CI_COMMIT_SHA}" refs/remotes/origin/main; then
+            echo "Refusing to publish $${CI_COMMIT_TAG}: commit $${CI_COMMIT_SHA} is not on main." >&2
+            exit 1
+          fi
+          echo "$${CI_COMMIT_TAG} ($${CI_COMMIT_SHA}) is on main."
+
   release:
-    image: docker:29.8.1
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    # The kaniko executor from woodpeckerci/plugin-kaniko, run as plain commands so the tags and
+    # the registry login are written here rather than inferred by the plugin's script.
+    image: woodpeckerci/plugin-kaniko:2.3.3@sha256:d6ecc0f37561503eeacd8f2189068c5a13c531f5629cf2ce2de0ac144824c9f4
+    depends_on: [guard]
     environment:
       DOCKERHUB_USERNAME:
         from_secret: DOCKERHUB_USERNAME
       DOCKERHUB_TOKEN:
         from_secret: DOCKERHUB_TOKEN
     commands:
-      - echo "$$DOCKERHUB_TOKEN" | docker login -u "$$DOCKERHUB_USERNAME" --password-stdin
       - |
-          set -e
+          set -eu
           IMAGE=antonshubin/caldav-tasks-web
+          # Kaniko reads the login from $$DOCKER_CONFIG/config.json; the file lives only in this
+          # step's container, under /kaniko, which kaniko never puts into an image.
+          export DOCKER_CONFIG=/kaniko/.docker
+          AUTH=$$(printf '%s:%s' "$$DOCKERHUB_USERNAME" "$$DOCKERHUB_TOKEN" | base64 | tr -d '\n')
+          printf '{"auths":{"https://index.docker.io/v1/":{"auth":"%s"}}}' "$$AUTH" \
+            > "$$DOCKER_CONFIG/config.json"
+          unset AUTH DOCKERHUB_TOKEN
           # A pre-release tag (v1.2.3-rc.1) is published under its own name only; it never
           # moves latest.
           case "$${CI_COMMIT_TAG}" in *-*) LATEST= ;; *) LATEST=1 ;; esac
-          docker build --pull --build-arg "APP_VERSION=$${CI_COMMIT_TAG}" \
-            -t "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+-t "$$IMAGE:latest"} .
-          docker push "$$IMAGE:$${CI_COMMIT_TAG}"
-          if [ -n "$$LATEST" ]; then docker push "$$IMAGE:latest"; fi
-          # The daemon is the agent host's: do not leave release images on it.
-          docker image rm "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+"$$IMAGE:latest"}
+          executor --context "$$PWD" --dockerfile Dockerfile \
+            --build-arg "APP_VERSION=$${CI_COMMIT_TAG}" \
+            --destination "$$IMAGE:$${CI_COMMIT_TAG}" \
+            $${LATEST:+--destination "$$IMAGE:latest"}
