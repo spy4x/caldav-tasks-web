@@ -15,6 +15,7 @@ import { RadioGroup } from "@spy4x/preact-ui/radio"
 import { TagInput } from "@spy4x/preact-ui/tag-input"
 import { UnsavedGuard } from "@spy4x/preact-ui/unsaved-guard"
 import { IcalDateKind } from "@spy4x/time/ical"
+import { floatingDue } from "./due-label.ts"
 import {
   PriorityBand,
   type Task,
@@ -183,6 +184,7 @@ function dateOf(
     const utc = resolveWallClock(date, time, zone).instant.toISOString()
     return { kind, date: utc.slice(0, 10), time: `${utc.slice(11, 16)}:00` }
   }
+  if (kind === IcalDateKind.Floating) return floatingDue(date, time)
   return {
     kind,
     date,

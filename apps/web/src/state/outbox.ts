@@ -37,15 +37,9 @@ import {
 } from "./pending.ts"
 import { forget, remember, serverTasks, tasks } from "./task-store.ts"
 
-/**
- * The origin the CalDAV transport puts in front of every address. The browser never talks to the
- * CalDAV server: it talks to the relay, which takes an href. The transport wants absolute URLs, so
- * the adapter below adds this origin to what it hands out and strips it from what it receives.
- * Nothing is ever requested from it.
- */
-const RELAY_ORIGIN = `https://relay.invalid`
-
-const hrefOf = (url: string | URL): string => new URL(url).pathname
+// The browser never talks to the CalDAV server: it talks to the relay, which takes an href. So the
+// addresses the CalDAV write transport and this adapter exchange are path-only (`/dav/tasks/1.ics`);
+// the server checks every href it receives (`apps/server/caldav/scope.ts`).
 
 const withSlash = (href: string): string => href.endsWith(`/`) ? href : `${href}/`
 
@@ -90,13 +84,13 @@ function codeOf(result: Extract<RelayResult<unknown>, { ok: false }>): CalDavErr
 const writer: CalDavWriter = {
   async getObject(url) {
     const result = await relay(
-      `${CALDAV_PATHS.object}?href=${encodeURIComponent(hrefOf(url))}`,
+      `${CALDAV_PATHS.object}?href=${encodeURIComponent(String(url))}`,
       {},
       taskObjectSchema,
     )
     if (!result.ok) return failure(result)
     const object: CalDavObject = {
-      url: `${RELAY_ORIGIN}${result.data.href}`,
+      url: result.data.href,
       etag: result.data.etag,
       data: result.data.ics,
     }
@@ -104,7 +98,7 @@ const writer: CalDavWriter = {
   },
   async createObject(calendarUrl, ics, options) {
     const body = createObjectRequestSchema.assert({
-      calendar: hrefOf(calendarUrl),
+      calendar: String(calendarUrl),
       ics,
       ...(options?.name === undefined ? {} : { name: options.name }),
     })
@@ -112,27 +106,27 @@ const writer: CalDavWriter = {
     if (!result.ok) return failure(result)
     return {
       success: true,
-      output: { url: `${RELAY_ORIGIN}${result.data.href}`, etag: result.data.etag },
+      output: { url: result.data.href, etag: result.data.etag },
       error: null,
     }
   },
   async updateObject(url, ics, etag) {
     const result = await relay(
       CALDAV_PATHS.object,
-      { method: `PUT`, body: { href: hrefOf(url), etag, ics } },
+      { method: `PUT`, body: { href: String(url), etag, ics } },
       writeResultSchema,
     )
     if (!result.ok) return failure(result)
     return {
       success: true,
-      output: { url: `${RELAY_ORIGIN}${result.data.href}`, etag: result.data.etag },
+      output: { url: result.data.href, etag: result.data.etag },
       error: null,
     }
   },
   async deleteObject(url, etag) {
     const result = await relay(CALDAV_PATHS.object, {
       method: `DELETE`,
-      body: { href: hrefOf(url), etag },
+      body: { href: String(url), etag },
     })
     return result.ok ? { success: true, output: null, error: null } : failure(result)
   },
@@ -161,8 +155,8 @@ function listOf(href: string): string {
 
 const transport = createCalDavWriteTransport<TaskPayload, TaskSnapshot>({
   writer,
-  calendarUrl: (command) => `${RELAY_ORIGIN}${withSlash(command.payload.listHref)}`,
-  urlOf: (entityId) => `${RELAY_ORIGIN}${entityHref(entityId)}`,
+  calendarUrl: (command) => withSlash(command.payload.listHref),
+  urlOf: (entityId) => entityHref(entityId),
   etagOf(command) {
     // The copy the write was based on, while the cache still holds it. After "keep mine" the
     // cache holds the server's newer copy, which the write is then based on.
@@ -172,7 +166,7 @@ const transport = createCalDavWriteTransport<TaskPayload, TaskSnapshot>({
   },
   toIcs: (command) => command.payload.ics,
   toEntity(object) {
-    const href = hrefOf(object.url)
+    const href = String(object.url)
     return {
       version: versionOf(object.etag),
       href,

@@ -30,3 +30,11 @@ export function dueLabel(due: TaskDate, now: Date, zone: string): DueLabel {
     : DueTone.Normal
   return { text: `${relativeDayLabel(day, today)}${time}`, tone }
 }
+
+/**
+ * A due time typed as a wall clock (`HH:MM`) on a day: floating, so it reads the same on every
+ * device. The task editor and quick add both write a new time this way.
+ */
+export function floatingDue(date: string, time: string): TaskDate {
+  return { kind: IcalDateKind.Floating, date, time: `${time}:00` }
+}

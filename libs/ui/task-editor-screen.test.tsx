@@ -6,6 +6,7 @@ import { act } from "preact/test-utils"
 import { renderToString } from "preact-render-to-string"
 import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
 import { IcalDateKind } from "@spy4x/time/ical"
+import { floatingDue } from "./due-label.ts"
 import { PriorityBand, type Task, type TaskList, TaskStatus } from "@spy4x/time/ical-tasks-model"
 import {
   type TaskDraft,
@@ -423,6 +424,21 @@ Deno.test("a floating time is shown and saved as written whatever zone is given"
       time: "10:00:00",
     })
   }, props({ task: floating, timeZone: "Asia/Tokyo", onSave: (draft) => saved.push(draft) }))
+})
+
+Deno.test("a time set on a task with no time is saved as a floating wall clock, as quick add writes it", async () => {
+  const saved: TaskDraft[] = []
+  const timeless = task({ due: { kind: IcalDateKind.Date, date: "2026-10-12" } })
+  await mount(async (root) => {
+    await type(root, "task-due-time", "15:00")
+    await press(e2e(root, "task-save"))
+    expect(saved[0].due).toEqual(floatingDue("2026-10-12", "15:00"))
+    expect(saved[0].due).toEqual({
+      kind: IcalDateKind.Floating,
+      date: "2026-10-12",
+      time: "15:00:00",
+    })
+  }, props({ task: timeless, timeZone: "Asia/Tokyo", onSave: (draft) => saved.push(draft) }))
 })
 
 Deno.test("the repeat rule is read-only and described in words, and a rule the library cannot read is shown as written", () => {

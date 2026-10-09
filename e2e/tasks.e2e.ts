@@ -53,6 +53,31 @@ test("adds a task to a list, edits its title, completes it and undoes the comple
   await expect(renamed).toBeVisible()
 })
 
+test("a quick-add line with a tag, a time and a priority shows chips and saves all three", async ({ page }) => {
+  await signIn(page)
+  const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
+  await page.goto(`/lists/${encodeURIComponent(slug)}`)
+  await expect(page.getByRole(`button`, { name: `Seeded errand` })).toBeVisible()
+
+  await page.getByTestId(`quick-add-input`).fill(`Call Anna #work 2099-01-05 3pm !high`)
+  const chips = page.getByTestId(`quick-add-chips`)
+  await expect(chips).toContainText(`Tag work`)
+  await expect(chips).toContainText(/Due .*15:00/)
+  await expect(chips).toContainText(`High priority`)
+  await expect(page.getByTestId(`quick-add-live`)).toHaveText(
+    /^Tag work, Due .*15:00, High priority$/,
+  )
+
+  await page.getByTestId(`quick-add-input`).press(`Enter`)
+  await expect(page.getByRole(`button`, { name: /Call Anna/ })).toBeVisible()
+  await expect.poll(async () => await readList(list)).toContain(`SUMMARY:Call Anna`)
+  const ics = (await readList(list)).replaceAll(`\r\n `, ``)
+  const todo = ics.split(`BEGIN:VTODO`).find((part) => part.includes(`SUMMARY:Call Anna`))!
+  expect(todo).toContain(`CATEGORIES:work`)
+  expect(todo).toContain(`PRIORITY:1`)
+  expect(todo).toContain(`DUE:20990105T150000\r\n`)
+})
+
 test("an edit keeps the reminder and the property this app does not know on the server", async ({ page }) => {
   await signIn(page)
   await page.getByRole(`button`, { name: `Seeded errand` }).click()
