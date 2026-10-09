@@ -1,10 +1,10 @@
 import type { JSX } from "preact"
 import { IconCalendarDays } from "@spy4x/preact-icons"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
+import { relativeDayLabel } from "@spy4x/time/locale"
 import { isoDateInTz } from "@spy4x/time/tz"
 import type { Task, TaskList } from "../tasks/types.ts"
 import { UPCOMING_DAYS, type UpcomingDay } from "../tasks/views.ts"
-import { dayLabel } from "./due-label.ts"
 import { FocusKeeper } from "./task-focus.tsx"
 import { EmptyBody, GroupHeading, LoadingBody, ScreenLayout } from "./task-screen.tsx"
 import { flatNodes, TaskTree } from "./task-tree.tsx"
@@ -44,7 +44,7 @@ export function UpcomingScreen(props: UpcomingScreenProps): JSX.Element {
         : (
           <FocusKeeper label="Tasks" class="flex flex-col gap-6">
             {props.days.map((day) => {
-              const heading = dayLabel(day.date, today, props.zone)
+              const heading = relativeDayLabel(day.date, today)
               return (
                 <section
                   key={day.date}

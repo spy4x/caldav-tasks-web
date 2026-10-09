@@ -1,6 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { IcalDateKind } from "@spy4x/time/ical"
+import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
 import { isOpen, parseTask, priorityBand } from "./model.ts"
 import { COMPLETED, ERRANDS, fixtureTask, LIST_HREF, RECURRING, task } from "./fixtures/tasksorg.ts"
 import { PriorityBand, TaskStatus } from "./types.ts"
@@ -20,7 +21,10 @@ Deno.test("reads every field of a repeating Tasks.org task", () => {
     time: `07:00:00`,
     tzid: `Asia/Ho_Chi_Minh`,
   })
-  expect(read.reminders).toEqual([{ trigger: `PT0S` }])
+  expect(read.reminders).toEqual([{
+    trigger: `PT0S`,
+    alarm: { kind: AlarmTriggerKind.Relative, duration: `PT0S`, related: AlarmRelated.End },
+  }])
   expect(read.status).toBe(TaskStatus.NeedsAction)
 })
 

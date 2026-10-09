@@ -97,6 +97,8 @@ Deno.test("the owner password starts a session in a Secure, HttpOnly, SameSite=S
   expect(session.status).toBe(200)
   expect(await session.json()).toEqual({
     expiresAt: new Date(START + SESSION_TTL_MS).toISOString(),
+    caldavUrl: TEST_CONFIG.CALDAV_URL,
+    caldavUsername: TEST_CONFIG.CALDAV_USERNAME,
   })
 })
 

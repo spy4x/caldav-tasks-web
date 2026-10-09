@@ -1,17 +1,9 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { dateOnly, dateTime } from "./task-fixtures.ts"
-import { dayLabel, dueLabel, DueTone } from "./due-label.ts"
+import { dueLabel, DueTone } from "./due-label.ts"
 
 const NOW = new Date(`2026-10-08T09:00:00Z`)
-
-Deno.test("a day is Yesterday, Today or Tomorrow near today and weekday, day and month otherwise", () => {
-  expect(dayLabel(`2026-10-07`, `2026-10-08`, `UTC`)).toBe(`Yesterday`)
-  expect(dayLabel(`2026-10-08`, `2026-10-08`, `UTC`)).toBe(`Today`)
-  expect(dayLabel(`2026-10-09`, `2026-10-08`, `UTC`)).toBe(`Tomorrow`)
-  expect(dayLabel(`2026-10-15`, `2026-10-08`, `UTC`)).toBe(`Thu 15 Oct`)
-  expect(dayLabel(`2026-10-05`, `2026-10-08`, `UTC`)).toBe(`Mon 5 Oct`)
-})
 
 Deno.test("a due date is overdue from the day after, a due time the moment it passes", () => {
   expect(dueLabel(dateOnly(`2026-10-07`)!, NOW, `UTC`)).toEqual({

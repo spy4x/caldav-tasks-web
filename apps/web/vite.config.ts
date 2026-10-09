@@ -40,6 +40,11 @@ export default defineConfig({
       }],
     },
   ],
+  // The version Settings shows. The release build sets `APP_VERSION` (the tag); without it the
+  // build reads `development`.
+  define: {
+    __APP_VERSION__: JSON.stringify(Deno.env.get("APP_VERSION") || "development"),
+  },
   resolve: {
     // Vite, not the Deno plugin, must load libs/ui: the Deno plugin compiles JSX for React, so a
     // screen loaded through it fails at runtime with "React is not defined".

@@ -1,5 +1,6 @@
 import { IcalDateKind } from "@spy4x/time/ical"
-import { type Task, TaskStatus } from "../tasks/types.ts"
+import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
+import { type Task, type TaskReminder, TaskStatus } from "../tasks/types.ts"
 
 /** The list the test tasks belong to unless a test says otherwise. */
 export const FIXTURE_LIST_HREF = `/dav/tasks/home/`
@@ -12,6 +13,14 @@ export function dateOnly(date: string): Task[`due`] {
 /** A due or start value with a time, floating (the same wall clock in any zone). */
 export function dateTime(date: string, time: string): Task[`due`] {
   return { kind: IcalDateKind.Floating, date, time }
+}
+
+/** A reminder with a relative trigger such as `-PT15M`, counted from the start unless `related` says. */
+export function reminder(duration: string, related = AlarmRelated.Start): TaskReminder {
+  return {
+    trigger: duration,
+    alarm: { kind: AlarmTriggerKind.Relative, duration, related },
+  }
 }
 
 /**

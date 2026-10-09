@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { deleteList, readTask, seedTaskList } from "./fixtures/radicale.ts"
-import { signIn } from "./sign-in.ts"
+import { pageTitle, signIn } from "./sign-in.ts"
 
 // The app is behind the owner's sign-in; /health and the Radicale fixture ignore the session.
 test.beforeEach(async ({ page }) => await signIn(page))
@@ -21,13 +21,13 @@ test("opens on Today and moves between the five destinations without a reload", 
     `Search`,
     `More`,
   ])
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Today`)
+  await expect(pageTitle(page)).toHaveText(`Today`)
 
   // The page object survives a client-side move; a full load would replace it.
   await page.evaluate(() => (globalThis as { __kept?: boolean }).__kept = true)
   await nav.getByRole(`button`, { name: `Upcoming` }).click()
   await expect(page).toHaveURL(/\/upcoming$/)
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Upcoming`)
+  await expect(pageTitle(page)).toHaveText(`Upcoming`)
   expect(await page.evaluate(() => (globalThis as { __kept?: boolean }).__kept)).toBe(true)
 })
 
@@ -39,15 +39,15 @@ test("loads the page under the content security policy without a violation", asy
   page.on(`pageerror`, (error) => problems.push(error.message))
   const response = await page.goto(`/`)
   expect(response?.headers()[`content-security-policy`]).toContain(`script-src 'self' 'sha256-`)
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Today`)
+  await expect(pageTitle(page)).toHaveText(`Today`)
   expect(problems).toEqual([])
 })
 
 test("serves the shell on a deep link and after a reload", async ({ page }) => {
   await page.goto(`/lists`)
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Lists`)
+  await expect(pageTitle(page)).toHaveText(`Lists`)
   await page.reload()
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Lists`)
+  await expect(pageTitle(page)).toHaveText(`Lists`)
 })
 
 test("the Radicale fixture seeds a readable task list", async () => {

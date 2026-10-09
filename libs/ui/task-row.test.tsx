@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { renderToString } from "preact-render-to-string"
-import { dateOnly, dateTime, makeTask } from "./task-fixtures.ts"
+import { dateOnly, dateTime, makeTask, reminder } from "./task-fixtures.ts"
 import { mount, must } from "./mount.test.tsx"
 import { TaskRow, type TaskRowProps } from "./task-row.tsx"
 import { TaskStatus } from "../tasks/types.ts"
@@ -110,7 +110,7 @@ Deno.test("priority, repeat and reminder marks carry a text name for screen read
     task: makeTask(`1`, `A`, {
       priority: 1,
       repeatRule: `FREQ=WEEKLY`,
-      reminders: [{ trigger: `-PT15M` }],
+      reminders: [reminder(`-PT15M`)],
     }),
   })
   expect(out).toContain(`High priority`)

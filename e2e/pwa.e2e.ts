@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test"
-import { signIn } from "./sign-in.ts"
+import { pageTitle, signIn } from "./sign-in.ts"
 
 /** The key `apps/web/src/state/session.ts` keeps its "signed in on this device" hint under. */
 const SIGNED_IN_HINT_KEY = `session:signed-in`
@@ -51,7 +51,7 @@ test(`registers the worker under the content security policy without a violation
   page.on(`pageerror`, (error) => problems.push(error.message))
   await page.goto(`/`)
   await underWorker(page)
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Today`)
+  await expect(pageTitle(page)).toHaveText(`Today`)
   expect(problems).toEqual([])
 })
 
@@ -80,7 +80,7 @@ test(`a signed-in owner who goes offline and reloads sees the last view, not sig
   await underWorker(page)
   await context.setOffline(true)
   await page.reload()
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Lists`)
+  await expect(pageTitle(page)).toHaveText(`Lists`)
   await expect(page.getByRole(`heading`, { name: `Sign in` })).toHaveCount(0)
 })
 
@@ -90,7 +90,7 @@ test(`a visitor who never signed in sees the sign-in screen offline`, async ({ p
   await context.setOffline(true)
   await page.reload()
   await expect(page.getByRole(`heading`, { name: `Sign in` })).toBeVisible()
-  await expect(page.getByTestId(`page-title`)).toHaveCount(0)
+  await expect(pageTitle(page)).toHaveCount(0)
 })
 
 test(`a 401 online clears the hint, so the next offline start shows sign-in`, async ({ page, context }) => {
@@ -106,7 +106,7 @@ test(`a 401 online clears the hint, so the next offline start shows sign-in`, as
   await context.setOffline(true)
   await page.reload()
   await expect(page.getByRole(`heading`, { name: `Sign in` })).toBeVisible()
-  await expect(page.getByTestId(`page-title`)).toHaveCount(0)
+  await expect(pageTitle(page)).toHaveCount(0)
 })
 
 test(`opens a page offline after a non-page file was opened first`, async ({ page, context }) => {
@@ -117,7 +117,7 @@ test(`opens a page offline after a non-page file was opened first`, async ({ pag
   await page.goto(`/icons/icon.svg`)
   await context.setOffline(true)
   await page.goto(`/lists`)
-  await expect(page.getByTestId(`page-title`)).toHaveText(`Lists`)
+  await expect(pageTitle(page)).toHaveText(`Lists`)
 })
 
 test(`a missing built file is still a 404 under the worker`, async ({ page }) => {

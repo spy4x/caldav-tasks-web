@@ -14,7 +14,7 @@ export const PATHS = {
   upcoming: "/upcoming",
   lists: "/lists",
   search: "/search",
-  more: "/more",
+  more: "/settings",
 } as const
 
 /** The five destinations, in display order: the rail from `md` up, the tab bar below. */
