@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { useState } from "preact/hooks"
-import { mount, must } from "./mount.test.tsx"
+import { focused, mount, must } from "./mount.test.tsx"
 import { FocusKeeper } from "./task-focus.tsx"
 import { makeTask } from "./task-fixtures.ts"
 import { flatNodes, TaskTree } from "./task-tree.tsx"
@@ -40,7 +40,7 @@ Deno.test("checking a row that leaves moves focus to the next row's check", asyn
     check(root, `a`).focus()
     await act(() => check(root, `a`).click())
     expect(root.querySelector(`input[data-task-check="a"]`)).toBeNull()
-    expect(window.document.activeElement).toBe(check(root, `b`) as never)
+    expect(focused(window)).toBe(`check b`)
   })
 })
 
@@ -48,7 +48,7 @@ Deno.test("checking the last row moves focus to the check before it", async () =
   await mount(<Harness initial={THREE} />, async ({ root, window, act }) => {
     check(root, `c`).focus()
     await act(() => check(root, `c`).click())
-    expect(window.document.activeElement).toBe(check(root, `b`) as never)
+    expect(focused(window)).toBe(`check b`)
   })
 })
 
@@ -56,9 +56,7 @@ Deno.test("checking the only row moves focus to the task region, not to the top 
   await mount(<Harness initial={[THREE[0]]} />, async ({ root, window, act }) => {
     check(root, `a`).focus()
     await act(() => check(root, `a`).click())
-    expect(window.document.activeElement).toBe(
-      must(root, `[aria-label="Tasks"][role="region"]`) as never,
-    )
+    expect(focused(window)).toBe(`div Tasks`)
   })
 })
 
@@ -66,7 +64,7 @@ Deno.test("a row that stays keeps focus on its own check", async () => {
   await mount(<Harness initial={THREE} keep />, async ({ root, window, act }) => {
     check(root, `a`).focus()
     await act(() => check(root, `a`).click())
-    expect(window.document.activeElement).toBe(check(root, `a`) as never)
+    expect(focused(window)).toBe(`check a`)
   })
 })
 

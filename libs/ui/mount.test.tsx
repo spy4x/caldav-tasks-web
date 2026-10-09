@@ -55,3 +55,17 @@ export function must<T extends Element>(root: ParentNode, selector: string): T {
 export function texts(root: ParentNode, selector: string): string[] {
   return [...root.querySelectorAll(selector)].map((element) => element.textContent?.trim() ?? ``)
 }
+
+/**
+ * Names the focused element in a short string. Assert on this, not on the element: a failed
+ * `toBe(element)` makes the matcher print the whole happy-dom tree and the test run hangs.
+ */
+export function focused(window: { document: { activeElement: unknown } }): string {
+  const el = window.document.activeElement as Element | null
+  if (!el) return `nothing`
+  const check = el.getAttribute(`data-task-check`)
+  if (check) return `check ${check}`
+  return `${el.tagName.toLowerCase()} ${
+    el.getAttribute(`data-e2e`) ?? el.getAttribute(`aria-label`) ?? el.id
+  }`
+}

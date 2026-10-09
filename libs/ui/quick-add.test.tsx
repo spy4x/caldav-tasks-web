@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { renderToString } from "preact-render-to-string"
-import { mount, must } from "./mount.test.tsx"
+import { focused, mount, must } from "./mount.test.tsx"
 import { QuickAdd } from "./quick-add.tsx"
 
 const input = (root: ParentNode) => must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`)
@@ -21,7 +21,7 @@ Deno.test("typing a title and sending it adds the trimmed title, empties the fie
     await act(() => form(root).requestSubmit())
     expect(added).toEqual([`Buy oat milk`])
     expect(input(root).value).toBe(``)
-    expect(window.document.activeElement).toBe(input(root) as never)
+    expect(focused(window)).toBe(`input quick-add-input`)
   })
 })
 
