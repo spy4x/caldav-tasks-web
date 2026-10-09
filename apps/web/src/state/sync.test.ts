@@ -206,3 +206,16 @@ Deno.test(`a storage that throws ends the refresh quietly and tells the screens 
     expect(tasks.value).toEqual([])
   })
 })
+
+Deno.test(`loading completed tasks with a storage that throws resolves and flags the cache`, async () => {
+  await withApp(async (server) => {
+    seedList(server)
+    await refresh()
+    useStorage(brokenStorage())
+
+    const ok = await loadCompleted(LIST_HREF)
+
+    expect(ok).toBe(false)
+    expect(cacheUnavailable.value).toBe(true)
+  })
+})

@@ -3,7 +3,7 @@ import { watchPageResume } from "@spy4x/realtime/page-lifecycle"
 import { CALDAV_PATHS, calendarListSchema, objectListSchema } from "@api/caldav.ts"
 import { type ConnectionTarget, relay, watchConnection } from "./connection.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
-import { type CachedCalendar, type CachedTask, getStorage } from "./db.ts"
+import { type CachedCalendar, type CachedTask, cacheUnavailable, getStorage } from "./db.ts"
 import { setCachedTasks } from "./tasks.ts"
 
 /** True while a refresh is running. */
@@ -12,11 +12,7 @@ export const syncing = signal(false)
 /** When the last refresh got an answer from the server, or `null` before the first. */
 export const lastSyncedAt = signal<Date | null>(null)
 
-/**
- * True when the cache could not be read or written. Screens then get empty stores with
- * `calendarsLoaded` true, and should say the last copy is unavailable; the app never throws.
- */
-export const cacheUnavailable = signal(false)
+export { cacheUnavailable }
 
 /** Fills the stores from the cache, so the app shows its last copy before the network answers. */
 export async function loadCache(): Promise<void> {
@@ -105,7 +101,12 @@ async function fetchTasks(calendar: CachedCalendar, completed: boolean): Promise
 export async function loadCompleted(calendarHref: string): Promise<boolean> {
   const calendar = calendars.value.find((c) => c.href === calendarHref)
   if (!calendar) return false
-  const ok = await fetchTasks(calendar, true)
+  let ok = false
+  try {
+    ok = await fetchTasks(calendar, true)
+  } catch {
+    cacheUnavailable.value = true
+  }
   await loadCache()
   return ok
 }

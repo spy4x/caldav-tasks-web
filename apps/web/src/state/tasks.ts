@@ -7,7 +7,7 @@ import { parseTask } from "@tasks/model.ts"
 import { keepMine, rebaseEdit, RebaseKind } from "@tasks/rebase.ts"
 import { type Task, TaskStatus } from "@tasks/types.ts"
 import { offline, OFFLINE_NOTICE, relay } from "./connection.ts"
-import { type CachedTask, getStorage } from "./db.ts"
+import { type CachedTask, cacheUnavailable, getStorage } from "./db.ts"
 
 /** Every cached task of every list, parsed. A resource that cannot be parsed is left out. */
 export const tasks = signal<Task[]>([])
@@ -103,9 +103,6 @@ export function saveTask(task: Task, edit: TaskEdit, now = new Date()): Promise<
 
 const isDone = (task: Task) => task.status === TaskStatus.Completed
 const sameDates = (a: Task, b: Task) => sameDate(a.due, b.due) && sameDate(a.start, b.start)
-/** A repeating task that someone completed moves its dates on while it stays open. */
-const datesMoved = (base: Task, theirs: Task) =>
-  !!base.repeatRule && !sameDates(base, theirs) && theirs.status === base.status
 
 function sameDate(a: Task[`due`], b: Task[`due`]): boolean {
   if (!a || !b) return a === b
@@ -132,7 +129,15 @@ export function setTaskDone(task: Task, done: boolean, now = new Date()): Promis
       // Re-applying to a copy someone else already completed would advance a repeating task twice.
       if (isDone(theirs) === done) return { ok: true, alreadyDone: true }
       if (sameDates(base, theirs) && theirs.status === base.status) return change(theirs)
-      if (datesMoved(base, theirs) && done) return { ok: true, alreadyDone: true }
+      // A repeating task completed elsewhere stays open with the dates completing it gives. Any
+      // other move, such as a reschedule, is not a completion and must not swallow this one.
+      if (done && base.repeatRule) {
+        const expected = change(base)
+        if (
+          expected.ok && `task` in expected && sameDates(expected.task, theirs) &&
+          theirs.status === expected.task.status
+        ) return { ok: true, alreadyDone: true }
+      }
       return { ok: false, message: CHANGED_ON_SERVER }
     },
   })
@@ -257,12 +262,17 @@ async function saved(written: Task, ics: string, etag: string | null): Promise<W
 
 /** Stores `task` in the cache and swaps it into {@link tasks}. */
 async function remember(task: Task): Promise<void> {
-  await getStorage().putTask({
-    href: task.href,
-    calendarHref: task.listHref,
-    etag: task.etag || null,
-    ics: task.ics,
-  })
+  try {
+    await getStorage().putTask({
+      href: task.href,
+      calendarHref: task.listHref,
+      etag: task.etag || null,
+      ics: task.ics,
+    })
+  } catch {
+    // The server has the write already; a failing cache must not report it as lost.
+    cacheUnavailable.value = true
+  }
   const others = tasks.value.filter((other) => other.href !== task.href)
   tasks.value = [...others, task]
 }

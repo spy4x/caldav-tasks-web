@@ -1,3 +1,4 @@
+import { signal } from "@preact/signals"
 import { Dexie, type EntityTable } from "dexie"
 import type { Calendar } from "@api/caldav.ts"
 
@@ -81,3 +82,9 @@ export function useStorage(storage: TaskStorage | undefined): void {
   current?.close()
   current = storage
 }
+
+/**
+ * True when the cache could not be read or written. Screens then get empty stores with
+ * `calendarsLoaded` true, and should say the last copy is unavailable; the app never throws.
+ */
+export const cacheUnavailable = signal(false)

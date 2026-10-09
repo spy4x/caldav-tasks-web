@@ -7,7 +7,7 @@ import { EditField } from "@tasks/edit.ts"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { TaskStatus } from "@tasks/types.ts"
 import { browserOnline, notice, OFFLINE_NOTICE } from "./connection.ts"
-import { getStorage } from "./db.ts"
+import { cacheUnavailable, getStorage, useStorage } from "./db.ts"
 import { refresh } from "./sync.ts"
 import { keepMineAfterConflict, saveTask, setTaskDone, tasks, WriteKind } from "./tasks.ts"
 import { error, type FakeServer, withApp } from "./testing.ts"
@@ -215,6 +215,45 @@ Deno.test(`completing a repeating task that the phone completed first advances i
     expect(result.task.due).toEqual(phone.output.task.due)
     // Only the refused first attempt was sent: nothing completed it a second time.
     expect(puts(server)).toBe(1)
+  })
+})
+
+Deno.test(`completing a repeating task that the phone rescheduled is not taken as already done`, async () => {
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(
+      HREF,
+      LIST_HREF,
+      fixture(`1`, `Water plants`, [`DUE;VALUE=DATE:20261009`, `RRULE:FREQ=DAILY`]),
+    )
+    await refresh()
+    server.sent.length = 0
+    const before = tasks.value[0]
+    // The phone moves it to 15 October without completing it.
+    editElsewhere(server, `DUE;VALUE=DATE:20261009`, `DUE;VALUE=DATE:20261015`)
+
+    const result = await setTaskDone(before, true, NOW)
+
+    expect(result.kind).toBe(WriteKind.Failed)
+    expect(server.objects.get(HREF)!.ics).toContain(`DUE;VALUE=DATE:20261015`)
+  })
+})
+
+Deno.test(`a save the server accepted is reported saved even when the cache cannot store it`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    const storage = getStorage()
+    useStorage({
+      ...storage,
+      putTask: () => Promise.reject(new DOMException(`full`, `QuotaExceededError`)),
+    })
+
+    const result = await saveTask(before, { title: `Buy oat milk` }, NOW)
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Buy oat milk`)
+    expect(tasks.value[0].title).toBe(`Buy oat milk`)
+    expect(cacheUnavailable.value).toBe(true)
   })
 })
 
