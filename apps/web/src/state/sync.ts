@@ -71,7 +71,7 @@ async function run(): Promise<void> {
   } catch {
     cacheUnavailable.value = true
   } finally {
-    // First, so a failing cache can never leave the spinner on.
+    // loadCache never throws, so the spinner is always cleared.
     syncing.value = false
     await loadCache()
   }
