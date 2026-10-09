@@ -207,6 +207,7 @@ Deno.test(`sync sends the queued writes before it refreshes, when the network re
 
     const listeners = new Map<string, (event: Event) => void>()
     const connection = new Map<string, () => void>()
+    const sentBefore = server.sent.length
     const stop = startSync({
       document: {
         addEventListener: () => {},
@@ -226,6 +227,10 @@ Deno.test(`sync sends the queued writes before it refreshes, when the network re
       }
       expect(pendingEntries.value.length).toBe(1)
       expect(server.objects.get(OPEN)!.ics).toContain(`SUMMARY:Buy milk`)
+      // A server that did not answer the queue is not asked to list anything either.
+      expect(server.sent.slice(sentBefore).filter((request) => request.method === `GET`)).toEqual(
+        [],
+      )
 
       server.down = false
       listeners.get(`online`)!(new Event(`online`))
