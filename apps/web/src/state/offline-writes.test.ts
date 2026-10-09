@@ -407,6 +407,55 @@ Deno.test(`an edit made while the offline create is being sent is sent after it,
   })
 })
 
+Deno.test(`a delete made while the offline create is being sent removes the created task`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+    setBrowserOnline(true)
+    let removal: Promise<unknown> | undefined
+    const original = server.handle.bind(server)
+    server.handle = (request: Request) => {
+      if (request.method === `POST` && !removal) {
+        removal = deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
+      }
+      return original(request)
+    }
+
+    await getOutbox().flush()
+    await removal
+    await getOutbox().flush()
+
+    expect(server.objects.has(`${LIST_HREF}rent.ics`)).toBe(false)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`a tick made while the offline edit is being sent keeps the offline edit`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    editElsewhere(server, `Phone title`)
+    setBrowserOnline(true)
+    let tick: Promise<unknown> | undefined
+    const original = server.handle.bind(server)
+    server.handle = (request: Request) => {
+      if (request.method === `PUT` && !tick) {
+        tick = setTaskDone(tasks.value.find((t) => t.href === HREF)!, true, NOW)
+      }
+      return original(request)
+    }
+
+    await getOutbox().flush()
+    await tick
+    await getOutbox().flush()
+
+    const waiting = pendingEntries.value.map((entry) => entry.payload.ics)
+    expect([server.objects.get(HREF)!.ics, ...waiting].join()).toContain(`SUMMARY:Oat milk`)
+  })
+})
+
 Deno.test({
   name: `an offline edit survives a second edit made right after reconnect`,
   fn: async () => {

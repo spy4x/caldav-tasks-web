@@ -35,7 +35,7 @@ import {
   type TaskSnapshot,
   versionOf,
 } from "./pending.ts"
-import { forget, remember, serverTasks } from "./task-store.ts"
+import { forget, remember, serverTasks, tasks } from "./task-store.ts"
 
 /**
  * The origin the CalDAV transport puts in front of every address. The browser never talks to the
@@ -198,12 +198,13 @@ const trackedSend: typeof transport.send = async (command, key) => {
 /**
  * The copy of `task` to build a new write on. While a send for the task is under way its etag is
  * about to change (a created task has none yet), so this waits for that send to settle and returns
- * the cached copy it left. Otherwise returns `task` itself.
+ * the copy the person sees: the server's copy with any writes still queued on top. Otherwise
+ * returns `task` itself.
  */
 export async function settle(task: Task): Promise<Task> {
   if (!inFlight.has(entityIdOf(task))) return task
   await getOutbox().flush()
-  return serverTasks.value.find((other) => other.href === task.href) ?? task
+  return tasks.value.find((other) => other.href === task.href) ?? task
 }
 
 /** Reads a server snapshot as a task, or `null` when its text cannot be read. */
