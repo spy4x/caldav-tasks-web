@@ -666,17 +666,21 @@ Deno.test("after Remove, focus goes to the next reminder's Remove button, then t
     async (root) => {
       const buttons = () =>
         [...root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)] as HTMLElement[]
-      const focused = () => root.ownerDocument.activeElement
-      const first = buttons()
-      await press(first[1])
+      // Compared by position, not as elements: a failing comparison of two DOM nodes never
+      // finishes printing them.
+      const focusedRemove = () => buttons().indexOf(root.ownerDocument.activeElement as HTMLElement)
+      await press(buttons()[1])
       // The third reminder moved up into the removed one's place.
-      expect(focused()).toBe(buttons()[1])
       expect(buttons()).toHaveLength(2)
+      expect(focusedRemove()).toBe(1)
       await press(buttons()[1])
       // Nothing follows, so the one before takes focus.
-      expect(focused()).toBe(buttons()[0])
+      expect(focusedRemove()).toBe(0)
       await press(buttons()[0])
-      expect(focused()).toBe(e2e(root, "task-reminders-anchor"))
+      expect(buttons()).toHaveLength(0)
+      expect(root.ownerDocument.activeElement?.getAttribute("data-e2e")).toBe(
+        "task-reminders-anchor",
+      )
     },
     props({
       task: task({ reminders: [END_DUE, reminder("-PT1H"), reminder("-P1D")] }),
