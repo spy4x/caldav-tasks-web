@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { IcalDateKind } from "@spy4x/time/ical"
-import { createTask, PRODID } from "./create.ts"
+import { createTask } from "./create.ts"
 import { ERRANDS, fixtureTask, LIST_HREF } from "./fixtures/tasksorg.ts"
 import { parseTask } from "./model.ts"
 import { TaskStatus } from "./types.ts"
@@ -52,7 +52,7 @@ Deno.test(`a new task reads back with the fields it was created with`, () => {
 
 Deno.test(`a new task is stamped with the caller's clock and this app's PRODID`, () => {
   const { ics } = created({ title: `Stamped` })
-  expect(ics).toContain(`PRODID:${PRODID}`)
+  expect(ics).toContain(`PRODID:-//spy4x//caldav-tasks-web//EN`)
   expect(ics).toContain(`DTSTAMP:20261008T123045Z`)
   expect(ics).toContain(`CREATED:20261008T123045Z`)
 })
