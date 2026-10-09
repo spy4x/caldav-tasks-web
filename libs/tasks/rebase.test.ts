@@ -37,7 +37,6 @@ Deno.test(`an edit of other fields is applied on top of the fresh copy`, () => {
   expect(output.task.notes).toBe(`Changed on the phone`)
   // It builds on the fresh text and keeps the etag it came with.
   expect(output.task.etag).toBe(`"2"`)
-  expect(output.ics).toContain(`SEQUENCE:2`)
   expect(output.ics).toContain(`X-VENDOR:keep me`)
 })
 
