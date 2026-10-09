@@ -203,12 +203,16 @@ function dateOf(
 }
 
 /** What is wrong with the form itself, before anything is sent. */
-function check(fields: Fields): TaskEditorErrors {
+function check(fields: Fields, baseline: Fields): TaskEditorErrors {
   const errors: TaskEditorErrors = {}
   if (!fields.title.trim()) errors.title = "Enter a title."
   if (!fields.dueDate && fields.dueTime) errors.due = "Pick a due date for this time."
   if (!fields.startDate && fields.startTime) errors.start = "Pick a start date for this time."
-  if (fields.repeatRule && !fields.dueDate && !fields.startDate) {
+  // Like the library: a rule the task already has is not refused, only a new or changed one.
+  if (
+    fields.repeatRule && fields.repeatRule !== baseline.repeatRule && !fields.dueDate &&
+    !fields.startDate
+  ) {
     errors.repeat = "A task needs a start or due date to repeat from."
   }
   return errors
@@ -275,7 +279,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
   })
 
   const save = () => {
-    const problems = check(fields)
+    const problems = check(fields, baseline)
     setChecked(problems)
     if (Object.keys(problems).length > 0) {
       setAttempt((count) => count + 1)

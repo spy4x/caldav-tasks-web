@@ -625,20 +625,99 @@ Deno.test("a fixed reminder time is typed in the viewer's zone and written as UT
   }, props({ timeZone: "Asia/Ho_Chi_Minh", onSave: (draft) => saved.push(draft) }))
 })
 
-Deno.test("a reminder counted from a date the task does not have, or with a bad amount, is not added", async () => {
+/** The text of the element(s) a control's `aria-describedby` points at. */
+function describedBy(control: HTMLElement): string {
+  const ids = (control.getAttribute("aria-describedby") ?? "").split(" ").filter(Boolean)
+  return ids.map((id) => control.ownerDocument.getElementById(id)?.textContent ?? "").join(" ")
+}
+
+Deno.test("a reminder counted from a date the task does not have, or with a bad amount or time, is not added, and the error belongs to its control", async () => {
   await mount(async (root) => {
+    const none = () => expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(0)
     // The task has a due date but no start date.
+    const anchor = e2e(root, "task-reminders-anchor")
     await choose(root, "task-reminders-anchor", "before-start")
     await press(e2e(root, "task-reminder-add"))
-    expect(e2e(root, "task-reminders-error").textContent).toContain("Set a start date first")
-    expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(0)
+    expect(anchor.getAttribute("aria-invalid")).toBe("true")
+    expect(describedBy(anchor)).toContain("Set a start date first")
+    none()
 
     await choose(root, "task-reminders-anchor", "before-due")
+    expect(anchor.getAttribute("aria-invalid")).toBeNull()
     await type(root, "task-reminders-amount", "0")
     await press(e2e(root, "task-reminder-add"))
-    expect(e2e(root, "task-reminders-error").textContent).toContain("whole number")
-    expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(0)
+    const amount = e2e(root, "task-reminders-amount")
+    expect(amount.getAttribute("aria-invalid")).toBe("true")
+    expect(describedBy(amount)).toContain("whole number")
+    expect(anchor.getAttribute("aria-invalid")).toBeNull()
+    none()
+
+    await choose(root, "task-reminders-anchor", "fixed")
+    await press(e2e(root, "task-reminder-add"))
+    const moment = e2e(root, "task-reminders-moment")
+    expect(moment.getAttribute("aria-invalid")).toBe("true")
+    expect(describedBy(moment)).toContain("Pick the date and time")
+    none()
   }, props())
+})
+
+Deno.test("after Remove, focus goes to the next reminder's Remove button, then the previous one, then the add row", async () => {
+  await mount(
+    async (root) => {
+      const buttons = () =>
+        [...root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)] as HTMLElement[]
+      const focused = () => root.ownerDocument.activeElement
+      const first = buttons()
+      await press(first[1])
+      // The third reminder moved up into the removed one's place.
+      expect(focused()).toBe(buttons()[1])
+      expect(buttons()).toHaveLength(2)
+      await press(buttons()[1])
+      // Nothing follows, so the one before takes focus.
+      expect(focused()).toBe(buttons()[0])
+      await press(buttons()[0])
+      expect(focused()).toBe(e2e(root, "task-reminders-anchor"))
+    },
+    props({
+      task: task({ reminders: [END_DUE, reminder("-PT1H"), reminder("-P1D")] }),
+    }),
+  )
+})
+
+Deno.test("a title-only save of a repeating task with no dates goes through, but a new rule on it is refused", async () => {
+  const saved: TaskDraft[] = []
+  const undated = task({
+    due: undefined,
+    repeatRule: "FREQ=WEEKLY;INTERVAL=1",
+  })
+  await mount(async (root) => {
+    await type(root, "task-title", "Renamed")
+    const draft = await saveDraft(root, saved)
+    expect(draft.title).toBe("Renamed")
+    expect(draft.repeatRule).toBe("FREQ=WEEKLY;INTERVAL=1")
+    expect(root.textContent).not.toContain("to repeat from")
+
+    await choose(root, "task-repeat-freq", "1")
+    await press(e2e(root, "task-save"))
+    expect(saved).toHaveLength(1)
+    expect(root.textContent).toContain("A task needs a start or due date to repeat from.")
+  }, props({ task: undated, onSave: (d) => saved.push(d) }))
+})
+
+Deno.test("rules with an end date or a count show as Custom, and keep their end when saved", async () => {
+  for (
+    const rule of [
+      "FREQ=WEEKLY;INTERVAL=2;UNTIL=20261231T000000Z",
+      "FREQ=DAILY;INTERVAL=1;COUNT=5",
+    ]
+  ) {
+    const saved: TaskDraft[] = []
+    await mount(async (root) => {
+      expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).toBe("custom")
+      expect(root.querySelector(`[data-e2e="task-repeat-interval"]`)).toBeNull()
+      expect((await saveDraft(root, saved)).repeatRule).toBe(rule)
+    }, props({ task: task({ repeatRule: rule }), onSave: (draft) => saved.push(draft) }))
+  }
 })
 
 Deno.test("Enter in the amount box adds the reminder and does not save the task", async () => {

@@ -1,5 +1,5 @@
 import type { JSX } from "preact"
-import { useState } from "preact/hooks"
+import { useEffect, useRef, useState } from "preact/hooks"
 import { IconBell, IconPlus, IconTrashBin } from "@spy4x/preact-icons"
 import { Button } from "@spy4x/preact-ui/button"
 import { Field } from "@spy4x/preact-ui/field"
@@ -66,10 +66,10 @@ function build(
   unit: string,
   moment: string,
   zone: string,
-): { reminder: AlarmInput } | { error: string } {
+): { reminder: AlarmInput } | { error: string; field: `moment` | `amount` } {
   if (anchor === Anchor.Fixed) {
     const [date, time] = moment.split(`T`)
-    if (!date || !time) return { error: `Pick the date and time of the reminder.` }
+    if (!date || !time) return { error: `Pick the date and time of the reminder.`, field: `moment` }
     const utc = resolveWallClock(date, time, zone).instant.toISOString()
     return {
       reminder: {
@@ -83,7 +83,7 @@ function build(
   const atAnchor = anchor === Anchor.AtDue || anchor === Anchor.AtStart
   const amount = atAnchor ? 0 : Number(amountText)
   if (!atAnchor && (!Number.isInteger(amount) || amount < 1 || amount > 999)) {
-    return { error: `Enter a whole number of 1 or more.` }
+    return { error: `Enter a whole number of 1 or more.`, field: `amount` }
   }
   const fromEnd = anchor === Anchor.BeforeDue || anchor === Anchor.AtDue
   return {
@@ -122,25 +122,50 @@ export function RemindersField(
   const [amount, setAmount] = useState(`15`)
   const [unit, setUnit] = useState(`M`)
   const [moment, setMoment] = useState(``)
-  const [error, setError] = useState<string>()
+  const [problem, setProblem] = useState<{ field: `anchor` | `moment` | `amount`; text: string }>()
+  const section = useRef<HTMLElement>(null)
+  // Set by Remove: the index the removed row had, so focus can move once the list has shrunk.
+  const removedAt = useRef<number>()
+  useEffect(() => {
+    const at = removedAt.current
+    if (at === undefined) return
+    removedAt.current = undefined
+    const buttons = section.current?.querySelectorAll<HTMLElement>(
+      `[data-e2e="task-reminder-remove"]`,
+    )
+    // The button now at the same place is the next reminder's; else the one before; else the add row.
+    const target = buttons?.[at] ?? buttons?.[at - 1] ??
+      section.current?.querySelector<HTMLElement>(`[data-e2e="${id}-anchor"]`)
+    target?.focus()
+  }, [value])
 
   const add = () => {
     const needsDue = anchor === Anchor.BeforeDue || anchor === Anchor.AtDue
     const needsStart = anchor === Anchor.BeforeStart || anchor === Anchor.AtStart
-    if (needsDue && !hasDue) return setError(`Set a due date first: this reminder counts from it.`)
+    if (needsDue && !hasDue) {
+      return setProblem({
+        field: `anchor`,
+        text: `Set a due date first: this reminder counts from it.`,
+      })
+    }
     if (needsStart && !hasStart) {
-      return setError(`Set a start date first: this reminder counts from it.`)
+      return setProblem({
+        field: `anchor`,
+        text: `Set a start date first: this reminder counts from it.`,
+      })
     }
     const built = build(anchor, amount, unit, moment, timeZone)
-    if (`error` in built) return setError(built.error)
-    setError(undefined)
+    if (`error` in built) return setProblem({ field: built.field, text: built.error })
+    setProblem(undefined)
     onChange([...value, built.reminder])
   }
 
+  const problemOf = (field: `anchor` | `moment` | `amount`) =>
+    problem?.field === field ? problem.text : undefined
   const fixed = anchor === Anchor.Fixed
   const atAnchor = anchor === Anchor.AtDue || anchor === Anchor.AtStart
   return (
-    <section aria-labelledby={`${id}-heading`} data-e2e="task-reminders">
+    <section ref={section} aria-labelledby={`${id}-heading`} data-e2e="task-reminders">
       <h2 id={`${id}-heading`} class="pc-label">Reminders</h2>
       {value.length === 0
         ? <p class="mt-2 text-sm text-muted" data-e2e="task-reminders-empty">No reminders.</p>
@@ -157,10 +182,12 @@ export function RemindersField(
                   variant="outline"
                   disabled={disabled}
                   aria-label={`Remove reminder: ${describe(reminder, timeZone)}`}
-                  onClick={() =>
+                  onClick={() => {
+                    removedAt.current = index
                     onChange(value.filter((_, at) =>
                       at !== index
-                    ))}
+                    ))
+                  }}
                   data-e2e="task-reminder-remove"
                 >
                   <IconTrashBin class="size-4" aria-hidden="true" />
@@ -177,43 +204,65 @@ export function RemindersField(
           add()
         }}
       >
-        <Field id={`${id}-anchor`} label="New reminder">
-          <Select
-            name={`${id}-anchor`}
-            options={ANCHORS}
-            value={anchor}
-            disabled={disabled}
-            onChange={(event) => setAnchor(event.currentTarget.value as Anchor)}
-            data-e2e={`${id}-anchor`}
-          />
+        <Field id={`${id}-anchor`} label="New reminder" error={problemOf(`anchor`)}>
+          {(wiring) => (
+            <Select
+              id={wiring.id}
+              name={`${id}-anchor`}
+              options={ANCHORS}
+              value={anchor}
+              disabled={disabled}
+              aria-invalid={problemOf(`anchor`) ? true : undefined}
+              aria-describedby={wiring["aria-describedby"]}
+              onChange={(event) => {
+                setAnchor(event.currentTarget.value as Anchor)
+                setProblem(undefined)
+              }}
+              data-e2e={`${id}-anchor`}
+            />
+          )}
         </Field>
         {fixed && (
-          <Field id={`${id}-moment`} label="Reminder date and time">
-            <Input
-              name={`${id}-moment`}
-              type="datetime-local"
-              value={moment}
-              disabled={disabled}
-              onInput={(event) => setMoment(event.currentTarget.value)}
-              data-e2e={`${id}-moment`}
-            />
+          <Field
+            id={`${id}-moment`}
+            label="Reminder date and time"
+            error={problemOf(`moment`)}
+          >
+            {(wiring) => (
+              <Input
+                id={wiring.id}
+                name={`${id}-moment`}
+                type="datetime-local"
+                value={moment}
+                disabled={disabled}
+                aria-invalid={problemOf(`moment`) ? true : undefined}
+                aria-describedby={wiring["aria-describedby"]}
+                onInput={(event) => setMoment(event.currentTarget.value)}
+                data-e2e={`${id}-moment`}
+              />
+            )}
           </Field>
         )}
         {!fixed && !atAnchor && (
           <>
-            <Field id={`${id}-amount`} label="Amount" class="w-24">
-              <Input
-                name={`${id}-amount`}
-                type="number"
-                min={1}
-                max={999}
-                step={1}
-                inputMode="numeric"
-                value={amount}
-                disabled={disabled}
-                onInput={(event) => setAmount(event.currentTarget.value)}
-                data-e2e={`${id}-amount`}
-              />
+            <Field id={`${id}-amount`} label="Amount" class="w-32" error={problemOf(`amount`)}>
+              {(wiring) => (
+                <Input
+                  id={wiring.id}
+                  name={`${id}-amount`}
+                  type="number"
+                  min={1}
+                  max={999}
+                  step={1}
+                  inputMode="numeric"
+                  value={amount}
+                  disabled={disabled}
+                  aria-invalid={problemOf(`amount`) ? true : undefined}
+                  aria-describedby={wiring["aria-describedby"]}
+                  onInput={(event) => setAmount(event.currentTarget.value)}
+                  data-e2e={`${id}-amount`}
+                />
+              )}
             </Field>
             <Field id={`${id}-unit`} label="Unit">
               <Select
@@ -237,11 +286,6 @@ export function RemindersField(
           <IconPlus class="size-4" aria-hidden="true" /> Add reminder
         </Button>
       </div>
-      {error && (
-        <p role="alert" class="mt-2 text-sm text-danger" data-e2e="task-reminders-error">
-          {error}
-        </p>
-      )}
     </section>
   )
 }
