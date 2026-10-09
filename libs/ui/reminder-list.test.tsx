@@ -1,6 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { renderToString } from "preact-render-to-string"
+import { IcalDateKind } from "@spy4x/time/ical"
 import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
 import { ReminderList } from "./reminder-list.tsx"
 import { reminder } from "./task-fixtures.ts"
@@ -37,4 +38,18 @@ Deno.test("a trigger the library cannot describe is shown as written", () => {
     />,
   )
   expect(html).toContain("<code>-P1M</code>")
+})
+
+Deno.test("a reminder at a fixed moment reads in the zone it is given", () => {
+  const at = { kind: IcalDateKind.Utc, date: "2026-10-10", time: "08:00:00" }
+  const html = renderToString(
+    <ReminderList
+      reminders={[{
+        trigger: "20261010T080000Z",
+        alarm: { kind: AlarmTriggerKind.Absolute, at },
+      }]}
+      timeZone="Asia/Ho_Chi_Minh"
+    />,
+  )
+  expect(html).toContain("15:00")
 })

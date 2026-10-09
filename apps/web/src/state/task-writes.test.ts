@@ -79,7 +79,10 @@ Deno.test(`a delete of a task changed elsewhere is refused and the task stays`, 
     const found = server.objects.get(HREF)!
     server.objects.set(HREF, { ...found, etag: server.nextEtag() })
     const result = await deleteTask(task)
-    expect(result.kind).toBe(WriteKind.Failed)
+    expect(result).toEqual({
+      kind: WriteKind.Failed,
+      message: `The task changed on the server. Reload it and try again.`,
+    })
     expect(server.objects.has(HREF)).toBe(true)
     expect(tasks.value.length).toBe(1)
   })

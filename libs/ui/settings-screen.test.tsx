@@ -49,9 +49,13 @@ Deno.test("Sign out is a button that calls back once and waits while it runs", a
       expect(calls).toEqual([`out`])
     },
   )
-  const busy = renderToString(<SettingsScreen {...props({ signingOut: true })} />)
-  expect(busy).toMatch(
-    /<button[^>]*disabled[^>]*data-e2e="sign-out"|data-e2e="sign-out"[^>]*disabled/,
+  await mount(
+    <SettingsScreen {...props({ signingOut: true })} />,
+    async ({ root }) => {
+      const button = must<HTMLButtonElement>(root, `[data-e2e="sign-out"]`)
+      expect(button.disabled).toBe(true)
+      expect(button.textContent).toContain(`Signing out`)
+    },
   )
 })
 
