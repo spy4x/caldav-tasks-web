@@ -1,9 +1,18 @@
 # Publishes antonshubin/caldav-tasks-web to Docker Hub when a v<digit>* tag is pushed.
 #
-# The step talks to the agent's Docker daemon through its socket, so the repository must be
-# trusted for volumes in Woodpecker. DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are the Woodpecker
-# server's global secrets, enabled for the tag event. Every runtime variable is written `$$`, so
-# Woodpecker leaves it for the shell.
+# The repository is untrusted in Woodpecker: no step mounts a volume or runs privileged. The only
+# agent runs on a home server, and a pipeline that could mount its Docker socket would be root on
+# that machine. Kaniko builds the image inside an ordinary container, without a Docker daemon.
+#
+# Building and pushing are separate steps, because kaniko runs the Dockerfile's RUN lines (deno
+# install, Vite and every dependency) in its own container: a token in that container would be
+# readable by all of them. `build` holds no secret and writes the image to a tar file in the
+# workspace; `publish` runs only crane, never repository code, and is the one step that receives
+# DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (the Woodpecker server's global secrets, enabled for the
+# tag event).
+#
+# Every runtime variable is written `$$`, so Woodpecker leaves it for the shell. Images are pinned
+# by digest, so a moved tag cannot change what runs next to the token.
 
 depends_on: [ci]
 
@@ -12,26 +21,55 @@ when:
     ref: refs/tags/v[0-9]*
 
 steps:
-  release:
-    image: docker:29.8.1
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+  guard:
+    # Stops a mistaken release: a tag pushed on a commit that is not on main fails here. It is not
+    # a security boundary. Woodpecker reads this file from the tagged commit and hands global
+    # secrets out by event only, so a tag on a commit whose own release.yml lacks this step still
+    # reaches the token. The clone is shallow, so main is fetched explicitly.
+    image: alpine/git:2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
+    commands:
+      - git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      - |
+          if ! git merge-base --is-ancestor "$${CI_COMMIT_SHA}" refs/remotes/origin/main; then
+            echo "Refusing to publish $${CI_COMMIT_TAG}: commit $${CI_COMMIT_SHA} is not on main." >&2
+            exit 1
+          fi
+          echo "$${CI_COMMIT_TAG} ($${CI_COMMIT_SHA}) is on main."
+
+  build:
+    # The kaniko executor from woodpeckerci/plugin-kaniko, run as plain commands. No secret.
+    image: woodpeckerci/plugin-kaniko:2.3.3@sha256:d6ecc0f37561503eeacd8f2189068c5a13c531f5629cf2ce2de0ac144824c9f4
+    depends_on: [guard]
+    commands:
+      - executor --context "$$PWD" --dockerfile Dockerfile
+        --build-arg "APP_VERSION=$${CI_COMMIT_TAG}"
+        --destination "antonshubin/caldav-tasks-web:$${CI_COMMIT_TAG}"
+        --no-push --tar-path "$$PWD/image.tar"
+
+  publish:
+    # crane v0.22.1 (go-containerregistry commit 8a72a42): its `debug` build, pinned by digest,
+    # because the release builds have no shell. Its shell is /busybox/sh and it has no /bin/sh,
+    # so the entrypoint Woodpecker runs the commands with is named here.
+    image: gcr.io/go-containerregistry/crane:debug@sha256:e78770b31258a3846f878036d9c1f63fbe4c871f9f56990bf77fd95c013e3c1b
+    entrypoint: ["/busybox/sh", "-c", "echo $$CI_SCRIPT | /busybox/base64 -d | /busybox/sh -e"]
+    depends_on: [build]
     environment:
       DOCKERHUB_USERNAME:
         from_secret: DOCKERHUB_USERNAME
       DOCKERHUB_TOKEN:
         from_secret: DOCKERHUB_TOKEN
     commands:
-      - echo "$$DOCKERHUB_TOKEN" | docker login -u "$$DOCKERHUB_USERNAME" --password-stdin
       - |
-          set -e
+          set -eu
           IMAGE=antonshubin/caldav-tasks-web
+          # The login stays in this container, outside the workspace.
+          export DOCKER_CONFIG=/tmp/docker
+          printf '%s' "$$DOCKERHUB_TOKEN" |
+            crane auth login index.docker.io -u "$$DOCKERHUB_USERNAME" --password-stdin
+          crane push image.tar "$$IMAGE:$${CI_COMMIT_TAG}"
           # A pre-release tag (v1.2.3-rc.1) is published under its own name only; it never
           # moves latest.
-          case "$${CI_COMMIT_TAG}" in *-*) LATEST= ;; *) LATEST=1 ;; esac
-          docker build --pull --build-arg "APP_VERSION=$${CI_COMMIT_TAG}" \
-            -t "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+-t "$$IMAGE:latest"} .
-          docker push "$$IMAGE:$${CI_COMMIT_TAG}"
-          if [ -n "$$LATEST" ]; then docker push "$$IMAGE:latest"; fi
-          # The daemon is the agent host's: do not leave release images on it.
-          docker image rm "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+"$$IMAGE:latest"}
+          case "$${CI_COMMIT_TAG}" in
+            *-*) ;;
+            *) crane tag "$$IMAGE:$${CI_COMMIT_TAG}" latest ;;
+          esac
