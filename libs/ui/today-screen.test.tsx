@@ -81,12 +81,23 @@ Deno.test("while loading the screen shows a skeleton announced as loading, not a
   expect(html).not.toContain(`data-e2e="task-row"`)
 })
 
+Deno.test("the Today hint stops saying due today once the line names a date", async () => {
+  await mount(<TodayScreen {...props()} />, async ({ root, window, act }) => {
+    const input = must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`)
+    expect(root.textContent).toContain(`due today`)
+    input.value = `Call mum tomorrow`
+    await act(() => input.dispatchEvent(new window.Event(`input`, { bubbles: true }) as never))
+    expect(root.textContent).not.toContain(`due today`)
+    expect(root.textContent).toContain(`Added to your default list`)
+  })
+})
+
 Deno.test("typing in quick add hands the title to the caller and says it is due today", async () => {
   const added: string[] = []
   const html = renderToString(<TodayScreen {...props()} />)
   expect(html).toContain(`due today`)
   await mount(
-    <TodayScreen {...props({ onQuickAdd: (title) => added.push(title) })} />,
+    <TodayScreen {...props({ onQuickAdd: (parsed) => added.push(parsed.title) })} />,
     async ({ root, act }) => {
       must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`).value = `Call mum`
       await act(() => must<HTMLFormElement>(root, `[data-e2e="quick-add"]`).requestSubmit())

@@ -54,7 +54,7 @@ export function ListView() {
       onShowCompletedChange={(show) => showCompleted.value = show}
       onComplete={(task, done) => void completeWithUndo(task, done)}
       onOpen={(task) => navigate(taskPath(task))}
-      onQuickAdd={(title) => void quickAdd.add(title)}
+      onQuickAdd={(parsed) => void quickAdd.add(parsed)}
       quickAddBusy={quickAdd.busy.value}
       navigate={navigate}
     />

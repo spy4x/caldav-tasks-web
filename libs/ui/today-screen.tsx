@@ -4,6 +4,7 @@ import { IconChevronDown, IconSun } from "@spy4x/preact-icons"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { formatDateLong, isoDateInTz } from "@spy4x/time/tz"
 import type { Task, TaskList } from "@spy4x/time/ical-tasks-model"
+import type { QuickAddResult } from "@spy4x/platform"
 import { QuickAdd } from "./quick-add.tsx"
 import { FocusKeeper } from "./task-focus.tsx"
 import { EmptyBody, GroupHeading, LoadingBody, ScreenLayout } from "./task-screen.tsx"
@@ -24,7 +25,7 @@ export interface TodayScreenProps {
   onComplete: (task: Task, done: boolean) => void
   onOpen: (task: Task) => void
   /** Creates a task due today in the default list. */
-  onQuickAdd: (title: string) => void
+  onQuickAdd: (parsed: QuickAddResult) => void
   quickAddBusy?: boolean
 }
 
@@ -56,8 +57,10 @@ export function TodayScreen(props: TodayScreenProps): JSX.Element {
       quickAdd={
         <QuickAdd
           onAdd={props.onQuickAdd}
+          zone={props.zone}
           busy={props.quickAddBusy}
-          hint="Added to your default list, due today"
+          hint={(parsed) =>
+            parsed.due ? `Added to your default list` : `Added to your default list, due today`}
         />
       }
     >
