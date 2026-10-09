@@ -50,7 +50,8 @@ test("? lists the shortcuts and Escape closes the list, and typing in a field fi
 
   await page.keyboard.press(`/`)
   await expect(page.getByTestId(`search-input`)).toBeFocused()
-  // A key typed in the first moments after the page loads can be lost (see the PR); wait a little.
+  // The search field can drop a letter typed just after the page loads (https://github.com/spy4x/caldav-tasks-web/issues/76); give it a moment.
+  await page.waitForTimeout(500)
   await page.keyboard.type(`jxn?g`, { delay: 60 })
   await expect(page.getByTestId(`search-input`)).toHaveValue(`jxn?g`)
   await expect(dialog).toBeHidden()
