@@ -92,14 +92,23 @@ export function editTask(task: Task, edit: TaskEdit, now: Date): EditResult {
 
 function toPatch(task: Task, edit: TaskEdit): TodoPatch {
   const patch: TodoPatch = {}
+  // Unchanged fields stay out of the patch, so lines another client wrote keep their bytes.
   if (edit.title !== undefined) patch.summary = edit.title
   // Empty notes remove the line; an empty `DESCRIPTION:` would be left otherwise.
-  if (edit.notes !== undefined) patch.description = edit.notes === `` ? null : edit.notes
+  if (edit.notes !== undefined && edit.notes !== task.notes) {
+    patch.description = edit.notes === `` ? null : edit.notes
+  }
   if (edit.due !== undefined) patch.due = edit.due
   if (edit.start !== undefined) patch.start = edit.start
   // A task without PRIORITY reads as 0, so an unchanged 0 must not write `PRIORITY:0`.
   if (edit.priority !== undefined && edit.priority !== task.priority) patch.priority = edit.priority
-  if (edit.tags !== undefined) patch.categories = edit.tags.length ? edit.tags : null
+  if (edit.tags !== undefined && !sameList(edit.tags, task.tags)) {
+    patch.categories = edit.tags.length ? edit.tags : null
+  }
   if (edit.sortOrder !== undefined) patch.sortOrder = edit.sortOrder
   return patch
+}
+
+function sameList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((item, i) => item === b[i])
 }

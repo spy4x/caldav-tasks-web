@@ -93,6 +93,22 @@ Deno.test(`a due date edit raises SEQUENCE by one each time it is saved`, () => 
   expect(lines(second.output.ics)).toContain(`SEQUENCE:2`)
 })
 
+Deno.test(`a whole-form save keeps notes and tags lines another client wrote in its own form`, () => {
+  const ics = vtodo([
+    `DTSTAMP:20261001T080000Z`,
+    `UID:8`,
+    `SUMMARY:Keep`,
+    `DESCRIPTION:one, two; three`,
+    `CATEGORIES:home`,
+    `CATEGORIES:garden`,
+  ])
+  const before = fixtureTask(ics)
+  const { ics: after } = edited(ics, { title: `Kept`, notes: before.notes, tags: before.tags })
+  for (const kept of [`DESCRIPTION:one, two; three`, `CATEGORIES:home`, `CATEGORIES:garden`]) {
+    expect(lines(after)).toContain(kept)
+  }
+})
+
 Deno.test(`an edit keeps reminders and unknown X- properties byte for byte`, () => {
   const ics = vtodo([
     `DTSTAMP:20261001T080000Z`,
