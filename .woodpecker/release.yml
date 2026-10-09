@@ -1,0 +1,34 @@
+# Publishes antonshubin/caldav-tasks-web to Docker Hub when a v<digit>* tag is pushed.
+#
+# The step talks to the agent's Docker daemon through its socket, so the repository must be
+# trusted for volumes in Woodpecker. DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are the Woodpecker
+# server's global secrets, enabled for the tag event. Every runtime variable is written `$$`, so
+# Woodpecker leaves it for the shell.
+
+when:
+  - event: tag
+    ref: refs/tags/v[0-9]*
+
+steps:
+  release:
+    image: docker:29.8.1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      DOCKERHUB_USERNAME:
+        from_secret: DOCKERHUB_USERNAME
+      DOCKERHUB_TOKEN:
+        from_secret: DOCKERHUB_TOKEN
+    commands:
+      - echo "$$DOCKERHUB_TOKEN" | docker login -u "$$DOCKERHUB_USERNAME" --password-stdin
+      - |
+          set -e
+          IMAGE=antonshubin/caldav-tasks-web
+          # A pre-release tag (v1.2.3-rc.1) is published under its own name only; it never
+          # moves latest.
+          case "$${CI_COMMIT_TAG}" in *-*) LATEST= ;; *) LATEST=1 ;; esac
+          docker build --pull -t "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+-t "$$IMAGE:latest"} .
+          docker push "$$IMAGE:$${CI_COMMIT_TAG}"
+          if [ -n "$$LATEST" ]; then docker push "$$IMAGE:latest"; fi
+          # The daemon is the agent host's: do not leave release images on it.
+          docker image rm "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+"$$IMAGE:latest"}
