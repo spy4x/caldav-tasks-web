@@ -41,15 +41,30 @@ export function findListBySlug<T extends { href: string }>(
   return lists.find((list) => listSlug(list.href) === slug)
 }
 
-/** Where a signed-out visitor is sent: the sign-in page, which remembers where they were going. */
-export function signInPath(target: string): string {
-  if (!isInternal(target) || target === ROUTES.today) return ROUTES.signIn
-  return `${ROUTES.signIn}?next=${encodeURIComponent(target)}`
+/** A stand-in origin to resolve addresses against, so any other origin shows up as foreign. */
+const APP_ORIGIN = `http://app.invalid`
+
+/**
+ * The address inside this app that `target` resolves to, or `null` when it would leave the site.
+ * It parses the way a browser does (which drops tabs and newlines and reads `\` as `/`), so a
+ * disguised `//host` cannot pass a check that only looked at the first characters.
+ */
+function internalTarget(target: string): string | null {
+  let url: URL
+  try {
+    url = new URL(target, APP_ORIGIN)
+  } catch {
+    return null
+  }
+  if (url.origin !== APP_ORIGIN) return null
+  return `${url.pathname}${url.search}${url.hash}`
 }
 
-/** An address inside this app: it starts with one `/`, so it can never leave the site. */
-function isInternal(target: string): boolean {
-  return target.startsWith(`/`) && !target.startsWith(`//`) && !target.startsWith(`/\\`)
+/** Where a signed-out visitor is sent: the sign-in page, which remembers where they were going. */
+export function signInPath(target: string): string {
+  const inside = internalTarget(target)
+  if (inside === null || inside === ROUTES.today) return ROUTES.signIn
+  return `${ROUTES.signIn}?next=${encodeURIComponent(inside)}`
 }
 
 /**
@@ -58,9 +73,11 @@ function isInternal(target: string): boolean {
  */
 export function nextPath(search: string): string {
   const next = new URLSearchParams(search).get(`next`)
-  if (next === null || !isInternal(next)) return ROUTES.today
-  const path = next.split(/[?#]/)[0]
-  return path === ROUTES.signIn ? ROUTES.today : next
+  const inside = next === null ? null : internalTarget(next)
+  if (inside === null || new URL(inside, APP_ORIGIN).pathname === ROUTES.signIn) {
+    return ROUTES.today
+  }
+  return inside
 }
 
 /**

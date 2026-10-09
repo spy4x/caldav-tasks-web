@@ -43,6 +43,30 @@ Deno.test(`a next address that leaves the site is ignored`, () => {
   }
 })
 
+Deno.test(`a next address disguised with a tab, a newline, an escape or a backslash never leaves the site`, () => {
+  const disguised = [
+    `/\t/evil.example`,
+    `/\n/evil.example`,
+    `/\r/evil.example`,
+    `\t//evil.example`,
+    `/%09/evil.example`,
+    `/\\evil.example`,
+    `\\\\evil.example`,
+    `/\\/evil.example`,
+  ]
+  for (const next of disguised) {
+    const result = nextPath(`next=${encodeURIComponent(next)}`)
+    expect(new URL(result, `http://app.invalid`).origin).toBe(`http://app.invalid`)
+    expect(result.startsWith(`//`)).toBe(false)
+  }
+  expect(nextPath(`next=${encodeURIComponent(`/\t/evil.example`)}`)).toBe(`/`)
+})
+
+Deno.test(`a signed-out visit never remembers an address that leaves the site`, () => {
+  expect(signInPath(`/\t/evil.example`)).toBe(`/sign-in`)
+  expect(signInPath(`//evil.example/x`)).toBe(`/sign-in`)
+})
+
 Deno.test(`a next address that is Sign in itself opens Today`, () => {
   expect(nextPath(`next=%2Fsign-in%3Fnext%3D%2Fsearch`)).toBe(`/`)
 })
