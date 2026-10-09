@@ -6,6 +6,9 @@ import { Toastr } from "@spy4x/preact-ui/toastr"
 import { AppFrame } from "@ui/frame.tsx"
 import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
+import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
+import { ShortcutsHelp } from "@ui/shortcuts.tsx"
+import { useShortcuts } from "./views/use-shortcuts.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
 import { toasts } from "./state/toasts.ts"
@@ -20,6 +23,8 @@ import { SignInView } from "./views/SignInView.tsx"
 import { TaskEditorView } from "./views/TaskEditorView.tsx"
 import { TodayView } from "./views/TodayView.tsx"
 import { UpcomingView } from "./views/UpcomingView.tsx"
+
+const SHORTCUT_ROWS = listShortcuts()
 
 /**
  * The app: every address behind the sign-in gate. A signed-out visit to any page goes to Sign in
@@ -50,6 +55,7 @@ function Gate() {
 function SignedInApp() {
   const [location, navigate] = useLocation()
   useEffect(() => startSync(), [])
+  useShortcuts(navigate)
   return (
     <AppFrame currentPath={location} navigate={navigate}>
       {notice.value && (
@@ -70,6 +76,11 @@ function SignedInApp() {
         <Route path={ROUTES.settings} component={SettingsView} />
         <Route component={NotFoundView} />
       </Switch>
+      <ShortcutsHelp
+        open={shortcutsOpen.value}
+        onClose={() => shortcutsOpen.value = false}
+        shortcuts={SHORTCUT_ROWS}
+      />
     </AppFrame>
   )
 }
