@@ -8,6 +8,7 @@ import { ToggleChips } from "@spy4x/preact-ui/toggle-chips"
 import { isOpen, type Task, type TaskList } from "@spy4x/time/ical-tasks-model"
 import { buildTree, SortMode, sortTasks } from "@spy4x/platform/universal/ical-tasks-view"
 import { PATHS } from "./frame.tsx"
+import type { QuickAddResult } from "@spy4x/platform"
 import { QuickAdd } from "./quick-add.tsx"
 import { FocusKeeper } from "./task-focus.tsx"
 import { EmptyBody, LoadingBody, ScreenLayout } from "./task-screen.tsx"
@@ -31,7 +32,7 @@ export interface ListScreenProps {
   onComplete: (task: Task, done: boolean) => void
   onOpen: (task: Task) => void
   /** Creates a task in this list. */
-  onQuickAdd: (title: string) => void
+  onQuickAdd: (parsed: QuickAddResult) => void
   quickAddBusy?: boolean
   /** Follows the "back to Lists" arrow without a page load. */
   navigate?: (href: string) => void
@@ -109,6 +110,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
       quickAdd={
         <QuickAdd
           onAdd={props.onQuickAdd}
+          zone={props.zone}
           busy={props.quickAddBusy}
           hint={`Added to ${list.name}`}
         />

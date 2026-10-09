@@ -86,7 +86,7 @@ Deno.test("typing in quick add hands the title to the caller and says it is due 
   const html = renderToString(<TodayScreen {...props()} />)
   expect(html).toContain(`due today`)
   await mount(
-    <TodayScreen {...props({ onQuickAdd: (title) => added.push(title) })} />,
+    <TodayScreen {...props({ onQuickAdd: (parsed) => added.push(parsed.title) })} />,
     async ({ root, act }) => {
       must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`).value = `Call mum`
       await act(() => must<HTMLFormElement>(root, `[data-e2e="quick-add"]`).requestSubmit())
