@@ -91,8 +91,8 @@ const DIALOG = `dialog, [role='dialog'], [role='alertdialog']`
  * press completes, or `undefined`. It keeps the first key of a two-key sequence for `timeoutMs`;
  * any other key, or a late one, drops it.
  *
- * A press while typing (`isTypingTarget`), inside a dialog, while composing text, or with Control,
- * Alt or Meta held never matches, and it cancels a waiting first key.
+ * A press while typing (`isTypingTarget`), inside a dialog or while composing text never matches, and
+ * it cancels a waiting first key. A key with Control, Alt or Meta held is not a match (`matchesHotkey`).
  *
  * @param table The shortcuts, in priority order.
  * @param options `timeoutMs` is the wait for a second key; `apple` says whether `mod` is Command.
@@ -113,7 +113,6 @@ export function createShortcutMatcher(
 
   return (press) => {
     const blocked = press.isComposing === true || isTypingTarget(press.target) ||
-      press.ctrlKey || press.altKey || press.metaKey ||
       press.target?.closest?.(DIALOG) != null
     if (blocked) {
       waiting = null
