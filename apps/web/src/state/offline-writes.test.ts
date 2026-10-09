@@ -531,6 +531,7 @@ Deno.test(`every write, conflict read and delete names its task and list by path
       editElsewhere(server, `Their milk`)
       await reconnect()
       await keepMineOf(conflicts.value[0].id)
+      setBrowserOnline(false)
       await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
       await reconnect()
     } finally {
@@ -538,7 +539,7 @@ Deno.test(`every write, conflict read and delete names its task and list by path
     }
 
     const hrefs = hrefsSent(requests)
-    // A create (calendar), an update (href), the conflict read (href) and a delete (href).
+    // A create (calendar), an update (href), the conflict read (href) and a queued delete (href).
     expect(hrefs.length).toBeGreaterThanOrEqual(4)
     expect(hrefs.filter((href) => !/^\/(?!\/)[^:]*$/.test(href))).toEqual([])
     expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Oat milk`)
