@@ -12,6 +12,7 @@ import {
 import { AUTH_PATHS } from "@api/auth.ts"
 import { CALDAV_MAX_REQUEST_BYTES, CALDAV_PATHS } from "@api/caldav.ts"
 import { createApp } from "../app.ts"
+import { REQUEST_TOO_LARGE } from "./routes.ts"
 import { TEST_CONFIG, TEST_OWNER_PASSWORD } from "../test-config.ts"
 
 const STATIC_ROOT = fromFileUrl(new URL("../testdata", import.meta.url))
@@ -50,7 +51,7 @@ class FakeCalDav implements CalDavClient {
     },
     { url: `${DAV}${EVENTS}`, displayName: "Events", components: ["VEVENT"] },
   ]
-  objects = new Map<string, { etag: string; data: string }>([
+  objects = new Map<string, { etag: string | null; data: string }>([
     [`${DAV}${OPEN}`, { etag: `"e-open"`, data: OPEN_ICS }],
     [`${DAV}${DONE}`, { etag: `W/"e-done"`, data: DONE_ICS }],
   ])
@@ -164,6 +165,8 @@ interface SendInit {
   body?: unknown
   /** Sent as is, with a JSON content type. */
   raw?: string
+  /** The content type of a body; `null` sends none. Default: JSON. */
+  contentType?: string | null
   /** Replace the same-origin headers the owner's page sends. */
   headers?: Record<string, string>
 }
@@ -191,7 +194,9 @@ async function setup(): Promise<Setup> {
       cookie,
     })
     const body = init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body))
-    if (body !== undefined) headers.set("content-type", "application/json")
+    if (body !== undefined && init.contentType !== null) {
+      headers.set("content-type", init.contentType ?? "application/json")
+    }
     return await app.request(path, { method: init.method ?? "GET", headers, body })
   }
   return { app, dav, send }
@@ -460,7 +465,7 @@ Deno.test("refuses a body over 1 MiB, a non-JSON body and an invalid one before 
     body: { calendar: TASKS, ics: "x".repeat(CALDAV_MAX_REQUEST_BYTES) },
   })
   expect(big.status).toBe(413)
-  expect((await big.json()).code).toBe("too_large")
+  expect(await big.json()).toEqual({ code: "too_large", message: REQUEST_TOO_LARGE })
 
   const invalid = await send(CALDAV_PATHS.object, {
     method: "PUT",
@@ -480,6 +485,51 @@ Deno.test("refuses a body over 1 MiB, a non-JSON body and an invalid one before 
   expect(broken.status).toBe(400)
   await broken.body?.cancel()
   expect(dav.objectCalls()).toEqual([])
+})
+
+Deno.test("refuses a write without a JSON content type with 415 before calling CalDAV", async () => {
+  const { dav, send } = await setup()
+  const writes: [string, string, unknown][] = [
+    ["POST", CALDAV_PATHS.objects, { calendar: TASKS, ics: OPEN_ICS }],
+    ["PUT", CALDAV_PATHS.object, { href: OPEN, etag: `"e-open"`, ics: OPEN_ICS }],
+    ["DELETE", CALDAV_PATHS.object, { href: OPEN, etag: `"e-open"` }],
+  ]
+  for (const [method, path, body] of writes) {
+    for (const contentType of ["text/plain", null]) {
+      const response = await send(path, { method, body, contentType })
+      expect([method, contentType, response.status]).toEqual([method, contentType, 415])
+      expect((await response.json()).code).toBe("bad_request")
+    }
+  }
+  expect(dav.calls).toEqual([])
+})
+
+Deno.test("lists and relays a calendar that does not say which components it accepts", async () => {
+  const { dav, send } = await setup()
+  const calendar = "/test-user/any/"
+  dav.calendars.push({ url: `${DAV}${calendar}`, displayName: "Any", components: [] })
+  dav.objects.set(`${DAV}${calendar}a.ics`, { etag: `"e-a"`, data: OPEN_ICS })
+  const listed = await send(CALDAV_PATHS.calendars)
+  expect((await listed.json()).calendars).toContainEqual({
+    href: calendar,
+    displayName: "Any",
+    components: [],
+  })
+  const objects = await send(objectsPath(calendar))
+  expect(objects.status).toBe(200)
+  expect(await objects.json()).toEqual({
+    objects: [{ href: `${calendar}a.ics`, etag: `"e-a"`, ics: OPEN_ICS }],
+  })
+})
+
+Deno.test("relays a task the server sent without an etag as etag null", async () => {
+  const { dav, send } = await setup()
+  dav.objects.set(`${DAV}${OPEN}`, { etag: null, data: OPEN_ICS })
+  const one = await send(objectPath(OPEN))
+  expect(one.status).toBe(200)
+  expect(await one.json()).toEqual({ href: OPEN, etag: null, ics: OPEN_ICS })
+  const list = await send(objectsPath(TASKS))
+  expect(await list.json()).toEqual({ objects: [{ href: OPEN, etag: null, ics: OPEN_ICS }] })
 })
 
 Deno.test("no response body and no log line contains CALDAV_PASSWORD", async () => {
