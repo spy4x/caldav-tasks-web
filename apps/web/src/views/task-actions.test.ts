@@ -2,7 +2,9 @@
 import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
-import { OFFLINE_NOTICE } from "../state/connection.ts"
+import { CALDAV_PATHS } from "@api/caldav.ts"
+import { TaskStatus } from "@spy4x/time/ical-tasks-model"
+import { getOutbox } from "../state/outbox.ts"
 import { refresh } from "../state/sync.ts"
 import { tasks } from "../state/tasks.ts"
 import { setBrowserOnline, withApp } from "../state/testing.ts"
@@ -58,13 +60,42 @@ Deno.test(`undoing a completion after someone changed the task elsewhere says so
   })
 })
 
-Deno.test(`completing a task while offline shows why and offers no Undo`, async () => {
+Deno.test(`completing a task while offline queues it, and Undo takes it back before anything is sent`, async () => {
   await withApp(async (server) => {
     const task = await start(server)
     setBrowserOnline(false)
     await completeWithUndo(task, true)
-    expect(lastToast().body).toBe(OFFLINE_NOTICE)
-    expect(lastToast().action).toBeUndefined()
+    expect(tasks.value[0].status).toBe(TaskStatus.Completed)
+    const toast = lastToast()
+    expect(toast.body).toBe(`Completed "Buy milk"`)
+
+    await toast.action!.onAction()
+
+    expect(lastToast().body).toBe(`Undone`)
+    expect(tasks.value[0].status).toBe(task.status)
+    setBrowserOnline(true)
+    await getOutbox().flush()
+    expect(server.count(`PUT`, CALDAV_PATHS.object)).toBe(0)
+    expect(server.objects.get(HREF)!.ics).toBe(task.ics)
+  })
+})
+
+Deno.test(`deleting a task while offline hides it, and Undo brings it back without the server hearing of it`, async () => {
+  await withApp(async (server) => {
+    const task = await start(server)
+    setBrowserOnline(false)
+    expect(await deleteWithUndo(task)).toBe(true)
+    expect(tasks.value).toEqual([])
+
+    await lastToast().action!.onAction()
+
+    expect(lastToast().body).toBe(`Restored`)
+    expect(tasks.value.map((t) => t.title)).toEqual([`Buy milk`])
+    setBrowserOnline(true)
+    await getOutbox().flush()
+    expect(server.count(`DELETE`, CALDAV_PATHS.object)).toBe(0)
+    expect(server.count(`POST`, CALDAV_PATHS.objects)).toBe(0)
+    expect(server.objects.has(HREF)).toBe(true)
   })
 })
 

@@ -101,9 +101,20 @@ class FakeCalDav implements CalDavClient {
       return object ? ok({ url: String(url), ...object }) : fail(CalDavErrorCode.NotFound)
     })
   }
-  createObject(calendar: string | URL, ics: string) {
-    return this.record(["createObject", String(calendar), ics], () => {
-      const url = `${calendar}new-${++this.version}.ics`
+  createObject(calendar: string | URL, ics: string, options?: { name?: string }) {
+    const name = options?.name
+    const call: Call = name === undefined
+      ? ["createObject", String(calendar), ics]
+      : ["createObject", String(calendar), ics, name]
+    return this.record(call, () => {
+      // The real client refuses a name that is not a plain file name.
+      if (name !== undefined && !/^[A-Za-z0-9._~-]+$/.test(name)) {
+        return fail(CalDavErrorCode.InvalidArgument)
+      }
+      if (name !== undefined && this.objects.has(`${calendar}${name}`)) {
+        return fail(CalDavErrorCode.AlreadyExists)
+      }
+      const url = name === undefined ? `${calendar}new-${++this.version}.ics` : `${calendar}${name}`
       const etag = `"e-${this.version}"`
       this.objects.set(url, { etag, data: ics })
       return ok({ url, etag })
@@ -297,6 +308,31 @@ Deno.test("creates a task in a listed calendar and answers 201 with its href and
   expect(response.status).toBe(201)
   expect(await response.json()).toEqual({ href: `${TASKS}new-1.ics`, etag: `"e-1"` })
   expect(dav.objectCalls()).toEqual([["createObject", `${DAV}${TASKS}`, OPEN_ICS]])
+})
+
+Deno.test("creates a task under the file name the browser asked for, and answers 409 when it is taken", async () => {
+  const { dav, send } = await setup()
+  const body = { calendar: TASKS, ics: OPEN_ICS, name: "abc-1.ics" }
+  const first = await send(CALDAV_PATHS.objects, { method: "POST", body })
+  expect(first.status).toBe(201)
+  expect((await first.json()).href).toBe(`${TASKS}abc-1.ics`)
+  const again = await send(CALDAV_PATHS.objects, { method: "POST", body })
+  expect(again.status).toBe(409)
+  expect((await again.json()).code).toBe("already_exists")
+  expect(dav.objectCalls()).toEqual([
+    ["createObject", `${DAV}${TASKS}`, OPEN_ICS, "abc-1.ics"],
+    ["createObject", `${DAV}${TASKS}`, OPEN_ICS, "abc-1.ics"],
+  ])
+})
+
+Deno.test("answers 400 for a file name the CalDAV client refuses", async () => {
+  const { dav, send } = await setup()
+  const response = await send(CALDAV_PATHS.objects, {
+    method: "POST",
+    body: { calendar: TASKS, ics: OPEN_ICS, name: "../x.ics" },
+  })
+  expect(response.status).toBe(400)
+  expect(dav.objects.size).toBe(2)
 })
 
 Deno.test("passes the browser's etag through exactly on update and delete", async () => {

@@ -1,3 +1,4 @@
+import { useNow } from "@spy4x/preact-signals/now"
 import { useSignal } from "@preact/signals"
 import { useEffect } from "preact/hooks"
 import { useLocation, useParams, useSearch } from "wouter-preact"
@@ -32,6 +33,7 @@ export function ListView() {
   const showCompleted = useSignal(false)
   const quickAdd = useQuickAdd({ listHref: list?.href })
   const listHref = list?.href
+  const now = useNow({ zone: browserZone() }).value
   useEffect(() => {
     if (listHref && showCompleted.value) void loadCompleted(listHref)
   }, [listHref, showCompleted.value])
@@ -42,7 +44,7 @@ export function ListView() {
       list={list}
       tasks={tasks.value.filter((task) => task.listHref === list.href)}
       zone={browserZone()}
-      now={new Date()}
+      now={now}
       loading={!calendarsLoaded.value}
       sort={sortFromParam(sort.value)}
       onSortChange={(mode) => sort.value = sortToParam(mode)}

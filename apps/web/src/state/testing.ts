@@ -6,7 +6,8 @@ import { connection, resetConnection } from "./connection.ts"
 import { createDexieStorage, useStorage } from "./db.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { cacheUnavailable, lastSyncedAt } from "./sync.ts"
-import { tasks } from "./tasks.ts"
+import { createTestOutboxStore, useOutboxStore } from "./outbox.ts"
+import { serverTasks, tasks } from "./task-store.ts"
 
 /** Helpers for the tests of the data layer. Not imported by the app. */
 
@@ -52,7 +53,19 @@ export class FakeServer {
     return this.sent.filter((s) => s.method === method && s.path === path).length
   }
 
+  /** The next write is carried out, but its answer never arrives, as when the network drops. */
+  loseNextAnswer = false
+
   handle(request: Request): Response | Promise<Response> {
+    const result = this.process(request)
+    if (!this.loseNextAnswer || request.method === `GET`) return result
+    this.loseNextAnswer = false
+    return Promise.resolve(result).then(() => {
+      throw new TypeError(`Failed to fetch`)
+    })
+  }
+
+  private process(request: Request): Response | Promise<Response> {
     const url = new URL(request.url)
     this.sent.push({ method: request.method, path: url.pathname, search: url.searchParams })
     if (this.down) throw new TypeError(`Failed to fetch`)
@@ -67,10 +80,12 @@ export class FakeServer {
       })
     }
     if (url.pathname === CALDAV_PATHS.objects && request.method === `POST`) {
-      return request.json().then((body: { calendar: string; ics: string }) => {
+      return request.json().then((body: { calendar: string; ics: string; name?: string }) => {
         const uid = /^UID:(.*)$/m.exec(body.ics)?.[1]?.trim() ?? `new-${this.version}`
-        const href = `${body.calendar}${uid}.ics`
-        if (this.objects.has(href)) return error(412, `conflict`)
+        const href = `${body.calendar}${body.name ?? `${uid}.ics`}`
+        if (this.objects.has(href)) {
+          return body.name ? error(409, `already_exists`) : error(412, `conflict`)
+        }
         const etag = this.seed(href, body.calendar, body.ics)
         return Response.json({ href, etag }, { status: 201 })
       })
@@ -92,6 +107,8 @@ export class FakeServer {
     if (url.pathname === CALDAV_PATHS.object && request.method === `PUT`) {
       return request.json().then((body: { href: string; etag: string; ics: string }) => {
         this.beforePut?.(body.href)
+        // The relay refuses a write that carries no etag.
+        if (!body.etag) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
         if (found.etag !== body.etag) return error(412, `conflict`)
@@ -102,6 +119,7 @@ export class FakeServer {
     }
     if (url.pathname === CALDAV_PATHS.object && request.method === `DELETE`) {
       return request.json().then((body: { href: string; etag: string }) => {
+        if (!body.etag) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
         if (found.etag !== body.etag) return error(412, `conflict`)
@@ -139,6 +157,7 @@ export async function withApp(test: (server: FakeServer) => Promise<void>): Prom
       server.handle(new Request(new URL(String(input), `http://app.localhost`), init)),
     )
   useStorage(createDexieStorage(`test-${++databases}`))
+  useOutboxStore(createTestOutboxStore())
   reset()
   const stopWatching = connection.watch({
     addEventListener: (type, listener) => void browserEvents.set(type, listener),
@@ -150,6 +169,7 @@ export async function withApp(test: (server: FakeServer) => Promise<void>): Prom
     stopWatching()
     globalThis.fetch = own
     useStorage(undefined)
+    useOutboxStore(undefined)
     reset()
   }
 }
@@ -158,6 +178,7 @@ function reset(): void {
   resetConnection()
   calendars.value = []
   calendarsLoaded.value = false
+  serverTasks.value = []
   tasks.value = []
   lastSyncedAt.value = null
   cacheUnavailable.value = false

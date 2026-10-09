@@ -10,9 +10,6 @@ function reportFailure(result: WriteResult): boolean {
   switch (result.kind) {
     case WriteKind.Saved:
       return true
-    case WriteKind.Offline:
-      toasts.error({ title: NO_HEADING, body: result.notice })
-      return false
     case WriteKind.Conflict:
       toasts.error({
         title: NO_HEADING,

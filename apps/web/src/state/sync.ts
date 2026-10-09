@@ -4,12 +4,20 @@ import {
   type CalDavSyncTransport,
   createCalDavSync,
 } from "@spy4x/caldav/sync"
-import { watchPageResume } from "@spy4x/realtime/page-lifecycle"
+import {
+  createSyncRunner,
+  flushOutbox,
+  type SyncRunner,
+  type SyncRunnerState,
+  type SyncRunnerTarget,
+} from "@spy4x/realtime/sync-runner"
 import { CALDAV_PATHS, type Calendar, calendarListSchema, objectListSchema } from "@api/caldav.ts"
 import { connection, relay } from "./connection.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { cacheUnavailable, getStorage } from "./db.ts"
-import { setCachedTasks } from "./tasks.ts"
+import { getOutbox, loadOutbox } from "./outbox.ts"
+import { watchPersistence } from "./persistence.ts"
+import { setCachedTasks } from "./task-store.ts"
 
 /** True while a refresh is running. */
 export const syncing = signal(false)
@@ -101,19 +109,50 @@ export async function loadCompleted(calendarHref: string): Promise<boolean> {
   return ok
 }
 
+/** What the sync runner is doing, for the status line. `null` before the app starts it. */
+export const runnerState = signal<SyncRunnerState | null>(null)
+
+let runner: SyncRunner | undefined
+
+/** Sends what is queued and refreshes the cache, now. Resolves when that run has finished. */
+export function syncNow(): Promise<void> {
+  return runner?.kick() ?? Promise.resolve()
+}
+
 /**
- * Starts the data layer: shows the cache, refreshes, and refreshes again whenever the page becomes
- * visible or the network returns. Returns the function that stops the watching.
+ * Starts the data layer: shows the cache and the queued writes, then sends the queue and refreshes.
+ * It does so again whenever the page becomes visible or gains focus, or the network returns, and
+ * keeps trying with growing pauses while a write cannot be sent. Returns the function that stops it.
  */
 export function startSync(
-  target?: Parameters<typeof watchPageResume>[1],
+  target?: SyncRunnerTarget,
   connectionTarget?: Parameters<typeof connection.watch>[0],
 ): () => void {
   const stopConnection = connection.watch(connectionTarget)
-  const stop = watchPageResume(() => void refresh(), target)
-  void loadCache().then(refresh)
+  const sendQueue = flushOutbox(getOutbox())
+  const own = createSyncRunner({
+    target,
+    flush: async () => {
+      const result = await sendQueue()
+      // A server that could not be reached for the queue cannot answer a refresh either.
+      if (result !== `unreachable`) await refresh()
+      return result
+    },
+  })
+  runner = own
+  const stopPersistence = watchPersistence()
+  const stopState = own.subscribe((state) => runnerState.value = state)
+  let stopped = false
+  void Promise.all([loadCache(), loadOutbox()]).then(() => {
+    if (!stopped) own.start()
+  })
   return () => {
-    stop()
+    stopped = true
+    own.stop()
+    stopState()
+    stopPersistence()
     stopConnection()
+    if (runner === own) runner = undefined
+    runnerState.value = null
   }
 }

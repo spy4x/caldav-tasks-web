@@ -1,3 +1,4 @@
+import { useNow } from "@spy4x/preact-signals/now"
 import { useSignal } from "@preact/signals"
 import { useLocation, useSearch } from "wouter-preact"
 import { useUrlFilters } from "@spy4x/preact-signals/use-url-filters"
@@ -13,13 +14,14 @@ import { completeWithUndo } from "./task-actions.ts"
 export function SearchView() {
   const [, navigate] = useLocation()
   const query = useSignal(new URLSearchParams(useSearch()).get(`q`) ?? ``)
+  const now = useNow({ zone: browserZone() }).value
   useUrlFilters({ q: { signal: query, urlParam: `q`, initialValue: `` } })
   return (
     <SearchScreen
       tasks={tasks.value}
       lists={taskLists.value}
       zone={browserZone()}
-      now={new Date()}
+      now={now}
       loading={!calendarsLoaded.value}
       query={query.value}
       onQueryChange={(next) => query.value = next}

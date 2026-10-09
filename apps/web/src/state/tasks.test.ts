@@ -7,6 +7,7 @@ import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { TaskStatus } from "@spy4x/time/ical-tasks-model"
 import { notice, OFFLINE_NOTICE } from "./connection.ts"
 import { cacheUnavailable, getStorage, useStorage } from "./db.ts"
+import { pendingEntries } from "./pending.ts"
 import { refresh } from "./sync.ts"
 import { keepMineAfterConflict, saveTask, setTaskDone, tasks, WriteKind } from "./tasks.ts"
 import { error, type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
@@ -56,28 +57,28 @@ Deno.test(`a saved edit sends the etag it was read with and caches the new text 
   })
 })
 
-Deno.test(`a write while offline is refused with the notice and nothing is sent`, async () => {
+Deno.test(`a write while offline is queued, shown at once and not sent`, async () => {
   await withApp(async (server) => {
     const before = await start(server)
     setBrowserOnline(false)
     const result = await saveTask(before, { title: `Changed` }, NOW)
-    expect(result).toEqual({ kind: WriteKind.Offline, notice: OFFLINE_NOTICE })
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
     expect(server.sent).toEqual([])
-    // Never queued: going online again sends nothing by itself.
-    setBrowserOnline(true)
-    expect(server.sent).toEqual([])
-    expect(tasks.value[0].title).toBe(`Buy milk`)
+    expect(tasks.value[0].title).toBe(`Changed`)
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Buy milk`)
   })
 })
 
-Deno.test(`a write that gets no answer is refused as offline and the cached task is unchanged`, async () => {
+Deno.test(`a write that gets no answer is queued and the cached copy is the server's`, async () => {
   await withApp(async (server) => {
     const before = await start(server)
     server.down = true
     const result = await saveTask(before, { title: `Changed` }, NOW)
-    expect(result.kind).toBe(WriteKind.Offline)
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
     expect(notice.value).toBe(OFFLINE_NOTICE)
-    expect(tasks.value[0].title).toBe(`Buy milk`)
+    expect(tasks.value[0].title).toBe(`Changed`)
     expect((await getStorage().listTasks())[0].ics).toBe(before.ics)
   })
 })
@@ -310,5 +311,52 @@ Deno.test(`a task cached without an etag saves an edit of other fields on the fr
     const onServer = server.objects.get(HREF)!.ics
     expect(onServer).toContain(`SUMMARY:Buy oat milk`)
     expect(onServer).toContain(`DESCRIPTION:Three litres`)
+  })
+})
+
+Deno.test(`a write that finds the task changed, then cannot reread it, is queued`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    server.beforePut = () => {
+      editElsewhere(server, `Buy milk`, `Their milk`)
+      server.down = true
+    }
+
+    const result = await saveTask(before, { title: `Oat milk` }, NOW)
+
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    expect(pendingEntries.value.length).toBe(1)
+  })
+})
+
+Deno.test(`a rebased write whose answer is lost is queued`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    let writes = 0
+    server.beforePut = () => {
+      if (++writes === 1) {
+        editElsewhere(server, `Two litres`, `Three litres`)
+        // Armed while the first write is answered, so it is the retry whose answer is lost.
+        server.loseNextAnswer = true
+      } else server.down = true
+    }
+
+    const result = await saveTask(before, { title: `Oat milk` }, NOW)
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    expect(pendingEntries.value.length).toBe(1)
+  })
+})
+
+Deno.test(`a task with no version from the server cannot be queued`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+
+    const result = await saveTask({ ...before, etag: `` }, { title: `Oat milk` }, NOW)
+
+    expect(result.kind).toBe(WriteKind.Failed)
+    expect(pendingEntries.value).toEqual([])
   })
 })

@@ -1,19 +1,10 @@
 import { expect, type Page, test } from "@playwright/test"
-import { pageTitle, signIn } from "./sign-in.ts"
+import { pageTitle, signIn, underWorker } from "./sign-in.ts"
 
 /** The key `apps/web/src/state/session.ts` keeps its "signed in on this device" hint under. */
 const SIGNED_IN_HINT_KEY = `session:signed-in`
 
 const hint = (page: Page) => page.evaluate((key) => localStorage.getItem(key), SIGNED_IN_HINT_KEY)
-
-/** Waits until the service worker controls the page, reloading once if it only just installed. */
-async function underWorker(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready
-  })
-  await page.reload()
-  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true)
-}
 
 /** Every URL stored in every cache of the page's origin. */
 function cachedUrls(page: Page): Promise<string[]> {

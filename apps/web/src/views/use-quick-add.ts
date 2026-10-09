@@ -44,7 +44,6 @@ export function useQuickAdd(options: { listHref?: string; dueToday?: boolean } =
     busy.value = true
     try {
       const result = await addTask({ title, ...(due ? { due } : {}) }, { listHref })
-      if (result.kind === WriteKind.Offline) toasts.error({ title: ``, body: result.notice })
       if (result.kind === WriteKind.Failed) toasts.error({ title: ``, body: result.message })
     } finally {
       busy.value = false

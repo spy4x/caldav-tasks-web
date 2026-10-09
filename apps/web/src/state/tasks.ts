@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals"
 import { CALDAV_PATHS, taskObjectSchema, writeResultSchema } from "@api/caldav.ts"
 import { ApiErrorCode } from "@api/errors.ts"
 import {
@@ -12,27 +11,14 @@ import {
   type TaskEdit,
 } from "@spy4x/time/ical-tasks-edit"
 import { parseTask, type Task, TaskStatus } from "@spy4x/time/ical-tasks-model"
+import type { ConflictReason, Outcome } from "@spy4x/realtime/outbox"
 import { completeMessage } from "@tasks/identity.ts"
-import { offline, OFFLINE_NOTICE, relay } from "./connection.ts"
-import { type CachedTask, cacheUnavailable, getStorage } from "./db.ts"
+import { offline, relay } from "./connection.ts"
+import { queuedFor, queueUpdate, settle, withdrawQueued } from "./outbox.ts"
+import type { TaskSnapshot } from "./pending.ts"
+import { remember, tasks } from "./task-store.ts"
 
-/** Every cached task of every list, parsed. A resource that cannot be parsed is left out. */
-export const tasks = signal<Task[]>([])
-
-/** Turns cached rows into tasks. */
-export function setCachedTasks(cached: CachedTask[]): void {
-  const parsed: Task[] = []
-  for (const row of cached) {
-    const result = parseTask({
-      href: row.href,
-      etag: row.etag ?? ``,
-      listHref: row.calendarHref,
-      ics: row.ics,
-    })
-    if (result.success) parsed.push(result.output)
-  }
-  tasks.value = parsed
-}
+export { remember, setCachedTasks, tasks } from "./task-store.ts"
 
 /** The tasks of one list. */
 export function tasksOf(listHref: string): Task[] {
@@ -41,9 +27,8 @@ export function tasksOf(listHref: string): Task[] {
 
 /** How a write ended. */
 export enum WriteKind {
+  /** Done on the server, or queued on this device (`queued`) to be sent when the network is back. */
   Saved = 1,
-  /** Refused: there is no network. Nothing was sent or queued; show `notice`. */
-  Offline,
   /** The same field changed on the server and in the edit. The screen asks which to keep. */
   Conflict,
   /** Refused or failed; `message` is ready to show. */
@@ -63,8 +48,7 @@ export interface TaskConflict {
 }
 
 export type WriteResult =
-  | { kind: WriteKind.Saved; task: Task }
-  | { kind: WriteKind.Offline; notice: string }
+  | { kind: WriteKind.Saved; task: Task; queued?: boolean; conflict?: ConflictReason }
   | { kind: WriteKind.Conflict; conflict: TaskConflict }
   | { kind: WriteKind.Failed; message: string }
 
@@ -87,7 +71,7 @@ const CHANGED_ON_SERVER = `The task changed on the server. Reload it and try aga
 const CHANGED_AGAIN = `The task changed again while saving. Try again.`
 
 /**
- * Saves an edit. Offline it is refused, never queued. A 412 reads the fresh copy, re-applies the
+ * Saves an edit. Offline it is queued and sent when the network returns. A 412 reads the fresh copy, re-applies the
  * edit to it with `rebaseEdit` from `@spy4x/time/ical-tasks-edit` and sends once more; fields that
  * both sides changed come back as a conflict. Moving a task to another list is not handled here yet.
  */
@@ -169,7 +153,12 @@ export function keepMineAfterConflict(
  * produced. Refused with a message when someone changed the task since: an undo must never wipe
  * out a newer edit from another device.
  */
-export function undoWrite(current: Task, ics: string): Promise<WriteResult> {
+export async function undoWrite(current: Task, ics: string): Promise<WriteResult> {
+  // A write still waiting in the queue is taken back there; nothing has reached the server.
+  if (queuedFor(current) && await withdrawQueued(current)) {
+    const back = tasks.value.find((task) => task.href === current.href)
+    if (back) return { kind: WriteKind.Saved, task: back, queued: true }
+  }
   return commit(current, {
     first: () => {
       const parsed = parseTask({
@@ -199,10 +188,42 @@ function failed(message: string): WriteResult {
   return { kind: WriteKind.Failed, message }
 }
 
-const offlineResult = (): WriteResult => ({ kind: WriteKind.Offline, notice: OFFLINE_NOTICE })
+const NOT_SYNCED_YET = `This task has no version from the server yet. Wait until you are online.`
 
-async function commit(base: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
-  if (offline.value) return offlineResult()
+/**
+ * How the outbox answered a write, as the screens read it. A `conflict` is not "queued": the
+ * server refused the write, which waits in the conflict chooser with the person's text shown.
+ */
+export function fromOutcome(outcome: Outcome<TaskSnapshot>, written: Task): WriteResult {
+  if (outcome.kind === `failed`) {
+    return failed(outcome.error instanceof Error ? outcome.error.message : CHANGED_ON_SERVER)
+  }
+  if (outcome.kind === `conflict`) {
+    return { kind: WriteKind.Saved, task: written, conflict: outcome.reason }
+  }
+  const etag = outcome.kind === `sent` ? outcome.server?.etag ?? `` : written.etag
+  return { kind: WriteKind.Saved, task: { ...written, etag }, queued: outcome.kind !== `sent` }
+}
+
+/** Queues the write `step` made from `base`, to be sent when the network allows. */
+async function queueStep(base: Task, step: Extract<Step, { ok: true; ics: string }>) {
+  // A task the server has not given a version cannot be written yet, unless a create waits for it.
+  if (!base.etag && !queuedFor(base)) return failed(NOT_SYNCED_YET)
+  return fromOutcome(await queueUpdate(base, step.ics), step.task)
+}
+
+/** Builds the write from the copy the person saw and queues it. */
+async function queueFirst(base: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
+  const first = plan.first(base)
+  if (!first.ok) return stepFailure(first, base, edit, undefined)
+  if (`alreadyDone` in first) return { kind: WriteKind.Saved, task: base }
+  return await queueStep(base, first)
+}
+
+async function commit(sent: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
+  const base = await settle(sent)
+  // Offline, or behind a write that still waits: this one joins the queue, in order.
+  if (offline.value || queuedFor(base)) return await queueFirst(base, plan, edit)
   // A task with no etag cannot be written until it is read again with one. The cached copy stays
   // the base, so what the server changed meanwhile is rebased, never silently overwritten.
   if (base.etag) {
@@ -211,19 +232,19 @@ async function commit(base: Task, plan: Plan, edit?: TaskEdit): Promise<WriteRes
     if (`alreadyDone` in first) return { kind: WriteKind.Saved, task: base }
     const put = await send(base.href, base.etag, first.ics)
     if (put.ok) return await saved(first.task, first.ics, put.etag)
-    if (put.offline) return offlineResult()
+    if (put.offline) return await queueFirst(base, plan, edit)
     if (put.code !== ApiErrorCode.Conflict) return failed(put.message)
   }
 
   const fresh = await readTask(base)
-  if (!fresh.ok) return fresh.result
+  if (!fresh.ok) return fresh.offline ? await queueFirst(base, plan, edit) : fresh.result
   const theirs = fresh.task
   const second = plan.rebase(base, theirs)
   if (!second.ok) return stepFailure(second, base, edit, theirs)
   if (`alreadyDone` in second) return { kind: WriteKind.Saved, task: theirs }
   const retry = await send(theirs.href, theirs.etag, second.ics)
   if (retry.ok) return await saved(second.task, second.ics, retry.etag)
-  if (retry.offline) return offlineResult()
+  if (retry.offline) return await queueStep(theirs, second)
   if (retry.code === ApiErrorCode.Conflict) return failed(CHANGED_AGAIN)
   return failed(retry.message)
 }
@@ -259,14 +280,16 @@ async function send(href: string, etag: string, ics: string): Promise<Sent> {
 /** Reads the server's current copy of `like` and caches it. */
 async function readTask(
   like: Task,
-): Promise<{ ok: true; task: Task } | { ok: false; result: WriteResult }> {
+): Promise<
+  { ok: true; task: Task } | { ok: false; offline: boolean; result: WriteResult }
+> {
   const result = await relay(
     `${CALDAV_PATHS.object}?href=${encodeURIComponent(like.href)}`,
     {},
     taskObjectSchema,
   )
   if (!result.ok) {
-    return { ok: false, result: result.offline ? offlineResult() : failed(result.message) }
+    return { ok: false, offline: result.offline, result: failed(result.message) }
   }
   const parsed = parseTask({
     href: result.data.href,
@@ -274,7 +297,7 @@ async function readTask(
     listHref: like.listHref,
     ics: result.data.ics,
   })
-  if (!parsed.success) return { ok: false, result: failed(parsed.error) }
+  if (!parsed.success) return { ok: false, offline: false, result: failed(parsed.error) }
   await remember(parsed.output)
   return { ok: true, task: parsed.output }
 }
@@ -288,21 +311,4 @@ async function saved(written: Task, ics: string, etag: string | null): Promise<W
   }
   await remember(task)
   return { kind: WriteKind.Saved, task }
-}
-
-/** Stores `task` in the cache and swaps it into {@link tasks}. */
-export async function remember(task: Task): Promise<void> {
-  try {
-    await getStorage().putTask({
-      href: task.href,
-      calendarHref: task.listHref,
-      etag: task.etag || null,
-      ics: task.ics,
-    })
-  } catch {
-    // The server has the write already; a failing cache must not report it as lost.
-    cacheUnavailable.value = true
-  }
-  const others = tasks.value.filter((other) => other.href !== task.href)
-  tasks.value = [...others, task]
 }

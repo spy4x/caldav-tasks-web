@@ -9,6 +9,7 @@ import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
 import { toasts } from "./state/toasts.ts"
+import { SyncBar } from "./views/SyncBar.tsx"
 import { ListsView } from "./views/ListsView.tsx"
 import { ListView } from "./views/ListView.tsx"
 import { NotFoundView } from "./views/NotFoundView.tsx"
@@ -55,6 +56,7 @@ function SignedInApp() {
           <Notice tone="warning">{notice.value}</Notice>
         </div>
       )}
+      <SyncBar />
       <Switch>
         <Route path={ROUTES.today} component={TodayView} />
         <Route path={ROUTES.upcoming} component={UpcomingView} />

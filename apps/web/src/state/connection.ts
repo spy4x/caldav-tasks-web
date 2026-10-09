@@ -21,7 +21,7 @@ export interface ServerProblem {
 }
 
 /** Shown while the browser has no network or the last request never got an answer. */
-export const OFFLINE_NOTICE = `Offline: showing your last copy, changes are paused`
+export const OFFLINE_NOTICE = `Offline: showing your last copy, changes will sync when you are back`
 
 /**
  * Whether the browser says it has a network. `connection.watch()` follows the online and offline

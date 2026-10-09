@@ -4,7 +4,6 @@ import { expect } from "@std/expect"
 import { CALDAV_PATHS } from "@api/caldav.ts"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
-import { OFFLINE_NOTICE } from "./connection.ts"
 import { getStorage } from "./db.ts"
 import { refresh } from "./sync.ts"
 import { setTaskDone, tasks, undoWrite, WriteKind } from "./tasks.ts"
@@ -41,14 +40,16 @@ Deno.test(`adding a task creates it in the list and shows it in the cache`, asyn
   })
 })
 
-Deno.test(`adding a task while offline is refused and sends nothing`, async () => {
+Deno.test(`adding a task while offline queues it under its own file name and shows it`, async () => {
   await withApp(async (server) => {
     await start(server)
     setBrowserOnline(false)
     const result = await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `u`)
-    expect(result).toEqual({ kind: WriteKind.Offline, notice: OFFLINE_NOTICE })
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    expect(result.task.href).toBe(`${LIST_HREF}u.ics`)
     expect(server.sent).toEqual([])
-    expect(tasks.value.length).toBe(1)
+    expect(tasks.value.map((t) => t.title).sort()).toEqual([`Buy milk`, `Pay rent`])
   })
 })
 
