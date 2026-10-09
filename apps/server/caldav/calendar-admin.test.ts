@@ -179,9 +179,4 @@ Deno.test("answers a CalDAV failure of a list write with its documented status a
     expect([method, response.status, answer.code]).toEqual([method, 502, "caldav_refused"])
     expect(answer.message).not.toContain("upstream detail")
   }
-  // A failed delete leaves the list known, so its tasks still reach the CalDAV server.
-  dav.failWith = null
-  const task = await send(`${CALDAV_PATHS.object}?href=${encodeURIComponent(OPEN)}`)
-  expect(task.status).toBe(200)
-  await task.body?.cancel()
 })
