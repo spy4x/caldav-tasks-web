@@ -1,0 +1,60 @@
+import { useSignal } from "@preact/signals"
+import { useEffect } from "preact/hooks"
+import { useLocation, useParams, useSearch } from "wouter-preact"
+import { useUrlFilters } from "@spy4x/preact-signals/use-url-filters"
+import { ListScreen } from "@ui/list-screen.tsx"
+import { calendarsLoaded } from "../state/calendars.ts"
+import { loadCompleted } from "../state/sync.ts"
+import { taskLists } from "../state/task-lists.ts"
+import { tasks } from "../state/tasks.ts"
+import { findListBySlug, taskPath } from "../routes.ts"
+import { browserZone } from "./clock.ts"
+import { sortFromParam, sortToParam, tagsFromParam, tagsToParam } from "./list-filters.ts"
+import { NotFoundView } from "./NotFoundView.tsx"
+import { completeWithUndo } from "./task-actions.ts"
+import { useQuickAdd } from "./use-quick-add.ts"
+
+/**
+ * A list, wired. The sort and the tag filter live in the address (`?sort=due&tags=home`), so a
+ * reload, a bookmark and the Back button keep them.
+ */
+export function ListView() {
+  const { slug = `` } = useParams<{ slug: string }>()
+  const [, navigate] = useLocation()
+  const list = findListBySlug(taskLists.value, slug)
+  const params = new URLSearchParams(useSearch())
+  const sort = useSignal(params.get(`sort`) ?? ``)
+  const tags = useSignal(params.get(`tags`) ?? ``)
+  useUrlFilters({
+    sort: { signal: sort, urlParam: `sort`, initialValue: `` },
+    tags: { signal: tags, urlParam: `tags`, initialValue: `` },
+  })
+  const showCompleted = useSignal(false)
+  const quickAdd = useQuickAdd({ listHref: list?.href })
+  const listHref = list?.href
+  useEffect(() => {
+    if (listHref && showCompleted.value) void loadCompleted(listHref)
+  }, [listHref, showCompleted.value])
+
+  if (!list) return calendarsLoaded.value ? <NotFoundView /> : null
+  return (
+    <ListScreen
+      list={list}
+      tasks={tasks.value.filter((task) => task.listHref === list.href)}
+      zone={browserZone()}
+      now={new Date()}
+      loading={!calendarsLoaded.value}
+      sort={sortFromParam(sort.value)}
+      onSortChange={(mode) => sort.value = sortToParam(mode)}
+      activeTags={tagsFromParam(tags.value)}
+      onActiveTagsChange={(next) => tags.value = tagsToParam(next)}
+      showCompleted={showCompleted.value}
+      onShowCompletedChange={(show) => showCompleted.value = show}
+      onComplete={(task, done) => void completeWithUndo(task, done)}
+      onOpen={(task) => navigate(taskPath(task))}
+      onQuickAdd={(title) => void quickAdd.add(title)}
+      quickAddBusy={quickAdd.busy.value}
+      navigate={navigate}
+    />
+  )
+}
