@@ -25,11 +25,14 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => await deleteList(list))
 
-test("adds a task on Today, edits its title, completes it and undoes the completion", async ({ page }) => {
+test("adds a task to a list, edits its title, completes it and undoes the completion", async ({ page }) => {
   await signIn(page)
   await expect(pageTitle(page)).toHaveText(`Today`)
 
-  // The lists load after the page does; a quick add before then has nowhere to go.
+  // Quick add on a list's own page lands in that list, which the test removes afterwards. On
+  // Today it would go to the account's first list and leave the task behind on Radicale.
+  const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
+  await page.goto(`/lists/${encodeURIComponent(slug)}`)
   await expect(page.getByRole(`button`, { name: `Seeded errand` })).toBeVisible()
   await page.getByTestId(`quick-add-input`).fill(`Pay the rent`)
   await page.getByTestId(`quick-add-submit`).click()
@@ -41,7 +44,6 @@ test("adds a task on Today, edits its title, completes it and undoes the complet
   await page.getByTestId(`task-title`).fill(`Pay the rent today`)
   await page.getByTestId(`task-save`).click()
   await expect(page).toHaveURL(/\/lists\//)
-  await page.goto(`/`)
   const renamed = page.getByRole(`button`, { name: `Pay the rent today` })
   await expect(renamed).toBeVisible()
 
