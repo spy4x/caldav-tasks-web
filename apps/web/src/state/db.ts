@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals"
-import { Dexie, type EntityTable } from "dexie"
+import { createIndexedDbCalDavCache } from "@spy4x/caldav/indexeddb"
 import type { StoredCalendar, SyncChanges, SyncObject, SyncObjectVersion } from "@spy4x/caldav/sync"
 import type { Calendar } from "@api/caldav.ts"
 
@@ -13,7 +13,7 @@ export interface CachedTask extends SyncObject {
 
 /**
  * Where the last copy of every list and task is kept. The stores talk to this interface only, so
- * the browser's IndexedDB is one implementation of it ({@link createDexieStorage}).
+ * the browser's IndexedDB is one implementation of it ({@link createIndexedDbStorage}).
  */
 export interface TaskStorage {
   listCalendars(): Promise<CachedCalendar[]>
@@ -29,38 +29,35 @@ export interface TaskStorage {
   close(): void
 }
 
-/** The cache in IndexedDB, through Dexie. `name` is the database name. */
-export function createDexieStorage(name = `caldav-tasks`): TaskStorage {
-  const db = new Dexie(name) as Dexie & {
-    calendars: EntityTable<CachedCalendar, `href`>
-    tasks: EntityTable<CachedTask, `href`>
+/** The name of the IndexedDB database an earlier version of the app kept its cache in (Dexie). */
+export const LEGACY_DATABASE = `caldav-tasks`
+
+/**
+ * Deletes the database an earlier version of the app kept its cache in. It is only a copy of the
+ * server, so the new cache rebuilds on the next sync. Every failure is ignored: a blocked or
+ * missing IndexedDB must not stop the app.
+ */
+export function deleteLegacyDatabase(factory: IDBFactory | undefined = globalThis.indexedDB): void {
+  try {
+    const request = factory?.deleteDatabase(LEGACY_DATABASE)
+    if (request) request.onerror = () => {}
+  } catch {
+    // Nothing to clean up, or no permission to.
   }
-  db.version(1).stores({ calendars: `href`, tasks: `href, calendarHref` })
+}
+
+/** The cache in IndexedDB. `name` is the database name. */
+export function createIndexedDbStorage(name = `caldav-cache`): TaskStorage {
+  const cache = createIndexedDbCalDavCache<StoredCalendar<Calendar>>({ name })
   return {
-    listCalendars: () => db.calendars.toArray(),
-    listTasks: () => db.tasks.toArray(),
-    replaceCalendars: (calendars) =>
-      db.transaction(`rw`, db.calendars, db.tasks, async () => {
-        const keep = new Set(calendars.map((calendar) => calendar.href))
-        const gone = (await db.calendars.toCollection().primaryKeys()).filter((href) =>
-          !keep.has(href)
-        )
-        await db.tasks.where(`calendarHref`).anyOf(gone).delete()
-        await db.calendars.bulkDelete(gone)
-        await db.calendars.bulkPut(calendars)
-      }),
-    listVersions: async (calendarHref) =>
-      (await db.tasks.where(`calendarHref`).equals(calendarHref).toArray())
-        .map(({ href, etag }) => ({ href, etag })),
-    applyChanges: (calendar, { upsert, remove }) =>
-      db.transaction(`rw`, db.calendars, db.tasks, async () => {
-        await db.tasks.bulkDelete(remove)
-        await db.tasks.bulkPut(upsert.map((object) => ({ ...object, calendarHref: calendar.href })))
-        await db.calendars.put(calendar)
-      }),
-    putTask: async (task) => void await db.tasks.put(task),
-    deleteTask: (href) => db.tasks.delete(href),
-    close: () => db.close(),
+    listCalendars: () => cache.listCalendars(),
+    listTasks: () => cache.listObjects(),
+    replaceCalendars: (calendars) => cache.replaceCalendars(calendars),
+    listVersions: (calendarHref) => cache.listVersions(calendarHref),
+    applyChanges: (calendar, changes) => cache.applyChanges(calendar, changes),
+    putTask: (task) => cache.putObject(task),
+    deleteTask: (href) => cache.deleteObject(href),
+    close: () => cache.close(),
   }
 }
 
@@ -68,7 +65,11 @@ let current: TaskStorage | undefined
 
 /** The app's cache, opened on first use. */
 export function getStorage(): TaskStorage {
-  return current ??= createDexieStorage()
+  if (!current) {
+    deleteLegacyDatabase()
+    current = createIndexedDbStorage()
+  }
+  return current
 }
 
 /** Swaps the app's cache, for a test. Closes the one it replaces. */

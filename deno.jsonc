@@ -90,7 +90,6 @@
     "@preact/signals-core": "npm:@preact/signals-core@1.12.1",
 
     // IndexedDB for the offline cache, as spy4x/template pins it. fake-indexeddb runs it in tests.
-    "dexie": "npm:dexie@4.4.6",
     "fake-indexeddb": "npm:fake-indexeddb@6.2.5",
 
     "@std/path": "jsr:@std/path@1.1.6",
