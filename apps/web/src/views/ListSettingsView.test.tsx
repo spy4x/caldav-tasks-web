@@ -123,7 +123,8 @@ Deno.test(`a list that may also hold events offers no Delete and says where to d
       await start(server, components)
       await onPage(settings(), async ({ root }) => {
         await settled()
-        expect(find(root, `list-menu`)).toBeNull()
+        // Compared as a boolean: a failing diff of a page element overflows the stack.
+        expect(find(root, `list-menu`) === null).toBe(true)
         expect(find(root, `list-holds-events`)?.textContent).toBe(LIST_HOLDS_EVENTS)
         expect(find(root, `list-save`)?.disabled).toBe(false)
       })

@@ -123,11 +123,8 @@ Deno.test("refuses to delete a list that may hold events, but still renames it",
   )
   for (const href of [mixed, unrestricted]) {
     const response = await send(CALDAV_PATHS.calendar, { method: "DELETE", body: { href } })
-    expect([href, response.status, await response.json()]).toEqual([
-      href,
-      400,
-      { code: "bad_request", message: LIST_HOLDS_EVENTS },
-    ])
+    expect([href, response.status]).toEqual([href, 400])
+    expect(await response.json()).toEqual({ code: "bad_request", message: LIST_HOLDS_EVENTS })
   }
   expect(dav.calls.filter(([method]) => method === "deleteCalendar")).toEqual([])
 
