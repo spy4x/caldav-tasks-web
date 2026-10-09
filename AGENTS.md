@@ -28,7 +28,8 @@ apps/server/          Hono: +main.ts (entry, `deno serve`), config.ts, app.ts
 apps/web/             Preact SPA: index.html, vite.config.ts, src/main.tsx, src/app.tsx
 libs/api/             JSON contract between server and SPA, one file per lane: `errors.ts`
                      (shared), `auth.ts`, `caldav.ts` (arktype schemas and types)
-libs/tasks/           task types and pure task logic
+libs/tasks/           what is the app's in the task logic: PRODID, wording, test fixtures (the logic is in
+                     `@spy4x/time/ical-tasks-*` and `@spy4x/platform/universal/ical-tasks-view`)
 libs/ui/              screens: pure, props in and callbacks out
 e2e/                  Playwright; fixtures seed Radicale
 tests/                guard tests: ui-boundary and spacing

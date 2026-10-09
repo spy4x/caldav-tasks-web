@@ -4,7 +4,8 @@ import { renderToString } from "preact-render-to-string"
 import { mount, must, texts } from "./mount.test.tsx"
 import { ListScreen, type ListScreenProps } from "./list-screen.tsx"
 import { dateOnly, FIXTURE_LIST_HREF, makeTask } from "./task-fixtures.ts"
-import { SortMode, TaskStatus } from "../tasks/types.ts"
+import { SortMode } from "@spy4x/platform/universal/ical-tasks-view"
+import { TaskStatus } from "@spy4x/time/ical-tasks-model"
 
 const NOW = new Date(`2026-10-08T09:00:00Z`)
 const TASKS = [

@@ -1,5 +1,5 @@
-import type { TaskEdit } from "@tasks/edit.ts"
-import type { Task, TaskDate } from "@tasks/types.ts"
+import type { TaskEdit } from "@spy4x/time/ical-tasks-edit"
+import type { Task, TaskDate } from "@spy4x/time/ical-tasks-model"
 import type { TaskDraft } from "@ui/task-editor-screen.tsx"
 
 function sameDate(a: TaskDate | null | undefined, b: TaskDate | null | undefined): boolean {

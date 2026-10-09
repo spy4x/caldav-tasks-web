@@ -1,4 +1,4 @@
-import { SortMode } from "@tasks/types.ts"
+import { SortMode } from "@spy4x/platform/universal/ical-tasks-view"
 
 const SORT_WORDS: Record<SortMode, string> = {
   [SortMode.Manual]: ``,

@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
-import { SortMode } from "@tasks/types.ts"
+import { SortMode } from "@spy4x/platform/universal/ical-tasks-view"
 import { sortFromParam, sortToParam, tagsFromParam, tagsToParam } from "./list-filters.ts"
 
 Deno.test(`every sort mode survives a round trip through the address`, () => {

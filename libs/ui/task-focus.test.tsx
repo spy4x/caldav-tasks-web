@@ -5,7 +5,7 @@ import { focused, mount, must } from "./mount.test.tsx"
 import { FocusKeeper } from "./task-focus.tsx"
 import { makeTask } from "./task-fixtures.ts"
 import { flatNodes, TaskTree } from "./task-tree.tsx"
-import type { Task } from "../tasks/types.ts"
+import type { Task } from "@spy4x/time/ical-tasks-model"
 
 const NOW = new Date(`2026-10-08T09:00:00Z`)
 const THREE = [makeTask(`a`, `Alpha`), makeTask(`b`, `Bravo`), makeTask(`c`, `Charlie`)]

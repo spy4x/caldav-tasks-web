@@ -1,8 +1,8 @@
 import { CALDAV_PATHS, writeResultSchema } from "@api/caldav.ts"
 import { ApiErrorCode } from "@api/errors.ts"
-import { createTask, type NewTaskFields } from "@tasks/create.ts"
-import { parseTask } from "@tasks/model.ts"
-import type { Task } from "@tasks/types.ts"
+import { createTask, type NewTaskFields } from "@spy4x/time/ical-tasks-edit"
+import { PRODID } from "@tasks/identity.ts"
+import { parseTask, type Task } from "@spy4x/time/ical-tasks-model"
 import { offline, OFFLINE_NOTICE, relay } from "./connection.ts"
 import { cacheUnavailable, getStorage } from "./db.ts"
 import { remember, tasks, WriteKind, type WriteResult } from "./tasks.ts"
@@ -25,7 +25,13 @@ export async function addTask(
   now = new Date(),
   uid: string = crypto.randomUUID(),
 ): Promise<WriteResult> {
-  const built = createTask(fields, { uid, now, listHref: place.listHref, parent: place.parent })
+  const built = createTask(fields, {
+    uid,
+    now,
+    prodid: PRODID,
+    listHref: place.listHref,
+    parent: place.parent,
+  })
   if (!built.success) return { kind: WriteKind.Failed, message: built.error }
   return await post(built.output.listHref, built.output.ics)
 }

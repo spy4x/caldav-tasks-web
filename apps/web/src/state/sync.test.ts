@@ -101,6 +101,20 @@ Deno.test(`a refresh the server does not answer leaves the cache as it was`, asy
   })
 })
 
+Deno.test(`a task deleted on the server disappears on the next refresh and the others stay`, async () => {
+  await withApp(async (server) => {
+    seedList(server)
+    server.seed(`${LIST_HREF}new.ics`, LIST_HREF, task(`3`, `Walk dog`))
+    await refresh()
+    expect(titles()).toEqual([`Buy milk`, `Walk dog`])
+
+    server.objects.delete(OPEN)
+    server.calendarList[0].changeMarker = `ctag-2`
+    await refresh()
+    expect(titles()).toEqual([`Walk dog`])
+  })
+})
+
 Deno.test(`a list deleted on the server disappears with its tasks`, async () => {
   await withApp(async (server) => {
     seedList(server)
@@ -185,7 +199,8 @@ function brokenStorage(): TaskStorage {
     listCalendars: fail,
     listTasks: fail,
     replaceCalendars: fail,
-    replaceCalendarTasks: fail,
+    listVersions: fail,
+    applyChanges: fail,
     putTask: fail,
     deleteTask: fail,
     close: () => {},

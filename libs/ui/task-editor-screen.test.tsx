@@ -5,7 +5,8 @@ import { render } from "preact"
 import { act } from "preact/test-utils"
 import { renderToString } from "preact-render-to-string"
 import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
-import { IcalDateKind, PriorityBand, type Task, type TaskList, TaskStatus } from "@tasks/types.ts"
+import { IcalDateKind } from "@spy4x/time/ical"
+import { PriorityBand, type Task, type TaskList, TaskStatus } from "@spy4x/time/ical-tasks-model"
 import {
   type TaskDraft,
   TaskEditorScreen,

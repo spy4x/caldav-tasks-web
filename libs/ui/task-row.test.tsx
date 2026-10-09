@@ -4,7 +4,7 @@ import { renderToString } from "preact-render-to-string"
 import { dateOnly, dateTime, makeTask, reminder } from "./task-fixtures.ts"
 import { mount, must } from "./mount.test.tsx"
 import { TaskRow, type TaskRowProps } from "./task-row.tsx"
-import { TaskStatus } from "../tasks/types.ts"
+import { TaskStatus } from "@spy4x/time/ical-tasks-model"
 
 const NOW = new Date(`2026-10-08T09:00:00Z`)
 const base = (over: Partial<TaskRowProps> = {}): TaskRowProps => ({

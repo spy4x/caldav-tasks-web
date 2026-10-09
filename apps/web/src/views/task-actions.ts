@@ -1,4 +1,4 @@
-import type { Task } from "@tasks/types.ts"
+import type { Task } from "@spy4x/time/ical-tasks-model"
 import { toasts } from "../state/toasts.ts"
 import { deleteTask, restoreTask } from "../state/task-writes.ts"
 import { setTaskDone, undoWrite, WriteKind, type WriteResult } from "../state/tasks.ts"

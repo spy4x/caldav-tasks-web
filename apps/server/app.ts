@@ -5,7 +5,7 @@ import { ApiErrorCode } from "@api/errors.ts"
 import { type AuthOptions, createAuth } from "./auth/routes.ts"
 import { type CalDavRoutesOptions, createCaldavRoutes } from "./caldav/routes.ts"
 import type { Config } from "./config.ts"
-import { securityHeaders } from "./security-headers.ts"
+import { securityHeaders } from "@spy4x/server/http/security-headers"
 
 /** Where the SPA build lands: `apps/web/dist`, next to this file's folder. */
 export const DEFAULT_STATIC_ROOT = fromFileUrl(new URL("../web/dist", import.meta.url))
@@ -35,7 +35,7 @@ export async function createApp(config: Config, options: AppOptions = {}): Promi
     // No build yet (development runs Vite instead): the policy then allows no inline code.
     if (!(error instanceof Deno.errors.NotFound)) throw error
   }
-  app.use(await securityHeaders(shellHtml))
+  app.use(await securityHeaders({ shellHtml }))
 
   app.get("/health", (c) => c.json({ status: "ok" }))
 

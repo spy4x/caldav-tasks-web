@@ -1,5 +1,5 @@
 import { PATHS } from "@ui/frame.tsx"
-import type { Task, TaskList } from "@tasks/types.ts"
+import type { Task, TaskList } from "@spy4x/time/ical-tasks-model"
 import { SessionStatus } from "./state/session.ts"
 
 /** Every address the app answers, as the router reads them. */

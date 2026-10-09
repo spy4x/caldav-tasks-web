@@ -23,7 +23,6 @@
   --color-parchment: #1d1914; /* primary text */
   --color-graphite: #5a5348; /* secondary text */
   --color-accent: #f97316; /* the one filled action; ink text on it */
-  --color-accent-hover: #fb923c;
   --color-accent-text: #a7470a; /* the accent as text on the page */
   --color-sage: #1e7a3c; /* done */
   --color-mist: #1c6aa0; /* info */
@@ -68,12 +67,8 @@
   --color-danger: var(--color-brick);
   --color-info: var(--color-mist);
 
-  /* The accent fills the one primary action; the focus ring reads step 900 unless --color-ring is
-     set. The library's `dark:` button classes read steps 600 and 700, so those match. */
-  --color-accent-900: var(--color-accent);
-  --color-accent-800: var(--color-accent-hover);
-  --color-accent-700: var(--color-accent-hover);
-  --color-accent-600: var(--color-accent);
+  /* The accent fills the one primary action. preact-theme derives its shades (600 to 900 and the
+     hover step) from --color-accent. */
   --color-accent-foreground: #15120f;
   --color-ring: var(--color-parchment);
 

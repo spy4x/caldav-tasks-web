@@ -2,10 +2,9 @@
 import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { CALDAV_PATHS } from "@api/caldav.ts"
-import { completeTask } from "@tasks/complete.ts"
-import { EditField } from "@tasks/edit.ts"
+import { completeTask, EditField } from "@spy4x/time/ical-tasks-edit"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
-import { TaskStatus } from "@tasks/types.ts"
+import { TaskStatus } from "@spy4x/time/ical-tasks-model"
 import { notice, OFFLINE_NOTICE } from "./connection.ts"
 import { cacheUnavailable, getStorage, useStorage } from "./db.ts"
 import { refresh } from "./sync.ts"
@@ -164,6 +163,20 @@ Deno.test(`completing a task whose copy is stale completes the fresh copy`, asyn
     expect(result.task.status).toBe(TaskStatus.Completed)
     expect(server.objects.get(HREF)!.ics).toContain(`DESCRIPTION:Three litres`)
     expect(puts(server)).toBe(2)
+  })
+})
+
+Deno.test(`completing a repeating task the library cannot reproduce says to complete it in Tasks.org`, async () => {
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(HREF, LIST_HREF, fixture(`1`, `Water plants`, [`RRULE:FREQ=DAILY`]))
+    await refresh()
+    const before = tasks.value[0]
+
+    const result = await setTaskDone(before, true, NOW)
+
+    expect(result).toEqual({ kind: WriteKind.Failed, message: `Complete this one in Tasks.org` })
+    expect(puts(server)).toBe(0)
   })
 })
 
