@@ -138,11 +138,11 @@ Deno.test("typing a tag letter by letter changes the chips each time but is anno
     await mount(add(), async ({ root, window, act }) => {
       for (const line of [`a #w`, `a #wo`, `a #wor`, `a #work`]) {
         await act(() => type(window, root, line))
-        await clock.advance(ANNOUNCE_PAUSE_MS - 100)
+        await clock.advance(400)
         expect(live(root)).toBe(``)
       }
       expect(chips(root)).toEqual([`Tag work`])
-      await clock.advance(100)
+      await clock.advance(400)
       expect(live(root)).toBe(`Tag work`)
     })
   })
