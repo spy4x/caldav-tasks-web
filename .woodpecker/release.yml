@@ -29,7 +29,8 @@ steps:
           # A pre-release tag (v1.2.3-rc.1) is published under its own name only; it never
           # moves latest.
           case "$${CI_COMMIT_TAG}" in *-*) LATEST= ;; *) LATEST=1 ;; esac
-          docker build --pull -t "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+-t "$$IMAGE:latest"} .
+          docker build --pull --build-arg "APP_VERSION=$${CI_COMMIT_TAG}" \
+            -t "$$IMAGE:$${CI_COMMIT_TAG}" $${LATEST:+-t "$$IMAGE:latest"} .
           docker push "$$IMAGE:$${CI_COMMIT_TAG}"
           if [ -n "$$LATEST" ]; then docker push "$$IMAGE:latest"; fi
           # The daemon is the agent host's: do not leave release images on it.
