@@ -1,6 +1,11 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
-import { SortMode, sortTasks } from "@spy4x/platform/universal/ical-tasks-view"
+import {
+  buildTree,
+  flattenTree,
+  SortMode,
+  sortTasks,
+} from "@spy4x/platform/universal/ical-tasks-view"
 import { TaskStatus } from "@spy4x/time/ical-tasks-model"
 import { makeTask } from "../ui/task-fixtures.ts"
 import { reorderWrites } from "./reorder.ts"
@@ -17,6 +22,19 @@ function titlesAfter(
     moved.has(task.uid) ? { ...task, sortOrder: moved.get(task.uid) } : task
   )
   return sortTasks(next, SortMode.Manual, ZONE).map((task) => task.title)
+}
+
+/** The titles as the list shows them after the writes, subtasks under their parent, in manual order. */
+function treeAfter(
+  tasks: ReturnType<typeof makeTask>[],
+  writes: ReturnType<typeof reorderWrites>,
+) {
+  const moved = new Map(writes.map(({ task, edit }) => [task.uid, edit.sortOrder!]))
+  const next = tasks.map((task) =>
+    moved.has(task.uid) ? { ...task, sortOrder: moved.get(task.uid) } : task
+  )
+  const nodes = buildTree(sortTasks(next, SortMode.Manual, ZONE), ZONE)
+  return flattenTree(nodes, new Set()).map(({ task }) => task.title)
 }
 
 const spaced = () => [
@@ -95,4 +113,69 @@ Deno.test(`only siblings of the moved task are compared, not tasks under other p
   ]
   const writes = reorderWrites(all, [all[0], all[1]], `a`, 1, ZONE)
   expect(writes.map(({ task }) => task.uid)).toEqual([`a`])
+})
+
+/** A, an open subtask S whose parent is completed and so not loaded, and B, as the list loads them. */
+const orphan = () => [
+  makeTask(`a`, `Alpha`, { sortOrder: 10 }),
+  makeTask(`s`, `Sub`, { parentUid: `p`, sortOrder: 30 }),
+  makeTask(`b`, `Bravo`, { sortOrder: 40 }),
+]
+
+Deno.test(`a task dropped below a subtask whose parent is not loaded lands right below it`, () => {
+  const all = orphan()
+  const writes = reorderWrites(all, all, `b`, 1, ZONE)
+  expect(treeAfter(all, writes)).toEqual([`Alpha`, `Bravo`, `Sub`])
+})
+
+Deno.test(`a subtask whose parent is not loaded moves among the top-level tasks`, () => {
+  const all = orphan()
+  expect(treeAfter(all, reorderWrites(all, all, `s`, 2, ZONE))).toEqual([`Alpha`, `Bravo`, `Sub`])
+  expect(treeAfter(all, reorderWrites(all, all, `a`, 1, ZONE))).toEqual([`Sub`, `Alpha`, `Bravo`])
+})
+
+/** A tag filter on "home" hides the parent P, so its subtask S shows at the top level. */
+const filtered = () => {
+  const home = { tags: [`home`] }
+  const all = [
+    makeTask(`a`, `Alpha`, { sortOrder: 10, ...home }),
+    makeTask(`p`, `Parent`, { sortOrder: 20 }),
+    makeTask(`s`, `Sub`, { parentUid: `p`, sortOrder: 30, ...home }),
+    makeTask(`b`, `Bravo`, { sortOrder: 40, ...home }),
+    makeTask(`c`, `Charlie`, { sortOrder: 50, ...home }),
+  ]
+  const shown = all.filter((task) => task.tags.includes(`home`))
+  const visible = buildTree(sortTasks(shown, SortMode.Manual, ZONE), ZONE).map(({ task }) => task)
+  return { all, shown, visible }
+}
+
+Deno.test(`under a tag filter that hides a parent, a task dropped below its subtask lands right below it`, () => {
+  const { all, shown, visible } = filtered()
+  expect(visible.map((task) => task.title)).toEqual([`Alpha`, `Sub`, `Bravo`, `Charlie`])
+  const writes = reorderWrites(all, visible, `c`, 2, ZONE)
+  expect(treeAfter(shown, writes)).toEqual([`Alpha`, `Sub`, `Charlie`, `Bravo`])
+  // With the filter cleared, Charlie sits right after the parent and its subtask.
+  expect(treeAfter(all, writes)).toEqual([`Alpha`, `Parent`, `Sub`, `Charlie`, `Bravo`])
+})
+
+Deno.test(`under a tag filter that hides a parent, its subtask moves among the tasks shown`, () => {
+  const { all, shown, visible } = filtered()
+  const down = reorderWrites(all, visible, `s`, 3, ZONE)
+  expect(treeAfter(shown, down)).toEqual([`Alpha`, `Bravo`, `Charlie`, `Sub`])
+  expect(treeAfter(all, down)).toEqual([`Alpha`, `Parent`, `Sub`, `Bravo`, `Charlie`])
+  const up = reorderWrites(all, visible, `a`, 1, ZONE)
+  expect(treeAfter(shown, up)).toEqual([`Sub`, `Alpha`, `Bravo`, `Charlie`])
+  expect(treeAfter(all, up)).toEqual([`Parent`, `Sub`, `Alpha`, `Bravo`, `Charlie`])
+})
+
+Deno.test(`under a tag filter, the hidden subtasks of a hidden parent do not count among the top-level tasks`, () => {
+  const all = [
+    makeTask(`a`, `Alpha`, { sortOrder: 10, tags: [`home`] }),
+    makeTask(`p`, `Parent`, { sortOrder: 20 }),
+    makeTask(`s`, `Sub`, { parentUid: `p`, sortOrder: 30, tags: [`home`] }),
+    makeTask(`t`, `Twin`, { parentUid: `p`, sortOrder: 31 }),
+    makeTask(`b`, `Bravo`, { sortOrder: 32, tags: [`home`] }),
+  ]
+  // Bravo already sits right below Sub on screen, so dropping it there writes nothing.
+  expect(reorderWrites(all, [all[0], all[2], all[4]], `b`, 2, ZONE)).toEqual([])
 })
