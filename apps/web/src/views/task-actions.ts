@@ -61,19 +61,34 @@ export async function deleteWithUndo(task: Task): Promise<boolean> {
   return true
 }
 
+/** The toast for a failed write during a drag: the order may be half changed, so say so. */
+function reportReorderFailure(result: WriteResult): boolean {
+  if (result.kind === WriteKind.Saved) return true
+  toasts.error({
+    title: NO_HEADING,
+    body: result.kind === WriteKind.Conflict
+      ? `Could not save the new order: a task changed elsewhere. Check the list and drag again.`
+      : `Could not save the new order: ${result.message}`,
+  })
+  return false
+}
+
 /**
- * Moves a task to `toIndex` among its `siblings` in manual order. Writes the moved task alone, or
- * the few siblings whose values `reorderTask` had to spread out, one after another. Failures show a
- * toast. Resolves `true` when every write was saved.
+ * Moves a task to `toIndex` among the `visible` siblings in manual order. `all` is every loaded
+ * task of the list, so hidden siblings keep their place. Writes the fewest tasks that keep the
+ * order (the moved one, a neighbour, or a few spread out), one after another. Failures show a
+ * toast; a failure after the first write leaves the earlier ones saved. Resolves `true` when every
+ * write was saved.
  */
 export async function reorderInList(
+  all: readonly Task[],
   task: Task,
-  siblings: readonly Task[],
+  visible: readonly Task[],
   toIndex: number,
   zone: string,
 ): Promise<boolean> {
-  for (const write of reorderWrites(siblings, task.uid, toIndex, zone)) {
-    if (!reportFailure(await saveTask(write.task, write.edit))) return false
+  for (const write of reorderWrites(all, visible, task.uid, toIndex, zone)) {
+    if (!reportReorderFailure(await saveTask(write.task, write.edit))) return false
   }
   return true
 }

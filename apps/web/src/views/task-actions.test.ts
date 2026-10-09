@@ -144,7 +144,7 @@ Deno.test(`dragging a task writes its new position to the server and leaves the 
     const siblings = tasks.value.toSorted((a, b) => a.sortOrder! - b.sortOrder!)
     const before = hrefs.map((href) => server.objects.get(href)!.ics)
 
-    const saved = await reorderInList(siblings[2], siblings, 0, `UTC`)
+    const saved = await reorderInList(tasks.value, siblings[2], siblings, 0, `UTC`)
 
     expect(saved).toBe(true)
     const after = hrefs.map((href) => server.objects.get(href)!.ics)
@@ -165,9 +165,9 @@ Deno.test(`a drag whose write fails shows why`, async () => {
     const siblings = tasks.value.toSorted((x, y) => x.sortOrder! - y.sortOrder!)
     const gone = { ...siblings[0], href: `${LIST_HREF}missing.ics`, etag: `"stale"` }
 
-    const saved = await reorderInList(gone, [gone, siblings[1]], 1, `UTC`)
+    const saved = await reorderInList([gone, siblings[1]], gone, [gone, siblings[1]], 1, `UTC`)
 
     expect(saved).toBe(false)
-    expect(lastToast().body.length).toBeGreaterThan(0)
+    expect(lastToast().body).toMatch(/^Could not save the new order/)
   })
 })
