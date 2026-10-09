@@ -2,7 +2,7 @@
 import { expect } from "@std/expect"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { EditField, editTask, type TaskEdit } from "./edit.ts"
-import { fixtureTask, task } from "./fixtures/tasksorg.ts"
+import { fixtureTask, task, vtodo } from "./fixtures/tasksorg.ts"
 import { keepMine, rebaseEdit, RebaseKind } from "./rebase.ts"
 import type { Task } from "./types.ts"
 
@@ -110,4 +110,53 @@ Deno.test(`a refused edit on the fresh copy is a failure with a message`, () => 
   const result = rebaseEdit(BASE, { priority: 12 }, elsewhere({ notes: `n` }), LATER)
   expect(result.success).toBe(false)
   expect(result.error).toEqual(expect.any(String))
+})
+
+function zone(tzid: string): string[] {
+  return [
+    `BEGIN:VTIMEZONE`,
+    `TZID:${tzid}`,
+    `BEGIN:STANDARD`,
+    `TZOFFSETFROM:+0100`,
+    `TZOFFSETTO:+0100`,
+    `DTSTART:19700101T000000`,
+    `END:STANDARD`,
+    `END:VTIMEZONE`,
+  ]
+}
+
+Deno.test(`an edit that changes only the time zone of the due date is applied with the zone kept`, () => {
+  const zoned = fixtureTask(
+    vtodo(
+      [
+        `DTSTAMP:20261001T080000Z`,
+        `UID:zoned`,
+        `SUMMARY:Call`,
+        `DUE;TZID=Europe/Berlin:20261009T090000`,
+      ],
+      [...zone(`Europe/Berlin`), ...zone(`Europe/Paris`)],
+    ),
+  )
+  const phone = editTask(zoned, { notes: `Phone notes` }, NOW)
+  if (!phone.success) throw new Error(phone.error)
+  const due = {
+    kind: IcalDateKind.Zoned,
+    date: `2026-10-09`,
+    time: `09:00:00`,
+    tzid: `Europe/Paris`,
+  }
+  const result = rebaseEdit(zoned, { due }, phone.output.task, LATER)
+  if (!result.success || result.output.kind !== RebaseKind.Applied) {
+    throw new Error(`expected an applied rebase`)
+  }
+  expect(result.output.task.due).toEqual(due)
+  expect(result.output.task.notes).toBe(`Phone notes`)
+})
+
+Deno.test(`an edit that appends a tag keeps the new tag when the server changed something else`, () => {
+  const theirs = elsewhere({ notes: `Phone notes` })
+  const output = rebase({ tags: [...BASE.tags, `b`] }, theirs)
+  if (output.kind !== RebaseKind.Applied) throw new Error(`expected an applied rebase`)
+  expect(output.task.tags).toEqual([`a`, `b`])
+  expect(output.task.notes).toBe(`Phone notes`)
 })
