@@ -232,6 +232,23 @@ Deno.test(`a delete made while an edit still waits replaces it and is sent once`
   })
 })
 
+Deno.test(`a delete of a task whose edit waits for a choice joins the queue instead of going to the server`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    editElsewhere(server, `Their milk`)
+    await reconnect()
+    expect(conflicts.value.length).toBe(1)
+
+    const result = await deleteTask(tasks.value[0])
+
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    expect(server.objects.has(HREF)).toBe(true)
+  })
+})
+
 Deno.test(`using theirs drops the offline edit and shows the server's task`, async () => {
   await withApp(async (server) => {
     const before = await start(server)
