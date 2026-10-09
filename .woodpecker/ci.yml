@@ -1,4 +1,4 @@
-# Runs on every pull request and every push to main.
+# Runs on every pull request, every push to main and every tag (release.yml waits for it).
 #
 # Deno 2.9.7 is the version the repository uses (the Dockerfile's DENO_VERSION). Playwright 1.57.0
 # is the version `deno task e2e` runs (deno.jsonc); the e2e image tag must match it, because the
@@ -8,6 +8,7 @@ when:
   - event: pull_request
   - event: push
     branch: main
+  - event: tag
 
 steps:
   check:
