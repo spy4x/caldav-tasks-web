@@ -495,3 +495,54 @@ Deno.test(`a delete refused behind an offline edit is reported as a conflict, no
     expect(conflicts.value.map((c) => c.reason)).toEqual([`version`])
   })
 })
+
+/** Every href the app names to the relay, from the bodies and queries of the requests it sends. */
+function hrefsSent(requests: { url: string; body: unknown }[]): string[] {
+  const found: string[] = []
+  for (const { url, body } of requests) {
+    const query = new URL(url).searchParams
+    for (const key of [`href`, `calendar`]) {
+      const value = query.get(key) ?? (body as Record<string, unknown> | undefined)?.[key]
+      if (typeof value === `string`) found.push(value)
+    }
+  }
+  return found
+}
+
+Deno.test(`every write, conflict read and delete names its task and list by path only`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    const requests: { url: string; body: unknown }[] = []
+    const answering = globalThis.fetch
+    globalThis.fetch = (input, init) => {
+      const text = typeof init?.body === `string` ? init.body : ``
+      requests.push({
+        url: new URL(String(input), `http://localhost`).href,
+        body: text ? JSON.parse(text) : undefined,
+      })
+      return answering(input, init)
+    }
+    try {
+      setBrowserOnline(false)
+      await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+      await reconnect()
+      setBrowserOnline(false)
+      await saveTask(before, { title: `Oat milk` }, NOW)
+      editElsewhere(server, `Their milk`)
+      await reconnect()
+      await keepMineOf(conflicts.value[0].id)
+      setBrowserOnline(false)
+      await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
+      await reconnect()
+    } finally {
+      globalThis.fetch = answering
+    }
+
+    const hrefs = hrefsSent(requests)
+    // A create (calendar), an update (href), the conflict read (href) and a queued delete (href).
+    expect(hrefs.length).toBeGreaterThanOrEqual(4)
+    expect(hrefs.filter((href) => !/^\/(?!\/)[^:]*$/.test(href))).toEqual([])
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Oat milk`)
+    expect(server.objects.has(`${LIST_HREF}rent.ics`)).toBe(false)
+  })
+})
