@@ -6,3 +6,190 @@
 @import "@spy4x/preact-theme/preset.css";
 /* libs/ui holds the screens; Tailwind does not scan outside this app on its own. */
 @source "../../../libs/ui";
+
+/*
+ * The look: antonshubin.com's warm ink palette, with a light counterpart of the same tokens. Names
+ * are the site's, so a colour here reads the same there. Light values are the default; `.dark`
+ * (set on <html> by the theme script before the first paint) swaps in the site's own. Every
+ * colour the app draws comes from a token below; never a raw Tailwind palette colour.
+ */
+@theme {
+  --color-ink: #f7f2e8; /* page background */
+  --color-desk: #efe8d9; /* rail, bar */
+  --color-paper: #fffdf8; /* cards, inputs */
+  --color-lamp: #e9e2d1; /* hover, active nav item */
+  --color-rule: #ddd4c1; /* hairlines */
+  --color-rule-strong: #7d7568; /* control borders */
+  --color-parchment: #1d1914; /* primary text */
+  --color-graphite: #5a5348; /* secondary text */
+  --color-accent: #f97316; /* the one filled action; ink text on it */
+  --color-accent-hover: #fb923c;
+  --color-accent-text: #a7470a; /* the accent as text on the page */
+  --color-sage: #1e7a3c; /* done */
+  --color-mist: #1c6aa0; /* info */
+  --color-brick: #b3261e; /* overdue and errors */
+
+  --font-heading: "Literata", "Literata Fallback", serif;
+  --font-sans: "IBM Plex Sans", "IBM Plex Sans Fallback", sans-serif;
+  /* Plex Sans ships 400 and 600 only, so `font-medium` draws 600 instead of falling back to 400. */
+  --font-weight-medium: 600;
+}
+
+.dark {
+  --color-ink: #15120f;
+  --color-desk: #1c1916;
+  --color-paper: #25211d;
+  --color-lamp: #2f2a26;
+  --color-rule: #413c38;
+  --color-rule-strong: #857f79;
+  --color-parchment: #efebe2;
+  --color-graphite: #bcb7af;
+  --color-accent-text: #f97316;
+  --color-sage: #83d494;
+  --color-mist: #8ec5ec;
+  --color-brick: #f87e77;
+}
+
+/*
+ * @spy4x/preact-* theme tokens. The library's components read these through `var()`; each points at
+ * a token above. Unlayered, so they win over the library's own defaults in both themes.
+ */
+:root {
+  --color-canvas: var(--color-ink);
+  --color-surface: var(--color-paper);
+  --color-hover: var(--color-lamp);
+  --color-track: var(--color-lamp);
+  --color-foreground: var(--color-parchment);
+  --color-muted-foreground: var(--color-graphite);
+  --color-placeholder: var(--color-graphite);
+
+  --color-success: var(--color-sage);
+  --color-warning: var(--color-accent-text);
+  --color-danger: var(--color-brick);
+  --color-info: var(--color-mist);
+
+  /* The accent fills the one primary action; the focus ring reads step 900 unless --color-ring is
+     set. The library's `dark:` button classes read steps 600 and 700, so those match. */
+  --color-accent-900: var(--color-accent);
+  --color-accent-800: var(--color-accent-hover);
+  --color-accent-700: var(--color-accent-hover);
+  --color-accent-600: var(--color-accent);
+  --color-accent-foreground: #15120f;
+  --color-ring: var(--color-parchment);
+
+  /* What is chosen or current. Lamp and parchment, because the accent stays for the primary action. */
+  --color-selected: var(--color-parchment);
+  --color-selected-foreground: var(--color-ink);
+  --color-selected-hover: var(--color-graphite);
+  --color-selected-soft: var(--color-lamp);
+  --color-selected-soft-hover: var(--color-rule);
+  --color-selected-text: var(--color-parchment);
+
+  --color-border-subtle: var(--color-rule);
+  --color-border-control: var(--color-rule-strong);
+  --color-border-strong: var(--color-rule-strong);
+  --color-scrim: color-mix(in oklab, var(--color-ink) 70%, transparent);
+  --color-scrim-strong: color-mix(in oklab, var(--color-ink) 95%, transparent);
+  --color-scrim-foreground: var(--color-parchment);
+}
+
+/* The library's checkbox colours its tick from this; the app draws every check in the done colour. */
+:root {
+  --color-primary-muted: var(--color-sage);
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-parchment);
+  font-family: var(--font-sans);
+}
+
+/* Native checkboxes (the library's, such as "Show completed") follow the done colour. */
+input[type="checkbox"] {
+  accent-color: var(--color-sage);
+}
+
+/* Page titles are the one place the serif is used. */
+header[data-e2e="page-header"] h1 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+}
+
+/*
+ * Self-hosted type, so the app looks right offline: IBM Plex Sans (400, 600) and Literata (600, page
+ * titles only), Latin and Cyrillic. The files are OFL; their licences sit beside them in fonts/. The
+ * build hashes them into /assets/, which the service worker answers cache-first, so a second visit
+ * needs no network. `font-display: swap` plus the size-adjusted fallbacks below keep the swap from
+ * moving the layout.
+ */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-sans-cyrillic-400-normal.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-sans-cyrillic-600-normal.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/literata-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/literata-cyrillic-600-normal.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: "Literata Fallback";
+  src: local("Georgia"), local("Times New Roman"), local("DejaVu Serif"), local("Liberation Serif"),
+    local("Noto Serif");
+  size-adjust: 112.16%;
+  ascent-override: 104.94%;
+  descent-override: 27.46%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Fallback";
+  src: local("Arial"), local("Helvetica"), local("Liberation Sans"), local("DejaVu Sans"),
+    local("Noto Sans");
+  size-adjust: 101.17%;
+  ascent-override: 101.32%;
+  descent-override: 27.18%;
+  line-gap-override: 0%;
+}
