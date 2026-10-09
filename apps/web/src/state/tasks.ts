@@ -157,6 +157,29 @@ export function keepMineAfterConflict(
   })
 }
 
+/**
+ * Undoes a write by sending `ics`, the text from before it, over `current`, the copy the write
+ * produced. Refused with a message when someone changed the task since: an undo must never wipe
+ * out a newer edit from another device.
+ */
+export function undoWrite(current: Task, ics: string): Promise<WriteResult> {
+  return commit(current, {
+    first: () => {
+      const parsed = parseTask({
+        href: current.href,
+        etag: current.etag,
+        listHref: current.listHref,
+        ics,
+      })
+      return parsed.success ? { ok: true, task: parsed.output, ics } : {
+        ok: false,
+        message: parsed.error,
+      }
+    },
+    rebase: () => ({ ok: false, message: CHANGED_ON_SERVER }),
+  })
+}
+
 function fromEdit(
   result: ReturnType<typeof editTask>,
 ): Step {
@@ -261,7 +284,7 @@ async function saved(written: Task, ics: string, etag: string | null): Promise<W
 }
 
 /** Stores `task` in the cache and swaps it into {@link tasks}. */
-async function remember(task: Task): Promise<void> {
+export async function remember(task: Task): Promise<void> {
   try {
     await getStorage().putTask({
       href: task.href,

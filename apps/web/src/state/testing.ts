@@ -24,7 +24,7 @@ export interface SentRequest {
   search: URLSearchParams
 }
 
-/** A CalDAV relay in memory: the three routes the data layer uses, with real etag checking. */
+/** A CalDAV relay in memory: the routes the data layer uses, with real etag checking. */
 export class FakeServer {
   calendarList: { href: string; displayName: string; changeMarker?: string }[] = []
   objects = new Map<string, FakeObject>()
@@ -66,6 +66,15 @@ export class FakeServer {
         calendars: this.calendarList.map((c) => ({ ...c, components: [`VTODO`] })),
       })
     }
+    if (url.pathname === CALDAV_PATHS.objects && request.method === `POST`) {
+      return request.json().then((body: { calendar: string; ics: string }) => {
+        const uid = /^UID:(.*)$/m.exec(body.ics)?.[1]?.trim() ?? `new-${this.version}`
+        const href = `${body.calendar}${uid}.ics`
+        if (this.objects.has(href)) return error(412, `conflict`)
+        const etag = this.seed(href, body.calendar, body.ics)
+        return Response.json({ href, etag }, { status: 201 })
+      })
+    }
     if (url.pathname === CALDAV_PATHS.objects) {
       const calendar = url.searchParams.get(`calendar`)
       const all = url.searchParams.get(`completed`) === `true`
@@ -89,6 +98,15 @@ export class FakeServer {
         const etag = this.nextEtag()
         this.objects.set(body.href, { ...found, etag, ics: body.ics })
         return Response.json({ href: body.href, etag })
+      })
+    }
+    if (url.pathname === CALDAV_PATHS.object && request.method === `DELETE`) {
+      return request.json().then((body: { href: string; etag: string }) => {
+        const found = this.objects.get(body.href)
+        if (!found) return error(404, `not_found`)
+        if (found.etag !== body.etag) return error(412, `conflict`)
+        this.objects.delete(body.href)
+        return new Response(null, { status: 204 })
       })
     }
     return error(404, `not_found`)
