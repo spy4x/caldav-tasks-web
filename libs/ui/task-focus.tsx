@@ -79,3 +79,45 @@ export function FocusKeeper({ children, label, class: className }: FocusKeeperPr
     </div>
   )
 }
+
+const ROW = `li[data-task-uid]`
+const OPEN = `[data-e2e="task-open"]`
+
+/** The row the keyboard is on: the one that holds the focused element, if any. */
+function currentRow(doc: Document): Element | null {
+  return doc.activeElement?.closest?.(ROW) ?? null
+}
+
+/**
+ * Moves the keyboard to the next (`1`) or previous (`-1`) task row of the page by focusing the
+ * button that opens it, so the browser's own focus ring shows where it is. With no row focused,
+ * next goes to the first row and previous to the last. It stops at either end.
+ *
+ * @returns Whether focus moved to a row.
+ */
+export function moveRowFocus(doc: Document, step: 1 | -1): boolean {
+  const rows = [...doc.querySelectorAll(ROW)]
+  if (rows.length === 0) return false
+  const at = rows.indexOf(currentRow(doc) as Element)
+  const next = at === -1 ? (step === 1 ? 0 : rows.length - 1) : at + step
+  const target = rows[next]?.querySelector<HTMLElement>(OPEN)
+  if (!target) return false
+  target.focus()
+  return true
+}
+
+/** Completes the focused row by pressing its check. Returns whether there was a row. */
+export function completeFocusedRow(doc: Document): boolean {
+  const check = currentRow(doc)?.querySelector<HTMLInputElement>(CHECKS)
+  if (!check) return false
+  check.click()
+  return true
+}
+
+/** Opens the focused row's task, as pressing its title does. Returns whether there was a row. */
+export function editFocusedRow(doc: Document): boolean {
+  const open = currentRow(doc)?.querySelector<HTMLElement>(OPEN)
+  if (!open) return false
+  open.click()
+  return true
+}

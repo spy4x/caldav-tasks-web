@@ -14,6 +14,7 @@ const props = (over: Partial<SettingsScreenProps> = {}): SettingsScreenProps => 
   caldavUsername: `owner`,
   timeZone: `Asia/Ho_Chi_Minh`,
   version: `1.2.3`,
+  onShowShortcuts: () => {},
   onSignOut: () => {},
   ...over,
 })
@@ -62,4 +63,15 @@ Deno.test("Sign out is a button that calls back once and waits while it runs", a
 Deno.test("a failed sign-out shows its message in an alert", () => {
   const html = renderToString(<SettingsScreen {...props({ error: `Sign-out failed (500).` })} />)
   expect(html).toMatch(/role="alert"[^>]*>Sign-out failed \(500\)\./)
+})
+
+Deno.test("the Show shortcuts button opens the shortcuts list", async () => {
+  let shown = 0
+  await mount(
+    <SettingsScreen {...props({ onShowShortcuts: () => shown++ })} />,
+    async ({ root, act }) => {
+      await act(() => must<HTMLButtonElement>(root, `[data-e2e="show-shortcuts"]`).click())
+      expect(shown).toBe(1)
+    },
+  )
 })

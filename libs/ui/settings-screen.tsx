@@ -16,6 +16,8 @@ export interface SettingsScreenProps {
   timeZone: string
   /** The app's version. */
   version: string
+  /** Opens the list of keyboard shortcuts. */
+  onShowShortcuts: () => void
   onSignOut: () => void
   /** Sign-out is running: the button waits. */
   signingOut?: boolean
@@ -43,6 +45,11 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
           </Row>
           <Row term="CalDAV account" e2e="settings-account">
             <span class="break-all">{props.caldavUsername ?? UNKNOWN}</span>
+          </Row>
+          <Row term="Keyboard shortcuts" e2e="settings-shortcuts">
+            <Button variant="outline" onClick={props.onShowShortcuts} data-e2e="show-shortcuts">
+              Show shortcuts
+            </Button>
           </Row>
           <Row term="Time zone" e2e="settings-zone">{props.timeZone}</Row>
           <Row term="Version" e2e="settings-version">{props.version}</Row>

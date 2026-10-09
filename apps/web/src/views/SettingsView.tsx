@@ -1,5 +1,6 @@
 import { useSignal } from "@preact/signals"
 import { SettingsScreen } from "@ui/settings-screen.tsx"
+import { shortcutsOpen } from "../shortcuts.ts"
 import { caldavAccount, signOut } from "../state/session.ts"
 import { themeStore } from "../state/theme.ts"
 import { APP_VERSION } from "../version.ts"
@@ -18,6 +19,7 @@ export function SettingsView() {
       version={APP_VERSION}
       signingOut={busy.value}
       error={error.value}
+      onShowShortcuts={() => shortcutsOpen.value = true}
       onSignOut={async () => {
         busy.value = true
         error.value = await signOut()
