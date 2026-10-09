@@ -1,0 +1,36 @@
+import { IcalDateKind } from "@spy4x/time/ical"
+import { type Task, TaskStatus } from "../tasks/types.ts"
+
+/** The list the test tasks belong to unless a test says otherwise. */
+export const FIXTURE_LIST_HREF = `/dav/tasks/home/`
+
+/** A date-only due or start value. */
+export function dateOnly(date: string): Task[`due`] {
+  return { kind: IcalDateKind.Date, date }
+}
+
+/** A due or start value with a time, floating (the same wall clock in any zone). */
+export function dateTime(date: string, time: string): Task[`due`] {
+  return { kind: IcalDateKind.Floating, date, time }
+}
+
+/**
+ * An invented task for tests and screenshots, open and unprioritised unless `rest` says otherwise.
+ * The raw iCalendar text is a stub: the screens never read it.
+ */
+export function makeTask(uid: string, title: string, rest: Partial<Task> = {}): Task {
+  return {
+    uid,
+    href: `${FIXTURE_LIST_HREF}${uid}.ics`,
+    etag: `"1"`,
+    ics: ``,
+    listHref: FIXTURE_LIST_HREF,
+    title,
+    notes: ``,
+    status: TaskStatus.NeedsAction,
+    priority: 0,
+    tags: [],
+    reminders: [],
+    ...rest,
+  }
+}
