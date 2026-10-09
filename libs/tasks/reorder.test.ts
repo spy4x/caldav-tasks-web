@@ -90,9 +90,9 @@ Deno.test(`a task dropped at the top of the visible tasks goes before the first 
 Deno.test(`only siblings of the moved task are compared, not tasks under other parents`, () => {
   const all = [
     makeTask(`a`, `Alpha`, { sortOrder: 10 }),
-    makeTask(`s`, `Sub`, { parentUid: `a`, sortOrder: 11 }),
-    makeTask(`b`, `Bravo`, { sortOrder: 12 }),
+    makeTask(`b`, `Bravo`, { sortOrder: 11 }),
+    makeTask(`s`, `Sub`, { parentUid: `b`, sortOrder: 12 }),
   ]
-  const writes = reorderWrites(all, [all[0], all[2]], `b`, 0, ZONE)
-  expect(writes.map(({ task }) => task.uid)).not.toContain(`s`)
+  const writes = reorderWrites(all, [all[0], all[1]], `a`, 1, ZONE)
+  expect(writes.map(({ task }) => task.uid)).toEqual([`a`])
 })
