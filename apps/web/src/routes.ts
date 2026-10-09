@@ -9,6 +9,9 @@ export const ROUTES = {
   upcoming: PATHS.upcoming,
   lists: PATHS.lists,
   list: `/lists/:slug`,
+  listSettings: `/lists/:slug/settings`,
+  // Outside `/lists/` so it never shadows a list whose address ends in `new`.
+  newList: `/new-list`,
   task: `/tasks/:uid`,
   search: PATHS.search,
   settings: PATHS.more,
@@ -26,6 +29,11 @@ export function listSlug(listHref: string): string {
 export function listPath(list: Pick<TaskList, `href`> | string): string {
   const href = typeof list === `string` ? list : list.href
   return `/lists/${encodeURIComponent(listSlug(href))}`
+}
+
+/** The address of a list's settings: name, colour and delete. */
+export function listSettingsPath(list: Pick<TaskList, `href`> | string): string {
+  return `${listPath(list)}/settings`
 }
 
 /** The address of a task's editor. */
