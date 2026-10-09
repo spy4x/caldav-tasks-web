@@ -196,6 +196,22 @@ Deno.test(`a task changed elsewhere while offline waits for a choice, and keepin
   })
 })
 
+Deno.test(`an offline edit is not written over a change the app learned of before it was sent`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    editElsewhere(server, `Their milk`)
+    // The app refreshes while the edit waits, so its cache already holds their newer copy.
+    await refresh()
+
+    await reconnect()
+
+    expect(conflicts.value.map((c) => c.reason)).toEqual([`version`])
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Their milk`)
+  })
+})
+
 Deno.test(`using theirs drops the offline edit and shows the server's task`, async () => {
   await withApp(async (server) => {
     const before = await start(server)

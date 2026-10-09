@@ -10,10 +10,15 @@ import {
 } from "./persistence.ts"
 import { serverTasks } from "./task-store.ts"
 
+const checks = { count: 0 }
+
 function manager(persisted: boolean, grants = true) {
   const calls: string[] = []
   const fake: StorageManagerLike = {
-    persisted: () => Promise.resolve(persisted),
+    persisted: () => {
+      checks.count++
+      return Promise.resolve(persisted)
+    },
     persist: () => {
       calls.push(`persist`)
       return Promise.resolve(grants)
@@ -68,6 +73,32 @@ Deno.test(`persistence is requested when the app first has a task, and not befor
     serverTasks.value = [task.output]
     for (let i = 0; i < 5 && calls.length === 0; i++) await Promise.resolve()
     expect(calls).toEqual([`persist`])
+  } finally {
+    stop()
+    serverTasks.value = []
+  }
+})
+
+Deno.test(`the browser is asked once while the data keeps changing`, async () => {
+  const { fake } = manager(false)
+  serverTasks.value = []
+  checks.count = 0
+  const stop = watchPersistence(fake, memory())
+  try {
+    const task = parseTask({
+      href: `${LIST_HREF}1.ics`,
+      etag: `"1"`,
+      listHref: LIST_HREF,
+      ics: fixture(`1`, `Buy milk`),
+    })
+    if (!task.success) throw new Error(task.error)
+    serverTasks.value = [task.output]
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+    serverTasks.value = []
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+    serverTasks.value = [task.output]
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+    expect(checks.count).toBe(1)
   } finally {
     stop()
     serverTasks.value = []
