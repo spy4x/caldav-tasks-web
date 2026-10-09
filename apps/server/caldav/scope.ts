@@ -20,7 +20,11 @@ export function hrefOf(url: string): string {
  * `null` when it is not. Refused: anything that is not a string, absolute URLs (another origin,
  * userinfo), protocol-relative `//host`, backslashes, a query or fragment, raw spaces, control or
  * non-ASCII characters, `.` and `..` segments written plainly or percent-encoded, and encoded
- * slashes or backslashes, which a server may decode into a path separator.
+ * control characters.
+ *
+ * An encoded slash is allowed here: a calendar's name may hold one (Stalwart encodes "Work / Home"
+ * as `Work%20%2F%20Home`), and a calendar href must equal one the server listed anyway. A task's
+ * own name may not hold one; see {@link parentCalendar}.
  */
 export function canonicalPath(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_HREF_LENGTH) return null
@@ -43,7 +47,7 @@ export function canonicalPath(raw: unknown): string | null {
       return null
     }
     if (decoded === "." || decoded === "..") return null
-    if (decoded.includes("/") || decoded.includes("\\") || hasControl(decoded)) return null
+    if (hasControl(decoded)) return null
   }
   return raw
 }
@@ -59,9 +63,13 @@ function hasControl(text: string): boolean {
 
 /**
  * The calendar a task href sits in: its path up to and including the last `/`. `null` when the
- * href ends with `/` (a collection, not a task).
+ * href ends with `/` (a collection, not a task), or when the task's name holds an encoded slash or
+ * backslash, which the CalDAV server may decode into a separator and so reach outside the calendar.
+ * Pass a path {@link canonicalPath} returned.
  */
 export function parentCalendar(objectPath: string): string | null {
   if (objectPath.endsWith("/")) return null
-  return objectPath.slice(0, objectPath.lastIndexOf("/") + 1)
+  const cut = objectPath.lastIndexOf("/") + 1
+  if (/%(2f|5c)/i.test(objectPath.slice(cut))) return null
+  return objectPath.slice(0, cut)
 }

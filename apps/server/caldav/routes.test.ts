@@ -393,6 +393,25 @@ Deno.test("finds a calendar created elsewhere by listing the calendars again", a
   expect(await response.json()).toEqual({ objects: [] })
 })
 
+Deno.test("relays a calendar whose name holds an encoded slash, as Stalwart lists one", async () => {
+  const { dav, send } = await setup()
+  const calendar = "/test-user/work%20%2F%20home/"
+  dav.calendars.push({
+    url: `${DAV}${calendar}`,
+    displayName: "Work / Home",
+    components: ["VTODO"],
+  })
+  dav.objects.set(`${DAV}${calendar}a.ics`, { etag: `"e-a"`, data: OPEN_ICS })
+  const list = await send(objectsPath(calendar))
+  expect(list.status).toBe(200)
+  expect(await list.json()).toEqual({
+    objects: [{ href: `${calendar}a.ics`, etag: `"e-a"`, ics: OPEN_ICS }],
+  })
+  const one = await send(objectPath(`${calendar}a.ics`))
+  expect(one.status).toBe(200)
+  await one.body?.cancel()
+})
+
 Deno.test("retries discovery on the next request after it failed", async () => {
   const { dav, send } = await setup()
   dav.discoverFails = { code: CalDavErrorCode.Network, message: "down" }

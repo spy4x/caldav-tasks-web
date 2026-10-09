@@ -39,18 +39,23 @@ Deno.test("refuses path traversal, written plainly or percent-encoded", () => {
   }
 })
 
-Deno.test("refuses encoded slashes and backslashes, which a server may decode into a separator", () => {
+Deno.test("accepts an encoded slash in a calendar's name", () => {
+  expect(canonicalPath("/user/work%20%2F%20home/")).toBe("/user/work%20%2F%20home/")
+  expect(parentCalendar("/user/work%20%2F%20home/a.ics")).toBe("/user/work%20%2F%20home/")
+})
+
+Deno.test("a task whose name holds an encoded slash or backslash has no calendar", () => {
   for (
     const href of [
       "/user/tasks/..%2Fother%2Fa.ics",
       "/user/tasks/a%2fb.ics",
       "/user/tasks/a%5Cb.ics",
       "/user/tasks/a%5cb.ics",
-      "/user/tasks/a\\b.ics",
     ]
   ) {
-    expect([href, canonicalPath(href)]).toEqual([href, null])
+    expect([href, parentCalendar(href)]).toEqual([href, null])
   }
+  expect(canonicalPath("/user/tasks/a\\b.ics")).toBeNull()
 })
 
 Deno.test("refuses a query, a fragment, spaces, control and non-ASCII characters, and bad escapes", () => {
