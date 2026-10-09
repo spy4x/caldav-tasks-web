@@ -15,14 +15,16 @@ export interface ScreenLayoutProps {
 /**
  * The frame the task screens share. On a phone the quick add sits at the bottom, above the tab bar
  * and within reach of a thumb; from `md` up it sits under the header. It comes second in the
- * markup, so the keyboard meets it where it appears on a desktop.
+ * markup, so the keyboard meets it where it appears on a desktop. It is lifted above the list only
+ * on a phone, where it sticks over scrolling rows; on a desktop the header's "More actions" menu
+ * opens over it.
  */
 export function ScreenLayout({ header, quickAdd, children }: ScreenLayoutProps): JSX.Element {
   return (
     <Page class="min-h-[calc(100dvh-4rem)] gap-4 py-4 md:min-h-0 md:py-8">
       {header}
       {quickAdd && (
-        <div class="z-10 border-t border-subtle bg-canvas py-2 max-md:sticky max-md:bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] max-md:order-last md:border-t-0 md:py-0">
+        <div class="border-t border-subtle bg-canvas py-2 max-md:sticky max-md:z-10 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] max-md:order-last md:border-t-0 md:py-0">
           {quickAdd}
         </div>
       )}
