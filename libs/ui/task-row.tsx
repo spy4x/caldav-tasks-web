@@ -33,19 +33,6 @@ export interface TaskRowProps {
 const INDENT = [`ps-0`, `ps-6`, `ps-12`, `ps-16`] as const
 const MAX_TAGS = 3
 
-/**
- * The round check. A native checkbox cannot be round, so the box is drawn: no native look, a
- * ring that fills with the done colour when checked, and a tick drawn with two borders.
- */
-const CHECK_CLASS = [
-  `relative z-10 grid size-6 shrink-0 cursor-pointer appearance-none place-content-center`,
-  `rounded-full border-2 border-(--color-border-strong) bg-transparent`,
-  `checked:border-success checked:bg-success`,
-  `after:hidden after:h-3 after:w-1.5 after:-translate-y-px after:rotate-45 after:border-b-2`,
-  `after:border-r-2 after:border-ink after:content-[''] checked:after:block`,
-  `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-ring)`,
-].join(` `)
-
 const TONE_CLASS: Record<DueTone, string> = {
   [DueTone.Normal]: `text-muted`,
   [DueTone.Today]: `text-accent-text font-medium`,
@@ -103,7 +90,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
       <Checkbox
         checked={!open}
         aria-label={`Complete ${task.title}`}
-        class={CHECK_CLASS}
+        shape="round"
         labelClass="relative z-10 min-h-11 min-w-11 shrink-0 justify-center"
         data-task-check={task.uid}
         data-e2e="task-check"

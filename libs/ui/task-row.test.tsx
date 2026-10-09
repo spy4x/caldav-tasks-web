@@ -28,6 +28,12 @@ Deno.test("the check is a real checkbox named Complete followed by the title", (
   expect(out).toContain(`aria-label="Complete Buy oat milk"`)
 })
 
+Deno.test("the check is the library's round Checkbox, not the square form box", () => {
+  const input = html().match(/<input[^>]*type="checkbox"[^>]*>/)?.[0] ?? ``
+  expect(input).toContain(`rounded-full`)
+  expect(input).not.toContain(`pc-checkbox`)
+})
+
 Deno.test("an open task is unchecked and a completed one is checked, struck through and faded", () => {
   const open = html()
   expect(open).not.toMatch(/<input[^>]*\schecked(?=[\s=/>])/)
