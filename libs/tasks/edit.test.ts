@@ -65,6 +65,25 @@ for (const [name, ics] of EVERY_FIXTURE) {
   })
 }
 
+for (const [name, ics] of EVERY_FIXTURE) {
+  Deno.test(`a whole-form save of ${name} that changes only the title keeps SEQUENCE, DUE and DTSTART`, () => {
+    const before = fixtureTask(ics)
+    const { ics: after } = edited(ics, {
+      title: `Renamed`,
+      notes: before.notes,
+      due: before.due ?? null,
+      start: before.start ?? null,
+      priority: before.priority,
+      tags: before.tags,
+    })
+    const removed = difference(lines(ics), lines(after))
+    const added = difference(lines(after), lines(ics))
+    const allowed = /^(SUMMARY|DTSTAMP|LAST-MODIFIED)[:;]/
+    expect(removed.filter((line) => !allowed.test(line))).toEqual([])
+    expect(added.filter((line) => !allowed.test(line))).toEqual([])
+  })
+}
+
 Deno.test(`a due date edit raises SEQUENCE by one each time it is saved`, () => {
   const due = (date: string) => ({ kind: IcalDateKind.Date, date }) as const
   const first = edited(task(`1`, `A`), { due: due(`2026-11-02`) })
@@ -72,6 +91,22 @@ Deno.test(`a due date edit raises SEQUENCE by one each time it is saved`, () => 
   const second = editTask(first.task, { due: due(`2026-11-03`) }, NOW)
   if (!second.success) throw new Error(second.error)
   expect(lines(second.output.ics)).toContain(`SEQUENCE:2`)
+})
+
+Deno.test(`a whole-form save keeps notes and tags lines another client wrote in its own form`, () => {
+  const ics = vtodo([
+    `DTSTAMP:20261001T080000Z`,
+    `UID:8`,
+    `SUMMARY:Keep`,
+    `DESCRIPTION:one, two; three`,
+    `CATEGORIES:home`,
+    `CATEGORIES:garden`,
+  ])
+  const before = fixtureTask(ics)
+  const { ics: after } = edited(ics, { title: `Kept`, notes: before.notes, tags: before.tags })
+  for (const kept of [`DESCRIPTION:one, two; three`, `CATEGORIES:home`, `CATEGORIES:garden`]) {
+    expect(lines(after)).toContain(kept)
+  }
 })
 
 Deno.test(`an edit keeps reminders and unknown X- properties byte for byte`, () => {
