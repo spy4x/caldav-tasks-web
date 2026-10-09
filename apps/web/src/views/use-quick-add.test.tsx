@@ -6,7 +6,8 @@ import { LIST_HREF } from "@tasks/fixtures/tasksorg.ts"
 import { mount } from "@ui/mount.test.tsx"
 import { refresh } from "../state/sync.ts"
 import { withApp } from "../state/testing.ts"
-import { browserZone, todayIn } from "./clock.ts"
+import { isoDateInTz } from "@spy4x/time/tz"
+import { browserZone } from "./clock.ts"
 import { quickAddTarget, useQuickAdd } from "./use-quick-add.ts"
 
 const LISTS = [{ href: `/a/` }, { href: `/b/` }]
@@ -38,11 +39,11 @@ Deno.test(`a quick add from Today creates the task due today in the browser's zo
       add = useQuickAdd({ dueToday: true }).add
       return null
     }
-    const before = todayIn(browserZone())
+    const before = isoDateInTz(new Date(), browserZone())
     await mount(<Today />, async () => {
       await act(() => add(`Pay the rent`))
     })
-    const after = todayIn(browserZone())
+    const after = isoDateInTz(new Date(), browserZone())
 
     const created = [...server.objects.values()].map((object) => object.ics)
     expect(created).toHaveLength(1)

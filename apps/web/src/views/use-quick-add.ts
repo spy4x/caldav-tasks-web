@@ -1,12 +1,13 @@
 import { useSignal } from "@preact/signals"
-import { IcalDateKind } from "@tasks/types.ts"
-import type { TaskDate } from "@tasks/types.ts"
+import { IcalDateKind } from "@spy4x/time/ical"
+import type { TaskDate } from "@spy4x/time/ical-tasks-model"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { addTask } from "../state/task-writes.ts"
 import { toasts } from "../state/toasts.ts"
 import { WriteKind } from "../state/tasks.ts"
-import { browserZone, todayIn } from "./clock.ts"
+import { isoDateInTz } from "@spy4x/time/tz"
+import { browserZone } from "./clock.ts"
 
 /** Where a quick-added task goes: the named list, else the first one, or why there is none. */
 export function quickAddTarget(
@@ -38,7 +39,7 @@ export function useQuickAdd(options: { listHref?: string; dueToday?: boolean } =
     }
     const { listHref } = target
     const due: TaskDate | undefined = options.dueToday
-      ? { kind: IcalDateKind.Date, date: todayIn(browserZone()) }
+      ? { kind: IcalDateKind.Date, date: isoDateInTz(new Date(), browserZone()) }
       : undefined
     busy.value = true
     try {
