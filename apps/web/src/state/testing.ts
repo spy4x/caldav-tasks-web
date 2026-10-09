@@ -107,6 +107,8 @@ export class FakeServer {
     if (url.pathname === CALDAV_PATHS.object && request.method === `PUT`) {
       return request.json().then((body: { href: string; etag: string; ics: string }) => {
         this.beforePut?.(body.href)
+        // The relay refuses a write that carries no etag.
+        if (!body.etag) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
         if (found.etag !== body.etag) return error(412, `conflict`)
@@ -117,6 +119,7 @@ export class FakeServer {
     }
     if (url.pathname === CALDAV_PATHS.object && request.method === `DELETE`) {
       return request.json().then((body: { href: string; etag: string }) => {
+        if (!body.etag) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
         if (found.etag !== body.etag) return error(412, `conflict`)

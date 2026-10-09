@@ -212,6 +212,26 @@ Deno.test(`an offline edit is not written over a change the app learned of befor
   })
 })
 
+Deno.test(`a delete made while an edit still waits replaces it and is sent once`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    // The network is back but the server is not answering yet, so the edit still waits.
+    setBrowserOnline(true)
+    server.down = true
+
+    await deleteTask(tasks.value[0])
+    server.down = false
+    server.sent.length = 0
+    await getOutbox().flush()
+
+    expect(server.objects.has(HREF)).toBe(false)
+    expect(server.count(`PUT`, CALDAV_PATHS.object)).toBe(0)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
 Deno.test(`using theirs drops the offline edit and shows the server's task`, async () => {
   await withApp(async (server) => {
     const before = await start(server)

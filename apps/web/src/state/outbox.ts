@@ -79,12 +79,8 @@ function codeOf(result: Extract<RelayResult<unknown>, { ok: false }>): CalDavErr
       return CalDavErrorCode.InvalidArgument
     case ApiErrorCode.TooLarge:
       return CalDavErrorCode.TooLarge
-    // The session or the CalDAV account needs attention; the write waits for it.
-    case ApiErrorCode.Unauthorized:
-    case ApiErrorCode.CalDavRefused:
-      return CalDavErrorCode.Unauthorized
-    case ApiErrorCode.CalDavUnreachable:
-      return CalDavErrorCode.Network
+    // Everything else, a refused session or account and an unreachable CalDAV server included,
+    // the transport classifies by the status it carries.
     default:
       return CalDavErrorCode.Server
   }
