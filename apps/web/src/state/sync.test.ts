@@ -195,13 +195,13 @@ Deno.test(`sync refreshes on start, when the page is shown again and when the ne
   })
 })
 
-Deno.test(`sync asks the server again every 30 seconds while the page is visible`, async () => {
+Deno.test(`sync asks the server again when its 30 second poll timer fires, while the page is visible`, async () => {
   await withApp(async (server) => {
     seedList(server)
-    const delays: number[] = []
+    const timers: { callback: () => void; ms: number }[] = []
     const realSetTimeout = globalThis.setTimeout
     globalThis.setTimeout = ((callback: () => void, ms?: number, ...rest: unknown[]) => {
-      delays.push(ms ?? 0)
+      timers.push({ callback, ms: ms ?? 0 })
       return realSetTimeout(callback, ms, ...rest)
     }) as typeof setTimeout
     const stop = startSync({
@@ -217,12 +217,24 @@ Deno.test(`sync asks the server again every 30 seconds while the page is visible
       removeEventListener: () => {},
     })
     try {
-      for (let waited = 0; !lastSyncedAt.value && waited < 200; waited++) {
+      const poll = () => timers.findLast((timer) => timer.ms === POLL_INTERVAL_MS)
+      for (let waited = 0; !poll() && waited < 200; waited++) {
         await new Promise((resolve) => realSetTimeout(resolve, 5))
       }
-      expect(lastSyncedAt.value).not.toBeNull()
       expect(POLL_INTERVAL_MS).toBe(30_000)
-      expect(delays).toContain(30_000)
+      expect(poll()).toBeDefined()
+      expect(server.count(`GET`, CALDAV_PATHS.calendars)).toBe(1)
+
+      // When the poll timer fires, the runner refreshes: a stray timer would not.
+      poll()!.callback()
+      for (
+        let waited = 0;
+        server.count(`GET`, CALDAV_PATHS.calendars) < 2 && waited < 200;
+        waited++
+      ) {
+        await new Promise((resolve) => realSetTimeout(resolve, 5))
+      }
+      expect(server.count(`GET`, CALDAV_PATHS.calendars)).toBe(2)
     } finally {
       globalThis.setTimeout = realSetTimeout
       stop()
