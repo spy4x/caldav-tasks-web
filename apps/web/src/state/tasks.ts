@@ -11,7 +11,7 @@ import {
   type TaskEdit,
 } from "@spy4x/time/ical-tasks-edit"
 import { parseTask, type Task, TaskStatus } from "@spy4x/time/ical-tasks-model"
-import type { Outcome } from "@spy4x/realtime/outbox"
+import type { ConflictReason, Outcome } from "@spy4x/realtime/outbox"
 import { completeMessage } from "@tasks/identity.ts"
 import { offline, relay } from "./connection.ts"
 import { queuedFor, queueUpdate, settle, withdrawQueued } from "./outbox.ts"
@@ -48,7 +48,7 @@ export interface TaskConflict {
 }
 
 export type WriteResult =
-  | { kind: WriteKind.Saved; task: Task; queued?: boolean }
+  | { kind: WriteKind.Saved; task: Task; queued?: boolean; conflict?: ConflictReason }
   | { kind: WriteKind.Conflict; conflict: TaskConflict }
   | { kind: WriteKind.Failed; message: string }
 
@@ -190,10 +190,16 @@ function failed(message: string): WriteResult {
 
 const NOT_SYNCED_YET = `This task has no version from the server yet. Wait until you are online.`
 
-/** How the outbox answered a queued write, as the screens read it. */
-function fromOutcome(outcome: Outcome<TaskSnapshot>, written: Task): WriteResult {
+/**
+ * How the outbox answered a write, as the screens read it. A `conflict` is not "queued": the
+ * server refused the write, which waits in the conflict chooser with the person's text shown.
+ */
+export function fromOutcome(outcome: Outcome<TaskSnapshot>, written: Task): WriteResult {
   if (outcome.kind === `failed`) {
     return failed(outcome.error instanceof Error ? outcome.error.message : CHANGED_ON_SERVER)
+  }
+  if (outcome.kind === `conflict`) {
+    return { kind: WriteKind.Saved, task: written, conflict: outcome.reason }
   }
   const etag = outcome.kind === `sent` ? outcome.server?.etag ?? `` : written.etag
   return { kind: WriteKind.Saved, task: { ...written, etag }, queued: outcome.kind !== `sent` }

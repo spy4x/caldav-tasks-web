@@ -14,7 +14,7 @@ import {
   withdrawQueued,
 } from "./outbox.ts"
 import { forget, remember } from "./task-store.ts"
-import { WriteKind, type WriteResult } from "./tasks.ts"
+import { fromOutcome, WriteKind, type WriteResult } from "./tasks.ts"
 
 const CHANGED_ON_SERVER = `The task changed on the server. Reload it and try again.`
 
@@ -99,12 +99,7 @@ async function queuedDelete(task: Task): Promise<WriteResult> {
   if (!task.etag && !queuedFor(task)) {
     return { kind: WriteKind.Failed, message: CHANGED_ON_SERVER }
   }
-  const outcome = await queueDelete(task)
-  if (outcome.kind === `failed`) {
-    const message = outcome.error instanceof Error ? outcome.error.message : CHANGED_ON_SERVER
-    return { kind: WriteKind.Failed, message }
-  }
-  return { kind: WriteKind.Saved, task, queued: outcome.kind !== `sent` }
+  return fromOutcome(await queueDelete(task), task)
 }
 
 /**

@@ -407,11 +407,8 @@ Deno.test(`an edit made while the offline create is being sent is sent after it,
   })
 })
 
-// Waits for the ts-libs release that makes a refused merged entry a conflict (1.51.0): until then
-// the outbox drops the whole entry, offline edit included, when its interactive send is refused.
 Deno.test({
   name: `an offline edit survives a second edit made right after reconnect`,
-  ignore: true,
   fn: async () => {
     await withApp(async (server) => {
       const before = await start(server)
@@ -420,9 +417,32 @@ Deno.test({
       editElsewhere(server, `Phone title`)
       setBrowserOnline(true)
 
-      await setTaskDone(tasks.value[0], true, NOW)
+      const result = await setTaskDone(tasks.value[0], true, NOW)
 
       expect(titles()).toContain(`Oat milk`)
+      // The refused write is not reported as waiting to be sent: it waits for a choice.
+      if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+      expect(result.conflict).toBe(`version`)
+      expect(result.queued).toBeFalsy()
+      expect(conflicts.value.map((c) => c.reason)).toEqual([`version`])
     })
   },
+})
+
+Deno.test(`a delete refused behind an offline edit is reported as a conflict, not as waiting`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    editElsewhere(server, `Phone title`)
+    setBrowserOnline(true)
+
+    const result = await deleteTask(tasks.value[0])
+
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.conflict).toBe(`version`)
+    expect(result.queued).toBeFalsy()
+    expect(server.objects.has(HREF)).toBe(true)
+    expect(conflicts.value.map((c) => c.reason)).toEqual([`version`])
+  })
 })
