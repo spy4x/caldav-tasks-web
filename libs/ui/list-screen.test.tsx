@@ -117,6 +117,15 @@ Deno.test("tag chips come only from the tasks shown, so Show completed adds a fi
   })
 })
 
+Deno.test("a pressed chip stays visible and pressed when Show completed hides every task carrying it", async () => {
+  const chips = `[aria-label="Filter by tag"] button`
+  await mount(<ListScreen {...props({ activeTags: [`chores`] })} />, async ({ root }) => {
+    const chores = [...root.querySelectorAll<HTMLButtonElement>(chips)]
+      .find((b) => b.textContent === `#chores`)
+    expect(chores?.getAttribute(`aria-pressed`)).toBe(`true`)
+  })
+})
+
 Deno.test("Show completed reports the new state", async () => {
   const states: boolean[] = []
   await mount(

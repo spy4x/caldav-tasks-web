@@ -64,7 +64,13 @@ function tagsOf(tasks: readonly Task[]): string[] {
  */
 export function ListScreen(props: ListScreenProps): JSX.Element {
   const { list, tasks, zone } = props
-  const allTags = tagsOf(props.showCompleted ? tasks : tasks.filter(isOpen))
+  // A pressed chip stays even when no shown task carries its tag, so the person can still clear it.
+  const allTags = [
+    ...new Set([
+      ...tagsOf(props.showCompleted ? tasks : tasks.filter(isOpen)),
+      ...props.activeTags,
+    ]),
+  ].sort((a, b) => a.localeCompare(b))
   const shown = tasks.filter((task) =>
     (props.showCompleted || isOpen(task)) &&
     (props.activeTags.length === 0 || task.tags.some((tag) => props.activeTags.includes(tag)))
