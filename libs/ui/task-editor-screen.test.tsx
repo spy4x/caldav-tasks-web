@@ -573,9 +573,16 @@ Deno.test("adding and removing reminders sends the whole list, untouched ones as
       ])
       expect(root.querySelectorAll(`[data-e2e="task-reminder"]`)).toHaveLength(3)
 
-      await press(root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)[0] as HTMLElement)
-      await press(root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)[0] as HTMLElement)
-      await press(root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)[0] as HTMLElement)
+      const remove = (at: number) =>
+        press(root.querySelectorAll(`[data-e2e="task-reminder-remove"]`)[at] as HTMLElement)
+      // The middle one goes: the others stay, in order.
+      await remove(1)
+      expect((await saveDraft(root, saved)).reminders).toEqual([
+        added.reminders[0],
+        added.reminders[2],
+      ])
+      await remove(1)
+      await remove(0)
       expect((await saveDraft(root, saved)).reminders).toEqual([])
     },
     props({
