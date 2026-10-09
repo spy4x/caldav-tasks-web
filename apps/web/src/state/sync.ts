@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals"
 import { watchPageResume } from "@spy4x/realtime/page-lifecycle"
 import { CALDAV_PATHS, calendarListSchema, objectListSchema } from "@api/caldav.ts"
-import { relay } from "./connection.ts"
+import { type ConnectionTarget, relay, watchConnection } from "./connection.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { type CachedCalendar, type CachedTask, getStorage } from "./db.ts"
 import { setCachedTasks } from "./tasks.ts"
@@ -12,15 +12,27 @@ export const syncing = signal(false)
 /** When the last refresh got an answer from the server, or `null` before the first. */
 export const lastSyncedAt = signal<Date | null>(null)
 
+/**
+ * True when the cache could not be read or written. Screens then get empty stores with
+ * `calendarsLoaded` true, and should say the last copy is unavailable; the app never throws.
+ */
+export const cacheUnavailable = signal(false)
+
 /** Fills the stores from the cache, so the app shows its last copy before the network answers. */
 export async function loadCache(): Promise<void> {
-  const storage = getStorage()
-  const [cachedCalendars, cachedTasks] = await Promise.all([
-    storage.listCalendars(),
-    storage.listTasks(),
-  ])
-  calendars.value = cachedCalendars
-  setCachedTasks(cachedTasks)
+  try {
+    const storage = getStorage()
+    const [cachedCalendars, cachedTasks] = await Promise.all([
+      storage.listCalendars(),
+      storage.listTasks(),
+    ])
+    calendars.value = cachedCalendars
+    setCachedTasks(cachedTasks)
+    cacheUnavailable.value = false
+  } catch {
+    // IndexedDB blocked or failing (a private window, a full disk). The stores keep what they hold.
+    cacheUnavailable.value = true
+  }
   calendarsLoaded.value = true
 }
 
@@ -56,9 +68,12 @@ async function run(): Promise<void> {
       if (!unchanged && !await fetchTasks(calendar, calendar.completedLoaded)) break
     }
     lastSyncedAt.value = new Date()
+  } catch {
+    cacheUnavailable.value = true
   } finally {
-    await loadCache()
+    // First, so a failing cache can never leave the spinner on.
     syncing.value = false
+    await loadCache()
   }
 }
 
@@ -99,8 +114,15 @@ export async function loadCompleted(calendarHref: string): Promise<boolean> {
  * Starts the data layer: shows the cache, refreshes, and refreshes again whenever the page becomes
  * visible or the network returns. Returns the function that stops the watching.
  */
-export function startSync(target?: Parameters<typeof watchPageResume>[1]): () => void {
+export function startSync(
+  target?: Parameters<typeof watchPageResume>[1],
+  connectionTarget?: ConnectionTarget,
+): () => void {
+  const stopConnection = watchConnection(connectionTarget)
   const stop = watchPageResume(() => void refresh(), target)
   void loadCache().then(refresh)
-  return stop
+  return () => {
+    stop()
+    stopConnection()
+  }
 }

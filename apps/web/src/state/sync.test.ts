@@ -3,10 +3,19 @@ import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { CALDAV_PATHS } from "@api/caldav.ts"
 import { LIST_HREF, task } from "@tasks/fixtures/tasksorg.ts"
-import { calendars } from "./calendars.ts"
+import { calendars, calendarsLoaded } from "./calendars.ts"
+import { type TaskStorage, useStorage } from "./db.ts"
 import { notice, OFFLINE_NOTICE } from "./connection.ts"
 import { tasks } from "./tasks.ts"
-import { lastSyncedAt, loadCache, loadCompleted, refresh, startSync } from "./sync.ts"
+import {
+  cacheUnavailable,
+  lastSyncedAt,
+  loadCache,
+  loadCompleted,
+  refresh,
+  startSync,
+  syncing,
+} from "./sync.ts"
 import { error, type FakeServer, withApp } from "./testing.ts"
 
 const OPEN = `${LIST_HREF}open.ics`
@@ -127,6 +136,7 @@ Deno.test(`sync refreshes on start, when the page is shown again and when the ne
     seedList(server)
     const listeners = new Map<string, (event: Event) => void>()
     const visibility = { state: `hidden` }
+    const connection = new Map<string, () => void>()
     const stop = startSync({
       document: {
         addEventListener: (type, listener) => void listeners.set(type, listener),
@@ -137,6 +147,9 @@ Deno.test(`sync refreshes on start, when the page is shown again and when the ne
       },
       addEventListener: (type, listener) => void listeners.set(type, listener),
       removeEventListener: (type) => void listeners.delete(type),
+    }, {
+      addEventListener: (type, listener) => void connection.set(type, listener),
+      removeEventListener: (type) => void connection.delete(type),
     })
     // The start-up refresh runs on its own; wait for it to finish.
     for (let waited = 0; !lastSyncedAt.value && waited < 200; waited++) {
@@ -154,7 +167,42 @@ Deno.test(`sync refreshes on start, when the page is shown again and when the ne
     await refresh()
     expect(server.count(`GET`, CALDAV_PATHS.calendars)).toBe(3)
 
+    connection.get(`offline`)!()
+    expect(notice.value).toBe(OFFLINE_NOTICE)
+    connection.get(`online`)!()
+    expect(notice.value).toBeNull()
+
     stop()
     expect(listeners.size).toBe(0)
+    expect(connection.size).toBe(0)
+  })
+})
+
+/** A storage that fails on every call, as IndexedDB does when blocked. */
+function brokenStorage(): TaskStorage {
+  const fail = () => Promise.reject(new DOMException(`blocked`, `SecurityError`))
+  return {
+    listCalendars: fail,
+    listTasks: fail,
+    replaceCalendars: fail,
+    replaceCalendarTasks: fail,
+    putTask: fail,
+    deleteTask: fail,
+    close: () => {},
+  }
+}
+
+Deno.test(`a storage that throws ends the refresh quietly and tells the screens the cache is gone`, async () => {
+  await withApp(async (server) => {
+    seedList(server)
+    useStorage(brokenStorage())
+
+    await refresh()
+    await loadCache()
+
+    expect(syncing.value).toBe(false)
+    expect(cacheUnavailable.value).toBe(true)
+    expect(calendarsLoaded.value).toBe(true)
+    expect(tasks.value).toEqual([])
   })
 })

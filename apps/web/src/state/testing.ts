@@ -5,7 +5,7 @@ import { CALDAV_PATHS } from "@api/caldav.ts"
 import { resetConnection } from "./connection.ts"
 import { createDexieStorage, useStorage } from "./db.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
-import { lastSyncedAt } from "./sync.ts"
+import { cacheUnavailable, lastSyncedAt } from "./sync.ts"
 import { tasks } from "./tasks.ts"
 
 /** Helpers for the tests of the data layer. Not imported by the app. */
@@ -130,4 +130,5 @@ function reset(): void {
   calendarsLoaded.value = false
   tasks.value = []
   lastSyncedAt.value = null
+  cacheUnavailable.value = false
 }
