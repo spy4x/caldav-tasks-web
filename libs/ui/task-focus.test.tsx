@@ -2,7 +2,7 @@
 import { expect } from "@std/expect"
 import { useState } from "preact/hooks"
 import { focused, mount, must } from "./mount.test.tsx"
-import { FocusKeeper } from "./task-focus.tsx"
+import { completeFocusedRow, editFocusedRow, FocusKeeper, moveRowFocus } from "./task-focus.tsx"
 import { makeTask } from "./task-fixtures.ts"
 import { flatNodes, TaskTree } from "./task-tree.tsx"
 import type { Task } from "@spy4x/time/ical-tasks-model"
@@ -81,4 +81,83 @@ Deno.test("focus the person moved elsewhere is left where they put it", async ()
     })
     expect(window.document.activeElement?.id).toBe(`elsewhere`)
   })
+})
+
+function openOf(root: ParentNode, uid: string) {
+  return must<HTMLElement>(root, `li[data-task-uid="${uid}"] [data-e2e="task-open"]`)
+}
+
+Deno.test("next and previous move a visible focus through the rows and stop at the ends", async () => {
+  await mount(<Harness initial={THREE} />, async ({ root, window }) => {
+    const doc = window.document as unknown as Document
+    expect(moveRowFocus(doc, 1)).toBe(true)
+    expect(focused(window)).toBe(`button task-open`)
+    expect(window.document.activeElement).toBe(openOf(root, `a`))
+    moveRowFocus(doc, 1)
+    expect(window.document.activeElement).toBe(openOf(root, `b`))
+    moveRowFocus(doc, 1)
+    moveRowFocus(doc, 1)
+    expect(window.document.activeElement).toBe(openOf(root, `c`))
+    moveRowFocus(doc, -1)
+    expect(window.document.activeElement).toBe(openOf(root, `b`))
+    moveRowFocus(doc, -1)
+    moveRowFocus(doc, -1)
+    expect(window.document.activeElement).toBe(openOf(root, `a`))
+  })
+})
+
+Deno.test("previous with no row focused starts at the last row", async () => {
+  await mount(<Harness initial={THREE} />, async ({ root, window }) => {
+    moveRowFocus(window.document as unknown as Document, -1)
+    expect(window.document.activeElement).toBe(openOf(root, `c`))
+  })
+})
+
+Deno.test("completing the focused row completes that task and not its neighbours", async () => {
+  const done: string[] = []
+  await mount(
+    <TaskTree
+      label="Tasks"
+      nodes={flatNodes(THREE)}
+      zone="UTC"
+      now={NOW}
+      onComplete={(task) => done.push(task.uid)}
+      onOpen={() => {}}
+    />,
+    async ({ root, window, act }) => {
+      openOf(root, `b`).focus()
+      await act(() => {
+        expect(completeFocusedRow(window.document as unknown as Document)).toBe(true)
+      })
+      expect(done).toEqual([`b`])
+    },
+  )
+})
+
+Deno.test("completing with no focused row does nothing", async () => {
+  await mount(<Harness initial={THREE} />, async ({ root, window }) => {
+    expect(completeFocusedRow(window.document as unknown as Document)).toBe(false)
+    expect(root.querySelectorAll(`li`)).toHaveLength(3)
+  })
+})
+
+Deno.test("editing the focused row opens that row's task", async () => {
+  const opened: string[] = []
+  await mount(
+    <TaskTree
+      label="Tasks"
+      nodes={flatNodes(THREE)}
+      zone="UTC"
+      now={NOW}
+      onComplete={() => {}}
+      onOpen={(task) => opened.push(task.uid)}
+    />,
+    async ({ root, window }) => {
+      const doc = window.document as unknown as Document
+      expect(editFocusedRow(doc)).toBe(false)
+      openOf(root, `c`).focus()
+      expect(editFocusedRow(doc)).toBe(true)
+      expect(opened).toEqual([`c`])
+    },
+  )
 })
