@@ -10,7 +10,7 @@ import { tasks } from "../state/tasks.ts"
 import { setBrowserOnline, withApp } from "../state/testing.ts"
 import type { FakeServer } from "../state/testing.ts"
 import { toasts } from "../state/toasts.ts"
-import { completeWithUndo, deleteWithUndo } from "./task-actions.ts"
+import { completeWithUndo, deleteWithUndo, reorderInList } from "./task-actions.ts"
 
 const HREF = `${LIST_HREF}one.ics`
 
@@ -125,5 +125,48 @@ Deno.test(`a delete the server refuses shows the reason and no Undo`, async () =
     expect(await deleteWithUndo(task)).toBe(false)
     expect(lastToast().action).toBeUndefined()
     expect(server.objects.has(HREF)).toBe(true)
+  })
+})
+
+Deno.test(`dragging a task writes its new position to the server and leaves the other tasks' text alone`, async () => {
+  await withApp(async (server) => {
+    toasts.clear()
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    const hrefs = [`one`, `two`, `three`].map((name) => `${LIST_HREF}${name}.ics`)
+    hrefs.forEach((href, index) =>
+      server.seed(
+        href,
+        LIST_HREF,
+        fixture(`${index}`, `Task ${index}`, [`X-APPLE-SORT-ORDER:${(index + 1) * 100}`]),
+      )
+    )
+    await refresh()
+    const siblings = tasks.value.toSorted((a, b) => a.sortOrder! - b.sortOrder!)
+    const before = hrefs.map((href) => server.objects.get(href)!.ics)
+
+    const saved = await reorderInList(siblings[2], siblings, 0, `UTC`)
+
+    expect(saved).toBe(true)
+    const after = hrefs.map((href) => server.objects.get(href)!.ics)
+    expect(after[0]).toBe(before[0])
+    expect(after[1]).toBe(before[1])
+    expect(Number(after[2].match(/X-APPLE-SORT-ORDER:(-?\d+)/)![1])).toBeLessThan(100)
+  })
+})
+
+Deno.test(`a drag whose write fails shows why`, async () => {
+  await withApp(async (server) => {
+    toasts.clear()
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(`${LIST_HREF}a.ics`, LIST_HREF, fixture(`a`, `A`, [`X-APPLE-SORT-ORDER:5`]))
+    server.seed(`${LIST_HREF}b.ics`, LIST_HREF, fixture(`b`, `B`, [`X-APPLE-SORT-ORDER:6`]))
+    await refresh()
+    const siblings = tasks.value.toSorted((x, y) => x.sortOrder! - y.sortOrder!)
+    const gone = { ...siblings[0], href: `${LIST_HREF}missing.ics`, etag: `"stale"` }
+
+    const saved = await reorderInList(gone, [gone, siblings[1]], 1, `UTC`)
+
+    expect(saved).toBe(false)
+    expect(lastToast().body.length).toBeGreaterThan(0)
   })
 })
