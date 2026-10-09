@@ -1,6 +1,7 @@
 import type { JSX } from "preact"
 import { useState } from "preact/hooks"
 import { flattenTree } from "@spy4x/platform/universal/ical-tasks-view"
+import { SortableList } from "@spy4x/preact-ui"
 import type { Task, TaskNode } from "@spy4x/time/ical-tasks-model"
 import { type RowList, TaskRow } from "./task-row.tsx"
 
@@ -18,6 +19,12 @@ export interface TaskTreeProps {
   collapsed?: ReadonlySet<string>
   onComplete: (task: Task, done: boolean) => void
   onOpen: (task: Task) => void
+  /**
+   * Turns on drag to reorder, for a list in manual order. Called once per finished move, with the
+   * moved task, the tasks that share its parent in the order shown (the moved one included) and
+   * the index it takes among the others. Tasks only move among their siblings.
+   */
+  onReorder?: (task: Task, siblings: readonly Task[], toIndex: number) => void
 }
 
 /** Wraps tasks as a tree with no subtasks, for a view that lists tasks flat. */
@@ -56,6 +63,20 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
     })
   }
 
+  if (props.onReorder) {
+    return (
+      <div role="group" aria-label={props.label} data-e2e="task-tree">
+        <SortableGroup
+          nodes={props.nodes}
+          collapsed={collapsed}
+          counts={counts}
+          setExpanded={setExpanded}
+          tree={props}
+        />
+      </div>
+    )
+  }
+
   return (
     <ul aria-label={props.label} class="flex flex-col" data-e2e="task-tree">
       {rows.map(({ task, depth }) => (
@@ -74,5 +95,54 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
         />
       ))}
     </ul>
+  )
+}
+
+interface SortableGroupProps {
+  nodes: readonly TaskNode[]
+  collapsed: ReadonlySet<string>
+  counts: ReadonlyMap<string, number>
+  setExpanded: (task: Task, expanded: boolean) => void
+  tree: TaskTreeProps
+  nested?: boolean
+}
+
+/**
+ * The tasks that share a parent as a {@link SortableList}; a task with subtasks holds its own
+ * group under its row. Each group reorders on its own, so a task never changes parent.
+ */
+function SortableGroup(props: SortableGroupProps): JSX.Element {
+  const { nodes, tree } = props
+  const siblings = nodes.map((node) => node.task)
+  return (
+    <SortableList
+      class={props.nested ? `ps-6` : undefined}
+      items={nodes.map((node) => ({ id: node.task.uid, node }))}
+      itemLabel={({ node }) => node.task.title}
+      onMove={(from, to) => tree.onReorder?.(siblings[from], siblings, to)}
+      renderItem={({ node }) => {
+        const { task } = node
+        const open = !props.collapsed.has(task.uid)
+        return (
+          <>
+            <TaskRow
+              bare
+              task={task}
+              zone={tree.zone}
+              now={tree.now}
+              list={tree.listOf?.(task)}
+              subtaskCount={props.counts.get(task.uid)}
+              expanded={open}
+              onExpandedChange={props.setExpanded}
+              onComplete={tree.onComplete}
+              onOpen={tree.onOpen}
+            />
+            {open && node.children.length > 0 && (
+              <SortableGroup {...props} nodes={node.children} nested />
+            )}
+          </>
+        )
+      }}
+    />
   )
 }

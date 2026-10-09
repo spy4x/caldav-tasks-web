@@ -33,10 +33,10 @@ test("adds a task to a list, edits its title, completes it and undoes the comple
   // Today it would go to the account's first list and leave the task behind on Radicale.
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
-  await expect(page.getByRole(`button`, { name: `Seeded errand` })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
   await page.getByTestId(`quick-add-input`).fill(`Pay the rent`)
   await page.getByTestId(`quick-add-submit`).click()
-  const row = page.getByRole(`button`, { name: `Pay the rent` })
+  const row = page.getByRole(`button`, { name: `Pay the rent`, exact: true })
   await expect(row).toBeVisible()
 
   await row.click()
@@ -44,7 +44,7 @@ test("adds a task to a list, edits its title, completes it and undoes the comple
   await page.getByTestId(`task-title`).fill(`Pay the rent today`)
   await page.getByTestId(`task-save`).click()
   await expect(page).toHaveURL(/\/lists\//)
-  const renamed = page.getByRole(`button`, { name: `Pay the rent today` })
+  const renamed = page.getByRole(`button`, { name: `Pay the rent today`, exact: true })
   await expect(renamed).toBeVisible()
 
   await page.getByRole(`checkbox`, { name: /Pay the rent today/ }).click()
@@ -57,7 +57,7 @@ test("a quick-add line with a tag, a time and a priority shows chips and saves a
   await signIn(page)
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
-  await expect(page.getByRole(`button`, { name: `Seeded errand` })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
 
   await page.getByTestId(`quick-add-input`).fill(`Call Anna #work 2099-01-05 3pm !high`)
   const chips = page.getByTestId(`quick-add-chips`)
@@ -69,7 +69,7 @@ test("a quick-add line with a tag, a time and a priority shows chips and saves a
   )
 
   await page.getByTestId(`quick-add-input`).press(`Enter`)
-  await expect(page.getByRole(`button`, { name: /Call Anna/ })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: /^Call Anna/ })).toBeVisible()
   await expect.poll(async () => await readList(list)).toContain(`SUMMARY:Call Anna`)
   const ics = (await readList(list)).replaceAll(`\r\n `, ``)
   const todo = ics.split(`BEGIN:VTODO`).find((part) => part.includes(`SUMMARY:Call Anna`))!
@@ -80,7 +80,7 @@ test("a quick-add line with a tag, a time and a priority shows chips and saves a
 
 test("an edit keeps the reminder and the property this app does not know on the server", async ({ page }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
   await page.getByTestId(`task-title`).fill(`Seeded errand edited`)
   await page.getByTestId(`task-save`).click()
   await expect(page).toHaveURL(/\/lists\//)
@@ -96,7 +96,7 @@ test("an edit keeps the reminder and the property this app does not know on the 
 
 test("a weekly repeat and a reminder survive a reload, and removing them removes them on the server", async ({ page }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(1)
 
   await page.getByLabel(`Repeat`).selectOption({ label: `Weekly` })
@@ -113,7 +113,7 @@ test("a weekly repeat and a reminder survive a reload, and removing them removes
   expect(await readTask(list.taskUrl)).toContain(`-PT1H`)
 
   await page.reload()
-  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
   await expect(page.getByLabel(`Repeat`)).toHaveValue(`2`)
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(2)
   await expect(page.getByText(`1 hour before due`)).toBeVisible()
@@ -130,7 +130,7 @@ test("a weekly repeat and a reminder survive a reload, and removing them removes
   expect(cleared).toContain(`X-E2E-KEEP:still here`)
 
   await page.reload()
-  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
   await expect(page.getByLabel(`Repeat`)).toHaveValue(`none`)
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(0)
 })
@@ -150,19 +150,19 @@ test("the sort and the tag filter of a list survive a reload", async ({ page }) 
   await expect(page).toHaveURL(/sort=title/)
   await page.getByRole(`button`, { name: `home` }).click()
   await expect(page).toHaveURL(/tags=home/)
-  await expect(page.getByRole(`button`, { name: `Apple` })).toHaveCount(0)
+  await expect(page.getByRole(`button`, { name: `Apple`, exact: true })).toHaveCount(0)
 
   await page.reload()
   await expect(page).toHaveURL(/sort=title/)
   await expect(page).toHaveURL(/tags=home/)
   await expect(page.getByTestId(`sort`)).toHaveValue(`4`)
-  await expect(page.getByRole(`button`, { name: `Zebra` })).toBeVisible()
-  await expect(page.getByRole(`button`, { name: `Apple` })).toHaveCount(0)
+  await expect(page.getByRole(`button`, { name: `Zebra`, exact: true })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Apple`, exact: true })).toHaveCount(0)
 })
 
 test("undoing a delete puts the task back on the server", async ({ page }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand` }).click()
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
   await page.getByRole(`button`, { name: `More actions` }).click()
   await page.getByRole(`menuitem`, { name: `Delete` }).click()
   await page.getByRole(`button`, { name: `Delete` }).last().click()
@@ -170,7 +170,7 @@ test("undoing a delete puts the task back on the server", async ({ page }) => {
   await expect.poll(async () => await readList(list)).not.toContain(`SUMMARY:Seeded errand`)
 
   await page.getByRole(`button`, { name: `Undo` }).click()
-  await expect(page.getByRole(`button`, { name: `Seeded errand` })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
   await expect.poll(async () => await readList(list)).toContain(`SUMMARY:Seeded errand`)
   const restored = await readList(list)
   expect(restored).toContain(`X-E2E-KEEP:still here`)

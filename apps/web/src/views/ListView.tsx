@@ -12,7 +12,7 @@ import { findListBySlug, listSettingsPath, taskPath } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { sortFromParam, sortToParam, tagsFromParam, tagsToParam } from "./list-filters.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
-import { completeWithUndo } from "./task-actions.ts"
+import { completeWithUndo, reorderInList } from "./task-actions.ts"
 import { useQuickAdd } from "./use-quick-add.ts"
 
 /**
@@ -54,6 +54,8 @@ export function ListView() {
       onShowCompletedChange={(show) => showCompleted.value = show}
       onComplete={(task, done) => void completeWithUndo(task, done)}
       onOpen={(task) => navigate(taskPath(task))}
+      onReorder={(task, siblings, to) =>
+        void reorderInList(list.href, task, siblings, to, browserZone())}
       onQuickAdd={(parsed) => void quickAdd.add(parsed)}
       quickAddBusy={quickAdd.busy.value}
       navigate={navigate}

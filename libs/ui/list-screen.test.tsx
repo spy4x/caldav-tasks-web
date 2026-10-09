@@ -181,3 +181,17 @@ Deno.test("while loading the list shows a skeleton and no controls", () => {
   expect(html).not.toContain(`list-controls`)
   expect(html).not.toContain(`No tasks yet`)
 })
+
+Deno.test("rows can be dragged in manual order only", async () => {
+  const handles = (root: ParentNode) => root.querySelectorAll(`[data-sortable-handle]`).length
+  await mount(
+    <ListScreen {...props({ onReorder: () => {} })} />,
+    async ({ root, rerender }) => {
+      expect(handles(root)).toBe(4)
+      await rerender(<ListScreen {...props({ onReorder: () => {}, sort: SortMode.Due })} />)
+      expect(handles(root)).toBe(0)
+      await rerender(<ListScreen {...props({ onReorder: () => {}, sort: SortMode.Title })} />)
+      expect(handles(root)).toBe(0)
+    },
+  )
+})

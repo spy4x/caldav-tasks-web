@@ -58,6 +58,7 @@ async function mount(
     HTMLAnchorElement: globalThis.HTMLAnchorElement,
     Element: globalThis.Element,
     FormData: globalThis.FormData,
+    getComputedStyle: globalThis.getComputedStyle,
   }
   Object.assign(globalThis, {
     // `EnhancedForm` reads `new FormData(form)`, which Deno's own class refuses for a happy-dom form.
@@ -65,6 +66,8 @@ async function mount(
     document: window.document,
     HTMLAnchorElement: window.HTMLAnchorElement,
     Element: window.Element,
+    // preact-ui's modal scroll lock reads it as a global.
+    getComputedStyle: window.getComputedStyle.bind(window),
   })
   // `UnsavedGuard` reads the page's address from the `location` global, which Deno does not have.
   const ownLocation = Object.getOwnPropertyDescriptor(globalThis, "location")

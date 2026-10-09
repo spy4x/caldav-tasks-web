@@ -16,12 +16,12 @@ test("a task changed on the server shows up on a visible page with no reload or 
   await signIn(page)
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
-  await expect(page.getByRole(`button`, { name: `Live errand` })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Live errand`, exact: true })).toBeVisible()
 
   await retitleOnServer(list.taskUrl, `Changed elsewhere`)
 
-  await expect(page.getByRole(`button`, { name: `Changed elsewhere` })).toBeVisible({
+  await expect(page.getByRole(`button`, { name: `Changed elsewhere`, exact: true })).toBeVisible({
     timeout: 45_000,
   })
-  await expect(page.getByRole(`button`, { name: `Live errand` })).toHaveCount(0)
+  await expect(page.getByRole(`button`, { name: `Live errand`, exact: true })).toHaveCount(0)
 })

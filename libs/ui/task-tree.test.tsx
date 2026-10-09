@@ -89,3 +89,82 @@ Deno.test("collapsing a task leaves the other tasks' state alone", async () => {
     expect(titles(root)).toEqual([`Paint the room`, `Buy paint`, `Tape the edges`, `Fix the door`])
   })
 })
+
+type Reorder = [string, string[], number]
+const reorderTree = (calls: Reorder[]) => (
+  <TaskTree
+    label="Tasks"
+    nodes={buildTree(TASKS, `UTC`)}
+    zone="UTC"
+    now={NOW}
+    onComplete={() => {}}
+    onOpen={() => {}}
+    onReorder={(task, siblings, to) => calls.push([task.uid, siblings.map((s) => s.uid), to])}
+  />
+)
+
+Deno.test("without onReorder the rows have no drag handle", async () => {
+  await mount(tree(), async ({ root }) => {
+    expect(root.querySelectorAll(`[data-sortable-handle]`)).toHaveLength(0)
+  })
+})
+
+Deno.test("with onReorder every row has a handle named after its task, subtasks included", async () => {
+  await mount(reorderTree([]), async ({ root }) => {
+    const names = [...root.querySelectorAll(`[data-sortable-handle]`)].map((handle) =>
+      handle.getAttribute(`aria-label`)
+    )
+    expect(names).toEqual([
+      `Reorder Paint the room`,
+      `Reorder Buy paint`,
+      `Reorder Check the shade`,
+      `Reorder Tape the edges`,
+      `Reorder Fix the door`,
+    ])
+    expect(titles(root)).toHaveLength(5)
+  })
+})
+
+async function pressKeys(
+  { act, window }: { act: (action: () => void) => Promise<void>; window: { KeyboardEvent: never } },
+  handle: Element,
+  keys: string[],
+) {
+  for (const key of keys) {
+    await act(() => {
+      handle.dispatchEvent(
+        new (window.KeyboardEvent as typeof KeyboardEvent)(`keydown`, { key, bubbles: true }),
+      )
+    })
+  }
+}
+
+Deno.test("moving a top-level task with the keyboard reports it among the top-level tasks", async () => {
+  const calls: Reorder[] = []
+  await mount(reorderTree(calls), async (m) => {
+    const handle = must(m.root, `[data-task-uid="o"]`).closest(`li`)!.querySelector(
+      `[data-sortable-handle]`,
+    )!
+    await pressKeys(m as never, handle, [` `, `ArrowUp`, ` `])
+    expect(calls).toEqual([[`o`, [`p`, `o`], 0]])
+  })
+})
+
+Deno.test("moving a subtask reports only its siblings, never the parent's level", async () => {
+  const calls: Reorder[] = []
+  await mount(reorderTree(calls), async (m) => {
+    const handle = must(m.root, `[data-task-uid="c2"]`).closest(`li`)!.querySelector(
+      `[data-sortable-handle]`,
+    )!
+    await pressKeys(m as never, handle, [` `, `ArrowUp`, ` `])
+    expect(calls).toEqual([[`c2`, [`c1`, `c2`], 0]])
+  })
+})
+
+Deno.test("a collapsed task hides its subtasks' handles too", async () => {
+  const calls: Reorder[] = []
+  await mount(reorderTree(calls), async ({ root, act }) => {
+    await act(() => must<HTMLButtonElement>(root, `[data-e2e="task-expand"]`).click())
+    expect(root.querySelectorAll(`[data-sortable-handle]`)).toHaveLength(2)
+  })
+})
