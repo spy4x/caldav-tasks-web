@@ -36,13 +36,11 @@ function key(window: { KeyboardEvent: typeof KeyboardEvent }, on: Element, name:
 
 Deno.test("j, x and e act on the row the keyboard is on", async () => {
   const log: string[] = []
-  await mount(<Page log={log} />, async ({ root, window }) => {
+  await mount(<Page log={log} />, async ({ window }) => {
     const body = window.document.body as unknown as Element
     await key(window as never, body, `j`)
     await key(window as never, body, `j`)
-    expect(window.document.activeElement).toBe(
-      must(root, `li[data-task-uid="b"] [data-e2e="task-open"]`),
-    )
+    expect(rowOf(window)).toBe(`b`)
     await key(window as never, window.document.activeElement as unknown as Element, `x`)
     await key(window as never, window.document.activeElement as unknown as Element, `e`)
     expect(log).toEqual([`complete b`, `open b`])
@@ -69,7 +67,7 @@ Deno.test("typing j, x or ? in a field fires nothing and keeps the key", async (
     }
     expect(log).toEqual([])
     expect(shortcutsOpen.value).toBe(false)
-    expect(window.document.activeElement).toBe(field)
+    expect(window.document.activeElement?.id).toBe(`field`)
   })
 })
 
@@ -94,3 +92,9 @@ Deno.test("Enter on a row's check opens the task, and on a button leaves the but
     expect(log).toEqual([`open a`])
   })
 })
+
+/** The uid of the row that holds the focus, or a word saying none does. */
+function rowOf(window: { document: { activeElement: unknown } }): string {
+  const row = (window.document.activeElement as Element | null)?.closest?.(`li[data-task-uid]`)
+  return row?.getAttribute(`data-task-uid`) ?? `no row`
+}

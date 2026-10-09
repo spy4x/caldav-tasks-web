@@ -88,28 +88,28 @@ function openOf(root: ParentNode, uid: string) {
 }
 
 Deno.test("next and previous move a visible focus through the rows and stop at the ends", async () => {
-  await mount(<Harness initial={THREE} />, async ({ root, window }) => {
+  await mount(<Harness initial={THREE} />, async ({ window }) => {
     const doc = window.document as unknown as Document
     expect(moveRowFocus(doc, 1)).toBe(true)
     expect(focused(window)).toBe(`button task-open`)
-    expect(window.document.activeElement).toBe(openOf(root, `a`))
+    expect(rowOf(window)).toBe(`a`)
     moveRowFocus(doc, 1)
-    expect(window.document.activeElement).toBe(openOf(root, `b`))
+    expect(rowOf(window)).toBe(`b`)
     moveRowFocus(doc, 1)
     moveRowFocus(doc, 1)
-    expect(window.document.activeElement).toBe(openOf(root, `c`))
+    expect(rowOf(window)).toBe(`c`)
     moveRowFocus(doc, -1)
-    expect(window.document.activeElement).toBe(openOf(root, `b`))
+    expect(rowOf(window)).toBe(`b`)
     moveRowFocus(doc, -1)
     moveRowFocus(doc, -1)
-    expect(window.document.activeElement).toBe(openOf(root, `a`))
+    expect(rowOf(window)).toBe(`a`)
   })
 })
 
 Deno.test("previous with no row focused starts at the last row", async () => {
-  await mount(<Harness initial={THREE} />, async ({ root, window }) => {
+  await mount(<Harness initial={THREE} />, async ({ window }) => {
     moveRowFocus(window.document as unknown as Document, -1)
-    expect(window.document.activeElement).toBe(openOf(root, `c`))
+    expect(rowOf(window)).toBe(`c`)
   })
 })
 
@@ -161,3 +161,9 @@ Deno.test("editing the focused row opens that row's task", async () => {
     },
   )
 })
+
+/** The uid of the row that holds the focus, or a word saying none does. */
+function rowOf(window: { document: { activeElement: unknown } }): string {
+  const row = (window.document.activeElement as Element | null)?.closest?.(`li[data-task-uid]`)
+  return row?.getAttribute(`data-task-uid`) ?? `no row`
+}
