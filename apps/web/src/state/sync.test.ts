@@ -13,6 +13,7 @@ import {
   lastSyncedAt,
   loadCache,
   loadCompleted,
+  POLL_INTERVAL_MS,
   refresh,
   runnerState,
   startSync,
@@ -191,6 +192,41 @@ Deno.test(`sync refreshes on start, when the page is shown again and when the ne
     stop()
     expect(listeners.size).toBe(0)
     expect(connection.size).toBe(0)
+  })
+})
+
+Deno.test(`sync asks the server again every 30 seconds while the page is visible`, async () => {
+  await withApp(async (server) => {
+    seedList(server)
+    const delays: number[] = []
+    const realSetTimeout = globalThis.setTimeout
+    globalThis.setTimeout = ((callback: () => void, ms?: number, ...rest: unknown[]) => {
+      delays.push(ms ?? 0)
+      return realSetTimeout(callback, ms, ...rest)
+    }) as typeof setTimeout
+    const stop = startSync({
+      document: {
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        visibilityState: `visible`,
+      },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }, {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })
+    try {
+      for (let waited = 0; !lastSyncedAt.value && waited < 200; waited++) {
+        await new Promise((resolve) => realSetTimeout(resolve, 5))
+      }
+      expect(lastSyncedAt.value).not.toBeNull()
+      expect(POLL_INTERVAL_MS).toBe(30_000)
+      expect(delays).toContain(30_000)
+    } finally {
+      globalThis.setTimeout = realSetTimeout
+      stop()
+    }
   })
 })
 

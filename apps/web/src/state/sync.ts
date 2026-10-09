@@ -19,6 +19,12 @@ import { getOutbox, loadOutbox } from "./outbox.ts"
 import { watchPersistence } from "./persistence.ts"
 import { setCachedTasks } from "./task-store.ts"
 
+/**
+ * How long a visible, online page waits after a refresh before asking the server again, so a change
+ * made in another client appears without a reload or a focus change.
+ */
+export const POLL_INTERVAL_MS = 30_000
+
 /** True while a refresh is running. */
 export const syncing = signal(false)
 
@@ -132,6 +138,7 @@ export function startSync(
   const sendQueue = flushOutbox(getOutbox())
   const own = createSyncRunner({
     target,
+    pollIntervalMs: POLL_INTERVAL_MS,
     flush: async () => {
       const result = await sendQueue()
       // A server that could not be reached for the queue cannot answer a refresh either.
