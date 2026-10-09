@@ -1,12 +1,10 @@
 import { signal } from "@preact/signals"
 import {
-  type Hotkey,
-  type HotkeyEvent,
-  isTypingTarget,
-  matchesHotkey,
-  parseHotkey,
-  type TypingTarget,
+  createHotkeyMatcher,
+  type HotkeyBinding,
+  type HotkeySequenceEvent,
 } from "@spy4x/platform/browser/hotkeys"
+import type { Shortcut } from "@spy4x/preact-ui/shortcuts-dialog"
 
 /** What a shortcut does. */
 export enum ShortcutId {
@@ -50,7 +48,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   },
   {
     id: ShortcutId.EditTask,
-    description: `Edit the focused task`,
+    description: `Edit the focused task (Enter works too)`,
     group: `Tasks`,
     keys: [[`e`], [`enter`]],
   },
@@ -64,82 +62,42 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
 /** Whether the shortcuts dialog is open. The `?` key and the Settings button set it. */
 export const shortcutsOpen = signal(false)
 
-/** A key press as the matcher reads it. A `KeyboardEvent` is one. */
-export interface ShortcutPress extends HotkeyEvent {
-  target: (TypingTarget & { closest?(selector: string): unknown }) | null
-  /** When it happened, in milliseconds. `KeyboardEvent.timeStamp` serves. */
-  timeStamp: number
-  isComposing?: boolean
-}
-
-interface Way {
-  id: ShortcutId
-  combos: Hotkey[]
-}
-
-interface Progress {
-  way: Way
-  /** How many presses of the sequence have matched. */
-  matched: number
-}
-
 /** Elements that count as a dialog: no shortcut fires inside one. */
 const DIALOG = `dialog, [role='dialog'], [role='alertdialog']`
 
+/** A key press as the matcher reads it. A `KeyboardEvent` is one. */
+export type ShortcutPress = HotkeySequenceEvent
+
 /**
- * Builds the matcher for a table. Call the result with each key press: it returns the shortcut the
- * press completes, or `undefined`. It keeps the first key of a two-key sequence for `timeoutMs`;
- * any other key, or a late one, drops it.
- *
- * A press while typing (`isTypingTarget`), inside a dialog or while composing text never matches, and
- * it cancels a waiting first key. A key with Control, Alt or Meta held is not a match (`matchesHotkey`).
+ * Builds the matcher for a table: call it with each key press and it returns the shortcut the
+ * press completes, or `undefined`. It is `createHotkeyMatcher` over the table, with presses inside
+ * a dialog ignored.
  *
  * @param table The shortcuts, in priority order.
  * @param options `timeoutMs` is the wait for a second key; `apple` says whether `mod` is Command.
- * @throws {Error} When a combination in the table cannot be read.
  */
 export function createShortcutMatcher(
   table: readonly ShortcutDef[] = SHORTCUTS,
-  { timeoutMs = SEQUENCE_TIMEOUT_MS, apple = false }: { timeoutMs?: number; apple?: boolean } = {},
+  options: { timeoutMs?: number; apple?: boolean } = {},
 ): (press: ShortcutPress) => ShortcutId | undefined {
-  const ways: Way[] = table.flatMap((def) =>
-    def.keys.map((keys) => ({ id: def.id, combos: keys.map((combo) => parseHotkey(combo)) }))
+  const bindings: HotkeyBinding<ShortcutId>[] = table.flatMap((def) =>
+    def.keys.map((keys) => ({ id: def.id, keys }))
   )
-  let waiting: { progress: Progress[]; at: number } | null = null
-
-  const step = (candidates: readonly Progress[], press: ShortcutPress): Progress[] =>
-    candidates.filter(({ way, matched }) => matchesHotkey(way.combos[matched], press, apple))
-      .map(({ way, matched }) => ({ way, matched: matched + 1 }))
-
-  return (press) => {
-    const blocked = press.isComposing === true || isTypingTarget(press.target) ||
-      press.target?.closest?.(DIALOG) != null
-    if (blocked) {
-      waiting = null
-      return undefined
-    }
-    const fresh = ways.map((way) => ({ way, matched: 0 }))
-    const live = waiting && press.timeStamp - waiting.at <= timeoutMs ? waiting.progress : null
-    waiting = null
-    // A key that does not continue the waiting sequence starts over, so `g g t` still reaches `g t`.
-    let advanced = live ? step(live, press) : []
-    if (advanced.length === 0) advanced = step(fresh, press)
-    const done = advanced.find(({ way, matched }) => matched === way.combos.length)
-    if (done) return done.way.id
-    if (advanced.length > 0) waiting = { progress: advanced, at: press.timeStamp }
-    return undefined
-  }
+  return createHotkeyMatcher(bindings, {
+    ...options,
+    ignore: (press) => (press.target as Element | null)?.closest?.(DIALOG) != null,
+  })
 }
 
-/** One row of the `?` dialog. */
-export interface ShortcutListing {
-  description: string
-  group: string
-  /** The ways to trigger it; each is the keys to press in order. */
-  keys: readonly (readonly string[])[]
-}
-
-/** The table as the dialog lists it. */
-export function listShortcuts(table: readonly ShortcutDef[] = SHORTCUTS): ShortcutListing[] {
-  return table.map(({ description, group, keys }) => ({ description, group, keys }))
+/**
+ * The table as `ShortcutsDialog` lists it: one row per shortcut, a sequence written with a space
+ * (`"g t"`). Only the first way to trigger a shortcut is drawn, and a second way is named in the
+ * description.
+ */
+export function listShortcuts(table: readonly ShortcutDef[] = SHORTCUTS): Shortcut[] {
+  return table.map(({ description, group, keys }) => ({
+    keys: keys[0].join(` `),
+    description,
+    group,
+  }))
 }

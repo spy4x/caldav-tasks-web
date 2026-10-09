@@ -7,7 +7,7 @@ import { AppFrame } from "@ui/frame.tsx"
 import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
 import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
-import { ShortcutsHelp } from "@ui/shortcuts.tsx"
+import { ShortcutsDialog } from "@spy4x/preact-ui/shortcuts-dialog"
 import { useShortcuts } from "./views/use-shortcuts.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
@@ -76,7 +76,7 @@ function SignedInApp() {
         <Route path={ROUTES.settings} component={SettingsView} />
         <Route component={NotFoundView} />
       </Switch>
-      <ShortcutsHelp
+      <ShortcutsDialog
         open={shortcutsOpen.value}
         onClose={() => shortcutsOpen.value = false}
         shortcuts={SHORTCUT_ROWS}

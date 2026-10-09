@@ -75,15 +75,15 @@
     "hono": "jsr:@hono/hono@4.13.8",
     "arktype": "npm:arktype@2.2.3",
 
-    // spy4x/preact-components 3.14.0. Every package is published at one version together, so all
+    // spy4x/preact-components 3.15.0. Every package is published at one version together, so all
     // five move in one change. They take preact and the signals packages as caret ranges, so the
     // versions below are the one copy that loads. wouter-preact must stay on the version they pin,
     // or two copies load.
-    "@spy4x/preact-icons": "jsr:@spy4x/preact-icons@3.14.0",
-    "@spy4x/preact-signals": "jsr:@spy4x/preact-signals@3.14.0",
-    "@spy4x/preact-system": "jsr:@spy4x/preact-system@3.14.0",
-    "@spy4x/preact-theme": "jsr:@spy4x/preact-theme@3.14.0",
-    "@spy4x/preact-ui": "jsr:@spy4x/preact-ui@3.14.0",
+    "@spy4x/preact-icons": "jsr:@spy4x/preact-icons@3.15.0",
+    "@spy4x/preact-signals": "jsr:@spy4x/preact-signals@3.15.0",
+    "@spy4x/preact-system": "jsr:@spy4x/preact-system@3.15.0",
+    "@spy4x/preact-theme": "jsr:@spy4x/preact-theme@3.15.0",
+    "@spy4x/preact-ui": "jsr:@spy4x/preact-ui@3.15.0",
     "preact": "npm:preact@10.29.8",
     "wouter-preact": "npm:wouter-preact@3.9.0",
     "@preact/signals": "npm:@preact/signals@2.5.1",

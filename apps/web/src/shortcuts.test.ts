@@ -128,3 +128,10 @@ Deno.test("the matcher and the dialog read the same table", () => {
     expect(ids.has(id as ShortcutId)).toBe(true)
   }
 })
+
+Deno.test("the dialog draws a sequence as keys joined by a space and a single key as itself", () => {
+  const keys = new Map(listShortcuts().map((row) => [row.description, row.keys]))
+  expect(keys.get(`Go to Upcoming`)).toBe(`g u`)
+  expect(keys.get(`Show keyboard shortcuts`)).toBe(`?`)
+  expect(keys.get(`New task`)).toBe(`n`)
+})
