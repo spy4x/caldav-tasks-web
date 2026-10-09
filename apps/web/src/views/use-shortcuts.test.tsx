@@ -11,11 +11,20 @@ const NOW = new Date(`2026-10-08T09:00:00Z`)
 const TASKS = [makeTask(`a`, `Alpha`), makeTask(`b`, `Bravo`)]
 
 /** The app's shortcuts over two rows and a text field, with the log of what they did. */
-function Page({ log }: { log: string[] }) {
-  useShortcuts((to) => log.push(`go ${to}`))
+function Page(
+  { log, path = `/`, quickAdd = false, search = false }: {
+    log: string[]
+    path?: string
+    quickAdd?: boolean
+    search?: boolean
+  },
+) {
+  useShortcuts((to) => log.push(`go ${to}`), path)
   return (
     <div>
       <input id="field" type="text" />
+      {quickAdd && <input data-e2e="quick-add-input" type="text" />}
+      {search && <input data-e2e="search-input" type="search" value="foo" />}
       <TaskTree
         label="Tasks"
         nodes={flatNodes(TASKS)}
@@ -41,6 +50,9 @@ Deno.test("j, x and e act on the row the keyboard is on", async () => {
     await key(window as never, body, `j`)
     await key(window as never, body, `j`)
     expect(rowOf(window)).toBe(`b`)
+    await key(window as never, window.document.activeElement as unknown as Element, `k`)
+    expect(rowOf(window)).toBe(`a`)
+    await key(window as never, window.document.activeElement as unknown as Element, `j`)
     await key(window as never, window.document.activeElement as unknown as Element, `x`)
     await key(window as never, window.document.activeElement as unknown as Element, `e`)
     expect(log).toEqual([`complete b`, `open b`])
@@ -98,3 +110,48 @@ function rowOf(window: { document: { activeElement: unknown } }): string {
   const row = (window.document.activeElement as Element | null)?.closest?.(`li[data-task-uid]`)
   return row?.getAttribute(`data-task-uid`) ?? `no row`
 }
+
+Deno.test("n focuses the quick add on the same key press and keeps the key from typing", async () => {
+  await mount(<Page log={[]} quickAdd />, async ({ window }) => {
+    const kept = await key(window as never, window.document.body as never, `n`)
+    expect(kept).toBe(false)
+    expect(window.document.activeElement?.getAttribute(`data-e2e`)).toBe(`quick-add-input`)
+  })
+})
+
+Deno.test("n on a page without a quick add goes to Today and focuses the field when it appears", async () => {
+  const log: string[] = []
+  await mount(<Page log={log} />, async ({ window, rerender }) => {
+    await key(window as never, window.document.body as never, `n`)
+    expect(log).toEqual([`go /`])
+    await rerender(<Page log={log} quickAdd />)
+    await act(() => new Promise((done) => setTimeout(done, 10)))
+    expect(window.document.activeElement?.getAttribute(`data-e2e`)).toBe(`quick-add-input`)
+  })
+})
+
+Deno.test("/ on the search page focuses the field and keeps the query and the address", async () => {
+  const log: string[] = []
+  await mount(<Page log={log} path="/search" search />, async ({ root, window }) => {
+    await key(window as never, window.document.body as never, `/`)
+    expect(log).toEqual([])
+    expect(window.document.activeElement?.getAttribute(`data-e2e`)).toBe(`search-input`)
+    expect(must<HTMLInputElement>(root, `[data-e2e="search-input"]`).value).toBe(`foo`)
+  })
+})
+
+Deno.test("in the task editor g t, g u, g l, n and / do nothing but ? still opens the list", async () => {
+  const log: string[] = []
+  shortcutsOpen.value = false
+  await mount(<Page log={log} path="/tasks/abc" quickAdd />, async ({ window }) => {
+    const body = window.document.body as never
+    for (const name of [`g`, `t`, `g`, `u`, `g`, `l`, `n`, `/`]) {
+      expect(await key(window as never, body, name)).toBe(true)
+    }
+    expect(log).toEqual([])
+    expect(window.document.activeElement).toBe(window.document.body)
+    await key(window as never, body, `?`)
+    expect(shortcutsOpen.value).toBe(true)
+  })
+  shortcutsOpen.value = false
+})

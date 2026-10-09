@@ -69,24 +69,35 @@ const DIALOG = `dialog, [role='dialog'], [role='alertdialog']`
 export type ShortcutPress = HotkeySequenceEvent
 
 /**
- * Builds the matcher for a table: call it with each key press and it returns the shortcut the
- * press completes, or `undefined`. It is `createHotkeyMatcher` over the table, with presses inside
- * a dialog ignored.
- *
- * @param table The shortcuts, in priority order.
- * @param options `timeoutMs` is the wait for a second key; `apple` says whether `mod` is Command.
+ * The matcher for the table: call it with each key press and it returns the shortcut the press
+ * completes, or `undefined`. It is `createHotkeyMatcher` over `SHORTCUTS`, with presses inside a
+ * dialog ignored.
  */
-export function createShortcutMatcher(
-  table: readonly ShortcutDef[] = SHORTCUTS,
-  options: { timeoutMs?: number; apple?: boolean } = {},
-): (press: ShortcutPress) => ShortcutId | undefined {
-  const bindings: HotkeyBinding<ShortcutId>[] = table.flatMap((def) =>
+export function createShortcutMatcher(): (press: ShortcutPress) => ShortcutId | undefined {
+  const bindings: HotkeyBinding<ShortcutId>[] = SHORTCUTS.flatMap((def) =>
     def.keys.map((keys) => ({ id: def.id, keys }))
   )
   return createHotkeyMatcher(bindings, {
-    ...options,
+    timeoutMs: SEQUENCE_TIMEOUT_MS,
     ignore: (press) => (press.target as Element | null)?.closest?.(DIALOG) != null,
   })
+}
+
+/** The shortcuts that leave the page: in the task editor they could drop an unsaved edit. */
+const LEAVES_THE_PAGE: ReadonlySet<ShortcutId> = new Set([
+  ShortcutId.NewTask,
+  ShortcutId.Search,
+  ShortcutId.GoToday,
+  ShortcutId.GoUpcoming,
+  ShortcutId.GoLists,
+])
+
+/**
+ * Whether a shortcut may run on a page. The task editor (`/tasks/...`) turns off the ones that
+ * navigate away, because the sidebar's unsaved-changes guard does not cover them; `?` stays.
+ */
+export function shortcutAllowed(id: ShortcutId, path: string): boolean {
+  return !(path.startsWith(`/tasks/`) && LEAVES_THE_PAGE.has(id))
 }
 
 /**
@@ -94,8 +105,8 @@ export function createShortcutMatcher(
  * (`"g t"`). Only the first way to trigger a shortcut is drawn, and a second way is named in the
  * description.
  */
-export function listShortcuts(table: readonly ShortcutDef[] = SHORTCUTS): Shortcut[] {
-  return table.map(({ description, group, keys }) => ({
+export function listShortcuts(): Shortcut[] {
+  return SHORTCUTS.map(({ description, group, keys }) => ({
     keys: keys[0].join(` `),
     description,
     group,

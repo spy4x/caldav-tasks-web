@@ -4,6 +4,7 @@ import {
   createShortcutMatcher,
   listShortcuts,
   SEQUENCE_TIMEOUT_MS,
+  shortcutAllowed,
   ShortcutId,
   type ShortcutPress,
   SHORTCUTS,
@@ -134,4 +135,38 @@ Deno.test("the dialog draws a sequence as keys joined by a space and a single ke
   expect(keys.get(`Go to Upcoming`)).toBe(`g u`)
   expect(keys.get(`Show keyboard shortcuts`)).toBe(`?`)
   expect(keys.get(`New task`)).toBe(`n`)
+})
+
+Deno.test("each dialog row shows exactly the keys that trigger its shortcut", () => {
+  const rows = listShortcuts()
+  expect(rows).toHaveLength(SHORTCUTS.length)
+  SHORTCUTS.forEach((def, at) => {
+    const match = createShortcutMatcher()
+    clock = 1000
+    const fired = rows[at].keys.split(` `).map((key) => {
+      clock += 100
+      return match(press(key === `enter` ? `Enter` : key))
+    })
+    expect(fired.at(-1)).toBe(def.id)
+    expect(fired.slice(0, -1).every((id) => id === undefined)).toBe(true)
+    // It is the first way of the table, the one the description does not already name.
+    expect(rows[at].keys).toBe(def.keys[0].join(` `))
+  })
+})
+
+Deno.test("the task editor turns off the shortcuts that leave it and keeps the rest", () => {
+  for (
+    const id of [
+      ShortcutId.NewTask,
+      ShortcutId.Search,
+      ShortcutId.GoToday,
+      ShortcutId.GoUpcoming,
+      ShortcutId.GoLists,
+    ]
+  ) {
+    expect(shortcutAllowed(id, `/tasks/abc`)).toBe(false)
+    expect(shortcutAllowed(id, `/lists`)).toBe(true)
+  }
+  expect(shortcutAllowed(ShortcutId.Help, `/tasks/abc`)).toBe(true)
+  expect(shortcutAllowed(ShortcutId.NextTask, `/tasks/abc`)).toBe(true)
 })

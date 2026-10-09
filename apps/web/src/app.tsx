@@ -55,7 +55,7 @@ function Gate() {
 function SignedInApp() {
   const [location, navigate] = useLocation()
   useEffect(() => startSync(), [])
-  useShortcuts(navigate)
+  useShortcuts(navigate, location)
   return (
     <AppFrame currentPath={location} navigate={navigate}>
       {notice.value && (

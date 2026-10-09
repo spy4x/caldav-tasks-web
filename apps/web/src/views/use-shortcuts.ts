@@ -1,19 +1,28 @@
-import { useEffect, useMemo } from "preact/hooks"
+import { useEffect, useMemo, useRef } from "preact/hooks"
 import { PATHS } from "@ui/frame.tsx"
 import { completeFocusedRow, editFocusedRow, moveRowFocus } from "@ui/task-focus.tsx"
-import { createShortcutMatcher, ShortcutId, shortcutsOpen } from "../shortcuts.ts"
+import { createShortcutMatcher, shortcutAllowed, ShortcutId, shortcutsOpen } from "../shortcuts.ts"
 
 const QUICK_ADD = `[data-e2e="quick-add-input"]`
 const SEARCH = `[data-e2e="search-input"]`
 
 /**
- * Focuses the first element a selector finds, waiting for the page to draw it. It stops at the
- * first hit, so it never takes the focus back from where the person has moved on.
+ * Focuses the first element a selector finds, now if it is there, else the moment the page draws
+ * it (a mutation observer runs before the next key press can arrive). Gives up after two seconds,
+ * and never takes the focus back from where the person has moved on.
  */
-function focusSoon(selector: string, tries = 10): void {
-  const field = document.querySelector<HTMLElement>(selector)
-  if (field) field.focus()
-  else if (tries > 0) setTimeout(() => focusSoon(selector, tries - 1), 30)
+function focusWhenThere(selector: string): void {
+  const now = document.querySelector<HTMLElement>(selector)
+  if (now) return now.focus()
+  const watcher = new (document.defaultView?.MutationObserver ?? MutationObserver)(() => {
+    const field = document.querySelector<HTMLElement>(selector)
+    if (!field) return
+    watcher.disconnect()
+    clearTimeout(giveUp)
+    field.focus()
+  })
+  const giveUp = setTimeout(() => watcher.disconnect(), 2000)
+  watcher.observe(document.body, { childList: true, subtree: true })
 }
 
 /**
@@ -22,9 +31,12 @@ function focusSoon(selector: string, tries = 10): void {
  * and `e` or Enter to edit the focused row, `?` for the list. See `shortcuts.ts` for the table.
  *
  * @param navigate Moves the router to an address.
+ * @param path The address now showing; the task editor turns off the shortcuts that leave it.
  */
-export function useShortcuts(navigate: (to: string) => void): void {
+export function useShortcuts(navigate: (to: string) => void, path: string): void {
   const match = useMemo(() => createShortcutMatcher(), [])
+  const here = useRef(path)
+  here.current = path
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return
@@ -40,22 +52,20 @@ export function useShortcuts(navigate: (to: string) => void): void {
         timeStamp: event.timeStamp,
         isComposing: event.isComposing,
       })
-      if (id === undefined) return
+      if (id === undefined || !shortcutAllowed(id, here.current)) return
       const target = event.target as Element | null
       // Enter already presses a focused button; it only needs help on a row's check.
       if (event.key === `Enter` && !target?.matches?.(`input[data-task-check]`)) return
       event.preventDefault()
       switch (id) {
         case ShortcutId.NewTask:
-          if (document.querySelector(QUICK_ADD)) focusSoon(QUICK_ADD)
-          else {
-            navigate(PATHS.today)
-            focusSoon(QUICK_ADD)
-          }
+          if (!document.querySelector(QUICK_ADD)) navigate(PATHS.today)
+          focusWhenThere(QUICK_ADD)
           break
         case ShortcutId.Search:
-          navigate(PATHS.search)
-          focusSoon(SEARCH)
+          // On the search page the field is there: keep the query, only move the focus.
+          if (!document.querySelector(SEARCH)) navigate(PATHS.search)
+          focusWhenThere(SEARCH)
           break
         case ShortcutId.GoToday:
           navigate(PATHS.today)

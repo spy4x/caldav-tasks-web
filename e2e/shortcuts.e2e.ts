@@ -62,3 +62,24 @@ test("Settings opens the shortcuts list", async ({ page }) => {
   await page.getByTestId(`show-shortcuts`).click()
   await expect(page.getByRole(`dialog`, { name: `Keyboard shortcuts` })).toBeVisible()
 })
+
+test("n on Lists focuses the new-task field in time for the first letter", async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/lists`)
+  await expect(pageTitle(page)).toHaveText(`Lists`)
+  await page.keyboard.press(`n`)
+  // No wait for the field: a person starts typing right away.
+  await page.keyboard.type(`hello`, { delay: 100 })
+  await expect(page.getByTestId(`quick-add-input`)).toHaveValue(`hello`)
+})
+
+test("/ on a search with a query keeps the query", async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/search?q=foo`)
+  await expect(page.getByTestId(`search-input`)).toHaveValue(`foo`)
+  await page.getByRole(`heading`).first().click()
+  await page.keyboard.press(`/`)
+  await expect(page.getByTestId(`search-input`)).toBeFocused()
+  await expect(page.getByTestId(`search-input`)).toHaveValue(`foo`)
+  await expect(page).toHaveURL(/q=foo/)
+})
