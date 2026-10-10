@@ -1,5 +1,6 @@
 import type { InstallPromptStore } from "@spy4x/preact-signals/install-prompt"
 import { InstallPrompt } from "@spy4x/preact-system/install-prompt"
+import { focusMain } from "./focus-main.ts"
 import { install } from "../state/install.ts"
 
 /**
@@ -13,6 +14,7 @@ export function InstallOffer({ store = install }: { store?: InstallPromptStore }
       mode={store.visible.value ? store.mode.value : `unavailable`}
       onInstall={() => store.install()}
       onDismiss={() => store.dismiss()}
+      returnFocus={focusMain}
       class="mx-auto mt-4 w-[calc(100%-2rem)] max-w-3xl sm:w-[calc(100%-3rem)]"
     />
   )

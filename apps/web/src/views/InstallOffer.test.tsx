@@ -1,18 +1,10 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
+import { memoryStorage } from "@spy4x/platform/browser/storage"
 import { must } from "@ui/mount.test.tsx"
 import { createAppInstall } from "../state/install.ts"
 import { onPage } from "./on-page.test.tsx"
 import { InstallOffer } from "./InstallOffer.tsx"
-
-/** A browser storage in memory, shared by the "reloads" of one test. */
-function memoryStorage() {
-  const data = new Map<string, string>()
-  return {
-    getItem: (key: string) => data.get(key) ?? null,
-    setItem: (key: string, value: string) => void data.set(key, value),
-  }
-}
 
 /** A fake window that can fire `beforeinstallprompt`, and what the install dialog was asked. */
 function fakeBrowser(outcome: `accepted` | `dismissed` = `accepted`) {
@@ -80,16 +72,28 @@ Deno.test("Not now hides the offer and it stays hidden after a reload", async ()
   })
 })
 
-Deno.test("the offer is a named section whose Install and Not now are real buttons", async () => {
-  const browser = fakeBrowser()
-  const store = createAppInstall(memoryStorage(), { target: browser.target, matchMedia: null })
-  store.watch()
-  await onPage(<InstallOffer store={store} />, async ({ root, act }) => {
-    await act(() => browser.offer())
-    const buttons = [...root.querySelectorAll(`button`)]
-    expect(buttons.map((b) => b.textContent)).toEqual([`Install`, `Not now`])
-    for (const button of buttons) expect((button as HTMLButtonElement).tabIndex).toBeGreaterThan(-1)
-  })
+Deno.test("Not now and an accepted Install move focus to the page's main, not the body", async () => {
+  for (const label of [`Not now`, `Install`]) {
+    const browser = fakeBrowser()
+    const store = createAppInstall(memoryStorage(), { target: browser.target, matchMedia: null })
+    store.watch()
+    await onPage(
+      <>
+        <InstallOffer store={store} />
+        <main tabIndex={-1}>Page</main>
+      </>,
+      async ({ root, act, window }) => {
+        await act(() => browser.offer())
+        const button = [...root.querySelectorAll(`button`)].find((b) => b.textContent === label)!
+        ;(button as HTMLButtonElement).focus()
+        await act(() => (button as HTMLButtonElement).click())
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        await act(() => {})
+        expect(offered(root)).toBe(false)
+        expect(window.document.activeElement?.tagName, label).toBe(`MAIN`)
+      },
+    )
+  }
 })
 
 Deno.test("on an iPhone the offer explains Add to Home Screen instead of showing Install", async () => {
@@ -122,6 +126,9 @@ Deno.test("a storage that throws still lets the offer be dismissed for this visi
       throw new Error(`blocked`)
     },
     setItem: () => {
+      throw new Error(`blocked`)
+    },
+    removeItem: () => {
       throw new Error(`blocked`)
     },
   }
