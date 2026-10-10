@@ -107,6 +107,24 @@ Deno.test("saves a subscription, and saving the same endpoint again keeps one en
   expect(await endpoints()).toEqual([ENDPOINT, "https://push.example.com/device-2"])
 })
 
+Deno.test("logs a save the data folder refused as the error's class name, with no path or endpoint", async () => {
+  const { save, store } = await pushSetup()
+  store.save = () => {
+    const error = new Error(`open '/data/push.json' for ${ENDPOINT}`)
+    error.name = "PermissionDenied"
+    return Promise.reject(error)
+  }
+  const lines: string[] = []
+  const own = console.error
+  console.error = (...args: unknown[]) => void lines.push(args.join(" "))
+  try {
+    expect((await save(ENDPOINT)).status).toBe(500)
+  } finally {
+    console.error = own
+  }
+  expect(lines).toEqual(["push: PUT failed: PermissionDenied"])
+})
+
 Deno.test("refuses a subscription body that is not the library's subscribe request", async () => {
   const { send, endpoints } = await pushSetup()
   const good = await subscribeBody(ENDPOINT)

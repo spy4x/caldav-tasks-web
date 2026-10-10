@@ -11,7 +11,7 @@ import type { Type } from "arktype"
 import { ApiErrorCode } from "@api/errors.ts"
 import { PUSH_MAX_REQUEST_BYTES, pushDeviceId, type PushKey } from "@api/push.ts"
 import { readRequest, refuse } from "../caldav/http.ts"
-import { OWNER } from "./reminders.ts"
+import { nameOf, OWNER } from "./reminders.ts"
 import type { Push } from "./start.ts"
 
 /** What the test notification says. */
@@ -61,6 +61,11 @@ export function createPushRoutes(push: Push | null, options: PushRoutesOptions =
     if (body.deviceId !== await pushDeviceId(endpoint)) {
       return refuse(c, 400, "The device name does not belong to the subscription")
     }
+    // The check has two limits. A host name is resolved here and again when the push is sent, so
+    // a name that answers with a public address now and a private one then gets past it; Deno's
+    // `--deny-net` cannot close that, because the CalDAV server is usually on a private address.
+    // And any port of a public host is accepted, as Web Push allows. Either way a signed-in
+    // owner gets one encrypted POST and learns only whether it was taken.
     try {
       await validatePublicUrl(endpoint, { resolver: options.resolver, allowHttp: false })
     } catch (error) {
@@ -113,7 +118,9 @@ export function createPushRoutes(push: Push | null, options: PushRoutesOptions =
   })
 
   routes.onError((error, c) => {
-    const detail = error instanceof PushFileStoreError ? error.code : "unexpected"
+    // The store's code or the error's class, such as `PermissionDenied` for a data folder the
+    // process may not write: enough to find the cause, and never a path, an endpoint or a key.
+    const detail = error instanceof PushFileStoreError ? error.code : nameOf(error)
     console.error(`push: ${c.req.method} failed: ${detail}`)
     return c.json({ code: ApiErrorCode.PushFailed, message: "Notifications failed" }, 500)
   })
