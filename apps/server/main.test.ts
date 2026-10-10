@@ -117,7 +117,7 @@ Deno.test("starts the reminder runner, which reads the tasks at once, when the p
   }
 })
 
-Deno.test("starts with notifications off and one line, leaving the file alone, when push.json is damaged", async () => {
+Deno.test("starts with notifications off and one line when push.json is damaged", async () => {
   const dataDir = await Deno.makeTempDir()
   const file = `${dataDir}/push.json`
   await Deno.writeTextFile(file, "{ not json")

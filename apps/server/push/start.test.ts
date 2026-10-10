@@ -21,7 +21,7 @@ Deno.test("the start check refuses a data folder that takes no new file, naming 
   await expect(check).rejects.toThrow(/^DATA_DIR cannot be read and written \(PermissionDenied\)$/)
 })
 
-Deno.test("the start check refuses a damaged subscription file and does not write it", async () => {
+Deno.test("the start check refuses a damaged subscription file, naming the store's code", async () => {
   const fs = memoryFileSystem()
   fs.files.set(`/data/${PUSH_FILE}`, "{ not json")
   const check = checkPushState(fs, "/data", createPushStore(fs, "/data"))
