@@ -4,7 +4,6 @@ import {
   createShortcutMatcher,
   listShortcuts,
   SEQUENCE_TIMEOUT_MS,
-  shortcutAllowed,
   ShortcutId,
   type ShortcutPress,
   SHORTCUTS,
@@ -152,21 +151,4 @@ Deno.test("each dialog row shows exactly the keys that trigger its shortcut", ()
     // It is the first way of the table, the one the description does not already name.
     expect(rows[at].keys).toBe(def.keys[0].join(` `))
   })
-})
-
-Deno.test("the task editor turns off the shortcuts that leave it and keeps the rest", () => {
-  for (
-    const id of [
-      ShortcutId.NewTask,
-      ShortcutId.Search,
-      ShortcutId.GoToday,
-      ShortcutId.GoUpcoming,
-      ShortcutId.GoLists,
-    ]
-  ) {
-    expect(shortcutAllowed(id, `/tasks/abc`)).toBe(false)
-    expect(shortcutAllowed(id, `/lists`)).toBe(true)
-  }
-  expect(shortcutAllowed(ShortcutId.Help, `/tasks/abc`)).toBe(true)
-  expect(shortcutAllowed(ShortcutId.NextTask, `/tasks/abc`)).toBe(true)
 })

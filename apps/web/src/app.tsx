@@ -1,5 +1,5 @@
 import "./app.css"
-import { useEffect } from "preact/hooks"
+import { useCallback, useEffect } from "preact/hooks"
 import { Redirect, Route, Switch, useLocation, useSearch } from "wouter-preact"
 import { Notice } from "@spy4x/preact-ui/notice"
 import { Toastr } from "@spy4x/preact-ui/toastr"
@@ -8,6 +8,7 @@ import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
 import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
 import { ShortcutsDialog } from "@spy4x/preact-ui/shortcuts-dialog"
+import { leaveGuard } from "./leave-guard.ts"
 import { useShortcuts } from "./views/use-shortcuts.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
@@ -56,9 +57,10 @@ function Gate() {
 function SignedInApp() {
   const [location, navigate] = useLocation()
   useEffect(() => startSync(), [])
-  useShortcuts(navigate, location)
+  const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
+  useShortcuts(navigate)
   return (
-    <AppFrame currentPath={location} navigate={navigate}>
+    <AppFrame currentPath={location} navigate={guarded}>
       {notice.value && (
         <div class="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
           <Notice tone="warning">{notice.value}</Notice>

@@ -83,23 +83,6 @@ export function createShortcutMatcher(): (press: ShortcutPress) => ShortcutId | 
   })
 }
 
-/** The shortcuts that leave the page: in the task editor they could drop an unsaved edit. */
-const LEAVES_THE_PAGE: ReadonlySet<ShortcutId> = new Set([
-  ShortcutId.NewTask,
-  ShortcutId.Search,
-  ShortcutId.GoToday,
-  ShortcutId.GoUpcoming,
-  ShortcutId.GoLists,
-])
-
-/**
- * Whether a shortcut may run on a page. The task editor (`/tasks/...`) turns off the ones that
- * navigate away, because the sidebar's unsaved-changes guard does not cover them; `?` stays.
- */
-export function shortcutAllowed(id: ShortcutId, path: string): boolean {
-  return !(path.startsWith(`/tasks/`) && LEAVES_THE_PAGE.has(id))
-}
-
 /**
  * The table as `ShortcutsDialog` lists it: one row per shortcut, a sequence written with a space
  * (`"g t"`). Only the first way to trigger a shortcut is drawn, and a second way is named in the

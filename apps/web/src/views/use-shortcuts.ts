@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from "preact/hooks"
+import { useEffect, useMemo } from "preact/hooks"
 import { PATHS } from "@ui/frame.tsx"
 import { completeFocusedRow, editFocusedRow, moveRowFocus } from "@ui/task-focus.tsx"
-import { createShortcutMatcher, shortcutAllowed, ShortcutId, shortcutsOpen } from "../shortcuts.ts"
+import { leaveGuard } from "../leave-guard.ts"
+import { createShortcutMatcher, ShortcutId, shortcutsOpen } from "../shortcuts.ts"
 
 const QUICK_ADD = `[data-e2e="quick-add-input"]`
 const SEARCH = `[data-e2e="search-input"]`
@@ -14,13 +15,13 @@ let stopWaiting = () => {}
  * it (a mutation observer runs before the next key press can arrive). One watcher waits at a time:
  * a newer shortcut replaces it. It stops once the field is there or after two seconds. It focuses
  * the field only while the focus is still where the key was pressed, or nowhere, so it never takes
- * the focus from where the person has moved on.
+ * the focus from where the person has moved on. `pressedOn` is that element; pass it when the
+ * call runs later than the key press, such as after the leave question.
  */
-function focusWhenThere(selector: string): void {
+function focusWhenThere(selector: string, pressedOn = document.activeElement): void {
   stopWaiting()
   const now = document.querySelector<HTMLElement>(selector)
   if (now) return now.focus()
-  const pressedOn = document.activeElement
   const watcher = new (document.defaultView?.MutationObserver ?? MutationObserver)(() => {
     const field = document.querySelector<HTMLElement>(selector)
     if (!field) return
@@ -42,13 +43,11 @@ function focusWhenThere(selector: string): void {
  * `g l` to go to Today, Upcoming and Lists, `j` and `k` to move through task rows, `x` to complete
  * and `e` or Enter to edit the focused row, `?` for the list. See `shortcuts.ts` for the table.
  *
- * @param navigate Moves the router to an address.
- * @param path The address now showing; the task editor turns off the shortcuts that leave it.
+ * @param navigate Moves the router to an address. The shortcuts that leave the page go through the
+ *   leave guard first, so the task editor asks before it drops unsaved changes.
  */
-export function useShortcuts(navigate: (to: string) => void, path: string): void {
+export function useShortcuts(navigate: (to: string) => void): void {
   const match = useMemo(() => createShortcutMatcher(), [])
-  const here = useRef(path)
-  here.current = path
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return
@@ -64,29 +63,41 @@ export function useShortcuts(navigate: (to: string) => void, path: string): void
         timeStamp: event.timeStamp,
         isComposing: event.isComposing,
       })
-      if (id === undefined || !shortcutAllowed(id, here.current)) return
+      if (id === undefined) return
       const target = event.target as Element | null
       // Enter already presses a focused button; it only needs help on a row's check.
       if (event.key === `Enter` && !target?.matches?.(`input[data-task-check]`)) return
       event.preventDefault()
       switch (id) {
         case ShortcutId.NewTask:
-          if (!document.querySelector(QUICK_ADD)) navigate(PATHS.today)
-          focusWhenThere(QUICK_ADD)
+          if (document.querySelector(QUICK_ADD)) focusWhenThere(QUICK_ADD)
+          else {
+            const pressedOn = document.activeElement
+            leaveGuard.navigate(() => {
+              navigate(PATHS.today)
+              focusWhenThere(QUICK_ADD, pressedOn)
+            })
+          }
           break
         case ShortcutId.Search:
           // On the search page the field is there: keep the query, only move the focus.
-          if (!document.querySelector(SEARCH)) navigate(PATHS.search)
-          focusWhenThere(SEARCH)
+          if (document.querySelector(SEARCH)) focusWhenThere(SEARCH)
+          else {
+            const pressedOn = document.activeElement
+            leaveGuard.navigate(() => {
+              navigate(PATHS.search)
+              focusWhenThere(SEARCH, pressedOn)
+            })
+          }
           break
         case ShortcutId.GoToday:
-          navigate(PATHS.today)
+          leaveGuard.navigate(() => navigate(PATHS.today))
           break
         case ShortcutId.GoUpcoming:
-          navigate(PATHS.upcoming)
+          leaveGuard.navigate(() => navigate(PATHS.upcoming))
           break
         case ShortcutId.GoLists:
-          navigate(PATHS.lists)
+          leaveGuard.navigate(() => navigate(PATHS.lists))
           break
         case ShortcutId.NextTask:
           moveRowFocus(document, 1)

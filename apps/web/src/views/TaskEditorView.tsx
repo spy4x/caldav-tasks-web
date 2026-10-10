@@ -2,6 +2,7 @@ import { useSignal } from "@preact/signals"
 import { useLocation, useParams } from "wouter-preact"
 import { LoadingBody } from "@ui/task-screen.tsx"
 import { type TaskDraft, type TaskEditorErrors, TaskEditorScreen } from "@ui/task-editor-screen.tsx"
+import { leaveGuard } from "../leave-guard.ts"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { allTags, taskLists } from "../state/task-lists.ts"
 import {
@@ -99,6 +100,7 @@ export function TaskEditorView() {
       }}
       deleting={deleting.value}
       navigate={navigate}
+      leaveGuard={leaveGuard}
       backHref={backHref}
     />
   )
