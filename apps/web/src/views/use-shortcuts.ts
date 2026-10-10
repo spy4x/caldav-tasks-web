@@ -15,13 +15,13 @@ let stopWaiting = () => {}
  * it (a mutation observer runs before the next key press can arrive). One watcher waits at a time:
  * a newer shortcut replaces it. It stops once the field is there or after two seconds. It focuses
  * the field only while the focus is still where the key was pressed, or nowhere, so it never takes
- * the focus from where the person has moved on.
+ * the focus from where the person has moved on. `pressedOn` is that element; pass it when the
+ * call runs later than the key press, such as after the leave question.
  */
-function focusWhenThere(selector: string): void {
+function focusWhenThere(selector: string, pressedOn = document.activeElement): void {
   stopWaiting()
   const now = document.querySelector<HTMLElement>(selector)
   if (now) return now.focus()
-  const pressedOn = document.activeElement
   const watcher = new (document.defaultView?.MutationObserver ?? MutationObserver)(() => {
     const field = document.querySelector<HTMLElement>(selector)
     if (!field) return
@@ -72,9 +72,10 @@ export function useShortcuts(navigate: (to: string) => void): void {
         case ShortcutId.NewTask:
           if (document.querySelector(QUICK_ADD)) focusWhenThere(QUICK_ADD)
           else {
+            const pressedOn = document.activeElement
             leaveGuard.navigate(() => {
               navigate(PATHS.today)
-              focusWhenThere(QUICK_ADD)
+              focusWhenThere(QUICK_ADD, pressedOn)
             })
           }
           break
@@ -82,9 +83,10 @@ export function useShortcuts(navigate: (to: string) => void): void {
           // On the search page the field is there: keep the query, only move the focus.
           if (document.querySelector(SEARCH)) focusWhenThere(SEARCH)
           else {
+            const pressedOn = document.activeElement
             leaveGuard.navigate(() => {
               navigate(PATHS.search)
-              focusWhenThere(SEARCH)
+              focusWhenThere(SEARCH, pressedOn)
             })
           }
           break

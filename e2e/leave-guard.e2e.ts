@@ -30,16 +30,32 @@ async function editTitle(page: Page, text: string) {
 
 const question = (page: Page) => page.getByRole(`alertdialog`, { name: `Leave without saving?` })
 
+interface Way {
+  name: string
+  go: (page: Page) => Promise<void>
+  title: string
+  /** The `data-e2e` of the field the shortcut must leave focused. */
+  field?: string
+}
+
 for (
-  const way of [
+  const way of <Way[]> [
     {
       name: `a sidebar button`,
-      go: (page: Page) => page.getByRole(`button`, { name: `Lists`, exact: true }).click(),
+      go: (page) => page.getByRole(`button`, { name: `Lists`, exact: true }).click(),
       title: `Lists`,
     },
     {
+      name: `g t`,
+      go: async (page) => {
+        await page.keyboard.press(`g`)
+        await page.keyboard.press(`t`)
+      },
+      title: `Today`,
+    },
+    {
       name: `g l`,
-      go: async (page: Page) => {
+      go: async (page) => {
         await page.keyboard.press(`g`)
         await page.keyboard.press(`l`)
       },
@@ -47,7 +63,7 @@ for (
     },
     {
       name: `g u`,
-      go: async (page: Page) => {
+      go: async (page) => {
         await page.keyboard.press(`g`)
         await page.keyboard.press(`u`)
       },
@@ -55,13 +71,15 @@ for (
     },
     {
       name: `n`,
-      go: (page: Page) => page.keyboard.press(`n`),
+      go: (page) => page.keyboard.press(`n`),
       title: `Today`,
+      field: `quick-add-input`,
     },
     {
       name: `/`,
-      go: (page: Page) => page.keyboard.press(`/`),
+      go: (page) => page.keyboard.press(`/`),
       title: `Search`,
+      field: `search-input`,
     },
   ]
 ) {
@@ -71,7 +89,7 @@ for (
 
     await way.go(page)
     await expect(question(page)).toBeVisible()
-    await question(page).getByRole(`button`, { name: `Stay` }).last().click()
+    await question(page).getByTestId(`confirm-dialog-cancel`).click()
     await expect(question(page)).toBeHidden()
     await expect(page).toHaveURL(/\/tasks\//)
     await expect(title).toHaveValue(`Changed but not saved`)
@@ -80,6 +98,8 @@ for (
     await question(page).getByRole(`button`, { name: `Leave` }).click()
     await expect(page).not.toHaveURL(/\/tasks\//)
     await expect(pageTitle(page)).toHaveText(way.title)
+    // The shortcut exists to put the cursor in its field: the next letters belong there.
+    if (way.field) await expect(page.getByTestId(way.field)).toBeFocused()
   })
 
   test(`${way.name} leaves the editor at once when nothing is unsaved`, async ({ page }) => {
@@ -98,7 +118,7 @@ test(`Cancel, a link, asks before leaving with unsaved changes: Stay keeps the t
 
   await page.getByTestId(`task-cancel`).click()
   await expect(question(page)).toBeVisible()
-  await question(page).getByRole(`button`, { name: `Stay` }).last().click()
+  await question(page).getByTestId(`confirm-dialog-cancel`).click()
   await expect(page).toHaveURL(/\/tasks\//)
   await expect(title).toHaveValue(`Changed but not saved`)
 
