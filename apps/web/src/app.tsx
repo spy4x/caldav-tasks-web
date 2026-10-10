@@ -12,6 +12,7 @@ import { useShortcuts } from "./views/use-shortcuts.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
 import { toasts } from "./state/toasts.ts"
+import { InstallOffer } from "./views/InstallOffer.tsx"
 import { SyncBar } from "./views/SyncBar.tsx"
 import { ListsView } from "./views/ListsView.tsx"
 import { ListView } from "./views/ListView.tsx"
@@ -64,6 +65,7 @@ function SignedInApp() {
         </div>
       )}
       <SyncBar />
+      <InstallOffer />
       <Switch>
         <Route path={ROUTES.today} component={TodayView} />
         <Route path={ROUTES.upcoming} component={UpcomingView} />
