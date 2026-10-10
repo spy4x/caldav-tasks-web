@@ -93,7 +93,6 @@
     "fake-indexeddb": "npm:fake-indexeddb@6.2.5",
 
     "@std/path": "jsr:@std/path@1.1.6",
-    "@std/fs": "jsr:@std/fs@1.0.24",
     "@std/expect": "jsr:@std/expect@1.0.17",
     "@playwright/test": "npm:@playwright/test@1.57.0"
     // #endregion Dependencies

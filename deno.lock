@@ -34,12 +34,10 @@
     "jsr:@std/crypto@1.1.0": "1.1.0",
     "jsr:@std/encoding@1.0.11": "1.0.11",
     "jsr:@std/expect@1.0.17": "1.0.17",
-    "jsr:@std/fs@1.0.24": "1.0.24",
     "jsr:@std/internal@^1.0.10": "1.0.14",
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@std/internal@^1.0.14": "1.0.14",
     "jsr:@std/path@1.1.6": "1.1.6",
-    "jsr:@std/path@^1.1.5": "1.1.6",
     "jsr:@std/semver@1.0.8": "1.0.8",
     "jsr:@std/ulid@1.0.0": "1.0.0",
     "npm:@deno/vite-plugin@1.0.6": "1.0.6_vite@7.3.6",
@@ -114,7 +112,7 @@
       "dependencies": [
         "jsr:@spy4x/time@^1.59.0",
         "jsr:@spy4x/validation@^1.59.0",
-        "jsr:@std/path@1.1.6"
+        "jsr:@std/path"
       ]
     },
     "@spy4x/platform@1.60.0": {
@@ -127,7 +125,7 @@
         "jsr:@spy4x/validation@^1.60.0",
         "jsr:@std/crypto",
         "jsr:@std/encoding",
-        "jsr:@std/path@1.1.6",
+        "jsr:@std/path",
         "jsr:@std/ulid",
         "npm:arktype"
       ]
@@ -174,7 +172,7 @@
       "integrity": "2c14d785d0421be4ea7bce0b693198863516b73c5d1b166649b911f6ee62cdfa",
       "dependencies": [
         "jsr:@spy4x/platform@1.59.0",
-        "jsr:@std/path@1.1.6",
+        "jsr:@std/path",
         "jsr:@std/semver"
       ]
     },
@@ -212,7 +210,7 @@
         "jsr:@spy4x/validation@^1.60.0",
         "jsr:@std/crypto",
         "jsr:@std/encoding",
-        "jsr:@std/path@1.1.6",
+        "jsr:@std/path",
         "npm:arktype",
         "npm:postgres"
       ]
@@ -252,13 +250,6 @@
       "dependencies": [
         "jsr:@std/assert",
         "jsr:@std/internal@^1.0.10"
-      ]
-    },
-    "@std/fs@1.0.24": {
-      "integrity": "f3061b45b81673a2bece689da041df32d174be064c89eb6397fb5718d3fb7877",
-      "dependencies": [
-        "jsr:@std/internal@^1.0.14",
-        "jsr:@std/path@^1.1.5"
       ]
     },
     "@std/internal@1.0.14": {
@@ -1490,7 +1481,6 @@
       "jsr:@spy4x/server@1.60.0",
       "jsr:@spy4x/time@1.60.0",
       "jsr:@std/expect@1.0.17",
-      "jsr:@std/fs@1.0.24",
       "jsr:@std/path@1.1.6",
       "npm:@playwright/test@1.57.0",
       "npm:@preact/signals-core@1.12.1",

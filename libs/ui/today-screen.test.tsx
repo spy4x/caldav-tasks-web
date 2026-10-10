@@ -122,3 +122,42 @@ Deno.test("the page has one h1, and the groups are headed h2", () => {
   expect(html.match(/<h1/g)).toHaveLength(1)
   expect(html.match(/<h2/g)).toHaveLength(2)
 })
+
+Deno.test("quick add on Today carries the app's wording, not the library's", async () => {
+  await mount(<TodayScreen {...props()} />, async ({ root, window, act }) => {
+    const input = must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`)
+    expect(input.getAttribute(`aria-label`)).toBe(`New task`)
+    expect(input.placeholder).toBe(`Add a task`)
+    expect(must(root, `[data-e2e="quick-add-submit"]`).textContent).toBe(`Add task`)
+    input.value = `#work !high`
+    await act(() => must<HTMLFormElement>(root, `[data-e2e="quick-add"]`).requestSubmit())
+    expect(must(root, `[data-e2e="quick-add-live"]`).textContent).toContain(
+      `Add a title to create the task`,
+    )
+    expect(window.document.activeElement).toBe(input)
+  })
+})
+
+Deno.test("quick add on Today reads the line in the viewer's zone", async () => {
+  const dues: string[] = []
+  for (const zone of [`Pacific/Kiritimati`, `Pacific/Pago_Pago`]) {
+    await mount(
+      <TodayScreen
+        {...props({ zone, onQuickAdd: (parsed) => dues.push(JSON.stringify(parsed.due)) })}
+      />,
+      async ({ root, act }) => {
+        must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`).value = `Call mum today`
+        await act(() => must<HTMLFormElement>(root, `[data-e2e="quick-add"]`).requestSubmit())
+      },
+    )
+  }
+  expect(dues).toHaveLength(2)
+  expect(dues[0]).not.toBe(dues[1])
+})
+
+Deno.test("quick add on Today is held while a send is in flight", async () => {
+  await mount(<TodayScreen {...props({ quickAddBusy: true })} />, async ({ root }) => {
+    expect(must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`).readOnly).toBe(true)
+    expect(must<HTMLButtonElement>(root, `[data-e2e="quick-add-submit"]`).disabled).toBe(true)
+  })
+})
