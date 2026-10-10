@@ -64,14 +64,18 @@
     // #endregion Aliases
 
     // #region Dependencies
-    // spy4x/ts-libs 1.60.0. Every package moves together. preact-components pins its own ts-libs
+    // spy4x/ts-libs 1.61.0. Every package moves together. preact-components pins its own ts-libs
     // version, so a second copy of @spy4x/time and @spy4x/platform may load next to this one. hono and arktype must stay on the exact
     // versions these packages were published with, or two copies load and their types stop matching.
-    "@spy4x/platform": "jsr:@spy4x/platform@1.60.0",
-    "@spy4x/server": "jsr:@spy4x/server@1.60.0",
-    "@spy4x/time": "jsr:@spy4x/time@1.60.0",
-    "@spy4x/caldav": "jsr:@spy4x/caldav@1.60.0",
-    "@spy4x/realtime": "jsr:@spy4x/realtime@1.60.0",
+    "@spy4x/platform": "jsr:@spy4x/platform@1.61.0",
+    "@spy4x/server": "jsr:@spy4x/server@1.61.0",
+    "@spy4x/time": "jsr:@spy4x/time@1.61.0",
+    "@spy4x/caldav": "jsr:@spy4x/caldav@1.61.0",
+    "@spy4x/realtime": "jsr:@spy4x/realtime@1.61.0",
+    // Web Push: the sender, the subscription file store and the reminder glue.
+    "@spy4x/integrations": "jsr:@spy4x/integrations@1.61.0",
+    // The public-address check for a push endpoint the browser sends.
+    "@spy4x/net": "jsr:@spy4x/net@1.61.0",
     "hono": "jsr:@hono/hono@4.13.8",
     "arktype": "npm:arktype@2.2.3",
 
@@ -93,6 +97,8 @@
     "fake-indexeddb": "npm:fake-indexeddb@6.2.5",
 
     "@std/path": "jsr:@std/path@1.1.6",
+    // base64url for the VAPID keys in the environment.
+    "@std/encoding": "jsr:@std/encoding@1.0.11",
     "@std/expect": "jsr:@std/expect@1.0.17",
     "@playwright/test": "npm:@playwright/test@1.57.0",
     // The npm name of `@spy4x/preact-system`, for playwright.config.ts: Playwright loads the config
