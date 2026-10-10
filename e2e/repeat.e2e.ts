@@ -11,16 +11,20 @@ test.beforeEach(async () => {
 test.afterEach(async () => await deleteList(list))
 
 test("a repeat on Monday and Thursday, ten times, survives a reload and is written for Tasks.org", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
   await signIn(page)
   await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
 
   await page.getByLabel(`Repeat`, { exact: true }).selectOption({ label: `Weekly` })
-  const days = page.getByRole(`group`, { name: `Repeat on` })
+  const days = page.getByRole(`group`, { name: `Days of the week` })
   await days.getByRole(`button`, { name: `Thu` }).click()
   await days.getByRole(`button`, { name: `Mon` }).click()
   await page.getByLabel(`Ends`).selectOption({ label: `After a number of times` })
   await page.getByLabel(`Times`).fill(`10`)
   await expect(days.getByRole(`button`, { pressed: true })).toHaveText([`Mon`, `Thu`])
+  // Days, end and count fit a phone: nothing makes the page scroll sideways.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true)
   await page.getByTestId(`task-save`).click()
   await expect(page).toHaveURL(/\/lists\//)
 
@@ -32,7 +36,7 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
   await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
   await expect(page.getByLabel(`Repeat`, { exact: true })).toHaveValue(`2`)
   await expect(
-    page.getByRole(`group`, { name: `Repeat on` }).getByRole(`button`, {
+    page.getByRole(`group`, { name: `Days of the week` }).getByRole(`button`, {
       pressed: true,
     }),
   ).toHaveText([`Mon`, `Thu`])
@@ -42,7 +46,8 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
   // The end moves to a date: the count goes, the days stay, and the day buttons work from the keyboard.
   await page.getByLabel(`Ends`).selectOption({ label: `On a date` })
   await page.getByLabel(`End date`).fill(`2030-12-01`)
-  await page.getByRole(`group`, { name: `Repeat on` }).getByRole(`button`, { name: `Fri` }).focus()
+  await page.getByRole(`group`, { name: `Days of the week` }).getByRole(`button`, { name: `Fri` })
+    .focus()
   await page.keyboard.press(`Space`)
   await page.getByTestId(`task-save`).click()
   await expect(page).toHaveURL(/\/lists\//)

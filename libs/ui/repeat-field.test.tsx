@@ -60,13 +60,13 @@ const typeInto = (act: Act, root: ParentNode, name: string, value: string) =>
   fire(act, input(root, name), `input`, (el) => ((el as HTMLInputElement).value = value))
 const press = (act: Act, element: HTMLElement) => act(() => element.click())
 const chip = (root: ParentNode, label: string) =>
-  [...root.querySelectorAll(`[aria-label="Repeat on"] button`)].find((b) =>
+  [...root.querySelectorAll(`[aria-label="Days of the week"] button`)].find((b) =>
     b.textContent === label
   ) as HTMLElement
 const pressedDays = (root: ParentNode) =>
-  [...root.querySelectorAll(`[aria-label="Repeat on"] button[aria-pressed="true"]`)].map((b) =>
-    b.textContent
-  )
+  [...root.querySelectorAll(`[aria-label="Days of the week"] button[aria-pressed="true"]`)].map((
+    b,
+  ) => b.textContent)
 
 Deno.test("choosing weekly and then Monday and Thursday writes them as BYDAY", async () => {
   const host: Host = { emitted: [] }
@@ -99,7 +99,7 @@ Deno.test("the day toggles exist only for a weekly rule, are buttons that say wh
   await mount(
     <Controlled initial="FREQ=WEEKLY;INTERVAL=1;BYDAY=TU" host={host} />,
     async ({ root, act }) => {
-      const buttons = [...root.querySelectorAll(`[aria-label="Repeat on"] button`)]
+      const buttons = [...root.querySelectorAll(`[aria-label="Days of the week"] button`)]
       expect(buttons.map((b) => b.textContent)).toEqual([
         `Mon`,
         `Tue`,
@@ -119,7 +119,7 @@ Deno.test("the day toggles exist only for a weekly rule, are buttons that say wh
         `false`,
       ])
       await choose(act, root, `r-freq`, `1`)
-      expect(root.querySelector(`[aria-label="Repeat on"]`)).toBeNull()
+      expect(root.querySelector(`[aria-label="Days of the week"]`)).toBeNull()
       expect(last(host)).toBe(`FREQ=DAILY;INTERVAL=1`)
     },
   )
@@ -251,7 +251,7 @@ Deno.test("a rule with a month day, an ordinal, a daily weekday list or another 
     await mount(<Controlled initial={rule} host={host} />, ({ root }) => {
       expect(input(root, `r-freq`).value).toBe(`custom`)
       expect(root.querySelector(`[data-e2e="r-end"]`)).toBeNull()
-      expect(root.querySelector(`[aria-label="Repeat on"]`)).toBeNull()
+      expect(root.querySelector(`[aria-label="Days of the week"]`)).toBeNull()
       expect(host.emitted).toEqual([])
       return Promise.resolve()
     })
@@ -286,7 +286,7 @@ Deno.test("every control has a name and a disabled field disables them all", () 
   for (const label of [`Repeat`, `Every \\(weeks\\)`, `Ends`, `Times`]) {
     expect(html).toMatch(new RegExp(`<label[^>]*for="r-[a-z]+"[^>]*>${label}`))
   }
-  expect(html).toContain(`aria-label="Repeat on"`)
+  expect(html).toContain(`aria-label="Days of the week"`)
   const controls = html.match(/<(button|input|select)\b[^>]*>/g)!
   expect(controls.length).toBeGreaterThanOrEqual(12)
   for (const control of controls) expect(control).toContain(`disabled`)

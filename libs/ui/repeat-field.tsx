@@ -272,7 +272,7 @@ export function RepeatField(
       {plain?.freq === RruleFreq.Weekly && (
         <div class="flex flex-wrap items-center gap-2" data-e2e={`${id}-days`}>
           <ToggleChips
-            label="Repeat on"
+            label="Days of the week"
             options={DAY_OPTIONS.map((option) => ({ ...option, disabled }))}
             value={days}
             onChange={(next) =>
