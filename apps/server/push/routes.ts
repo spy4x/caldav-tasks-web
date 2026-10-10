@@ -61,7 +61,6 @@ export function createPushRoutes(push: Push | null, options: PushRoutesOptions =
     if (body.deviceId !== await pushDeviceId(endpoint)) {
       return refuse(c, 400, "The device name does not belong to the subscription")
     }
-    if (!endpoint.startsWith("https://")) return refuse(c, 400, NOT_A_PUSH_SERVICE)
     try {
       await validatePublicUrl(endpoint, { resolver: options.resolver, allowHttp: false })
     } catch (error) {

@@ -1,11 +1,9 @@
 import type { PushSendResult, WebPushSender } from "@spy4x/integrations/push"
-import {
-  createFilePushSubscriptionStore,
-  type FilePushSubscriptionStore,
-} from "@spy4x/integrations/push-file-store"
+import type { FilePushSubscriptionStore } from "@spy4x/integrations/push-file-store"
 import type { PushNotificationMessage, PushSubscriptionJson } from "@spy4x/platform/model"
 import type { FileSystemPort } from "@spy4x/platform/server/ports"
 import { pushDeviceId } from "@api/push.ts"
+import { createPushStore } from "./start.ts"
 
 /** A file system in memory, with the calls the subscription store makes. */
 export function memoryFileSystem(): FileSystemPort & { files: Map<string, string> } {
@@ -35,7 +33,7 @@ export function memoryFileSystem(): FileSystemPort & { files: Map<string, string
 
 /** The real subscription store over a file system in memory. */
 export function memoryStore(): FilePushSubscriptionStore {
-  return createFilePushSubscriptionStore({ fs: memoryFileSystem(), path: "/data/push.json" })
+  return createPushStore(memoryFileSystem(), "/data")
 }
 
 /** A sender that records what it was asked to push and answers with `result`. */

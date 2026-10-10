@@ -5,6 +5,7 @@ import {
   type FilePushSubscriptionStore,
 } from "@spy4x/integrations/push-file-store"
 import { denoFileSystem } from "@spy4x/platform/server/deno-fs"
+import type { FileSystemPort } from "@spy4x/platform/server/ports"
 import type { ReminderRunner } from "@spy4x/platform/server/reminder-runner"
 import type { Config, PushConfig } from "../config.ts"
 import { vapidKeysFromText } from "./keys.ts"
@@ -29,6 +30,17 @@ export interface PushRuntime {
 }
 
 /**
+ * The owner's subscriptions in `push.json` of `dataDir`, with the library's cap on how many
+ * devices one person keeps.
+ */
+export function createPushStore(fs: FileSystemPort, dataDir: string): FilePushSubscriptionStore {
+  return createFilePushSubscriptionStore({
+    fs,
+    path: `${dataDir.replace(/\/+$/, "")}/${PUSH_FILE}`,
+  })
+}
+
+/**
  * Builds reminder notifications from the configuration: the subscription file in `DATA_DIR`, the
  * Web Push sender and the reminder runner over the same CalDAV account the relay uses.
  *
@@ -42,10 +54,7 @@ export async function createPush(config: Config, pushConfig: PushConfig): Promis
     pushConfig.VAPID_PUBLIC_KEY,
     pushConfig.VAPID_PRIVATE_KEY,
   )
-  const store = createFilePushSubscriptionStore({
-    fs: denoFileSystem,
-    path: `${pushConfig.DATA_DIR.replace(/\/+$/, "")}/${PUSH_FILE}`,
-  })
+  const store = createPushStore(denoFileSystem, pushConfig.DATA_DIR)
   await store.listByUser(OWNER)
   const sender = await createWebPushSender({
     vapidKeys,
