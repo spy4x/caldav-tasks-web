@@ -1,8 +1,7 @@
 import { computed, signal } from "@preact/signals"
 import type { Type } from "arktype"
-import { type } from "arktype"
 import { createOnlineStatus } from "@spy4x/preact-signals/online"
-import { apiFetch } from "@spy4x/platform/api"
+import { createOfflineFetch, INVALID_REPLY_CODE } from "@spy4x/platform/api"
 import { ApiErrorCode } from "@api/errors.ts"
 
 /** What went wrong with the CalDAV server behind the relay, when the relay itself answered. */
@@ -29,8 +28,12 @@ export const OFFLINE_NOTICE = `Offline: showing your last copy, changes will syn
  */
 export const connection = createOnlineStatus()
 
-/** Whether the last request to the app server got no answer at all. */
-const requestFailed = signal(false)
+/** Sends the requests and knows whether the last one got no answer at all. */
+const api = createOfflineFetch()
+
+/** Whether the last request to the app server got no answer at all, as a signal. */
+const requestFailed = signal(api.requestFailed)
+api.subscribe((failed) => requestFailed.value = failed)
 
 /** The CalDAV server's state as the last answer from the relay reported it, or `null` when fine. */
 export const serverProblem = signal<ServerProblem | null>(null)
@@ -60,7 +63,8 @@ export const notice = computed<string | null>(() => {
 export function resetConnection(): void {
   // Reads `navigator.onLine` again, which is online where there is none (Deno).
   connection.watch(null)()
-  requestFailed.value = false
+  // Through the wrapper, which owns the flag: setting the signal alone would leave it set there.
+  api.report(false)
   serverProblem.value = null
 }
 
@@ -102,28 +106,24 @@ export async function relay<T>(
   request: RelayRequest = {},
   schema?: Type<T>,
 ): Promise<RelayResult<T>> {
-  let result
-  try {
-    result = await apiFetch<unknown>(path, {
-      method: request.method ?? `GET`,
-      credentials: `same-origin`,
-      body: request.body === undefined ? undefined : JSON.stringify(request.body),
-    })
-  } catch {
-    requestFailed.value = true
-    return { ok: false, status: 0, code: null, message: OFFLINE_NOTICE, offline: true }
-  }
-  requestFailed.value = false
+  const result = await api.fetch(path, {
+    method: request.method ?? `GET`,
+    credentials: `same-origin`,
+    body: request.body === undefined ? undefined : JSON.stringify(request.body),
+  }, schema)
   if (result.ok) {
     serverProblem.value = null
-    if (!schema) return { ok: true, status: result.status, data: undefined as T }
-    const parsed = schema(result.data)
-    if (parsed instanceof type.errors) {
-      return fail(result.status, ApiErrorCode.CalDavFailed, `The server sent an unusable reply.`)
-    }
-    return { ok: true, status: result.status, data: parsed as T }
+    return { ok: true, status: result.status, data: (schema ? result.data : undefined) as T }
+  }
+  if (result.offline) {
+    return { ok: false, status: 0, code: null, message: OFFLINE_NOTICE, offline: true }
   }
   const { status, error } = result
+  // A success body that fails its schema. A server may send this code itself, hence the status.
+  if (error.code === INVALID_REPLY_CODE && status < 300) {
+    serverProblem.value = null
+    return fail(status, ApiErrorCode.CalDavFailed, `The server sent an unusable reply.`)
+  }
   // An answer without a code from the contract (a proxy's error page) has no message to trust.
   if (!error.code || !ERROR_CODES.has(error.code)) {
     return fail(status, null, `The request failed (${status}).`)
