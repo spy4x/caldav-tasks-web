@@ -2,7 +2,14 @@
 import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { CALDAV_PATHS, calendarListSchema } from "@api/caldav.ts"
-import { notice, OFFLINE_NOTICE, relay, serverProblem, ServerProblemKind } from "./connection.ts"
+import {
+  notice,
+  OFFLINE_NOTICE,
+  relay,
+  resetConnection,
+  serverProblem,
+  ServerProblemKind,
+} from "./connection.ts"
 import { ApiErrorCode } from "@api/errors.ts"
 import { error, setBrowserOnline, withApp } from "./testing.ts"
 
@@ -55,7 +62,56 @@ Deno.test(`a success body that does not match the schema is a failure, not data`
   await withApp(async (server) => {
     server.next = Response.json({ calendars: `nope` })
     const result = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
-    expect(result.ok).toBe(false)
+    expect(result).toEqual({
+      ok: false,
+      status: 200,
+      code: ApiErrorCode.CalDavFailed,
+      message: `The server sent an unusable reply.`,
+      offline: false,
+    })
+  })
+})
+
+Deno.test(`a reply that fails its schema clears an earlier CalDAV server problem`, async () => {
+  await withApp(async (server) => {
+    server.next = error(503, `caldav_unreachable`)
+    await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    expect(serverProblem.value).not.toBeNull()
+    server.next = Response.json({ calendars: `nope` })
+    await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    expect(serverProblem.value).toBeNull()
+  })
+})
+
+Deno.test(`a server that sends the library's invalid-reply code itself is a failure with no code`, async () => {
+  await withApp(async (server) => {
+    server.next = error(502, `invalid_reply`, `Basic hunter2 rejected`)
+    const result = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      code: null,
+      message: `The request failed (502).`,
+      offline: false,
+    })
+  })
+})
+
+Deno.test(`forgetting every problem lets the next lost request show the offline notice again`, async () => {
+  await withApp(async (server) => {
+    server.down = true
+    await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    resetConnection()
+    expect(notice.value).toBeNull()
+    await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+    expect(notice.value).toBe(OFFLINE_NOTICE)
+  })
+})
+
+Deno.test(`a request without a schema succeeds with no data, whatever the reply holds`, async () => {
+  await withApp(async (server) => {
+    server.next = Response.json({ calendars: `nope` })
+    expect(await relay(CALDAV_PATHS.calendars)).toEqual({ ok: true, status: 200, data: undefined })
   })
 })
 

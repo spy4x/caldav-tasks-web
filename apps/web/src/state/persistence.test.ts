@@ -2,19 +2,15 @@
 import { expect } from "@std/expect"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { parseTask } from "@spy4x/time/ical-tasks-model"
-import {
-  type AskedStore,
-  requestPersistence,
-  type StorageManagerLike,
-  watchPersistence,
-} from "./persistence.ts"
+import type { AskOnce, PersistentStorageManager } from "@spy4x/platform/browser/persistent-storage"
+import { watchPersistence } from "./persistence.ts"
 import { serverTasks } from "./task-store.ts"
 
 const checks = { count: 0 }
 
 function manager(persisted: boolean, grants = true) {
   const calls: string[] = []
-  const fake: StorageManagerLike = {
+  const fake: PersistentStorageManager = {
     persisted: () => {
       checks.count++
       return Promise.resolve(persisted)
@@ -27,32 +23,54 @@ function manager(persisted: boolean, grants = true) {
   return { fake, calls }
 }
 
-function memory(): AskedStore {
-  const map = new Map<string, string>()
+type Notes = NonNullable<AskOnce[`store`]>
+
+function memory(map = new Map<string, string>()): Notes {
   return { getItem: (k) => map.get(k) ?? null, setItem: (k, v) => void map.set(k, v) }
 }
 
-Deno.test(`persistence is requested once per device and the answer is returned`, async () => {
-  const { fake, calls } = manager(false)
-  const asked = memory()
-  expect(await requestPersistence(fake, asked)).toBe(true)
-  expect(await requestPersistence(fake, asked)).toBe(false)
+function oneTask() {
+  const task = parseTask({
+    href: `${LIST_HREF}1.ics`,
+    etag: `"1"`,
+    listHref: LIST_HREF,
+    ics: fixture(`1`, `Buy milk`),
+  })
+  if (!task.success) throw new Error(task.error)
+  return task.output
+}
+
+/** Starts the app's watcher with a task already cached, lets it ask, then stops it. */
+async function startWithData(fake: PersistentStorageManager, notes: Notes): Promise<void> {
+  serverTasks.value = [oneTask()]
+  const stop = watchPersistence(fake, notes)
+  try {
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+  } finally {
+    stop()
+    serverTasks.value = []
+  }
+}
+
+Deno.test(`a device is asked on its first start with data and not on the next one`, async () => {
+  const { fake, calls } = manager(false, false)
+  const notes = new Map<string, string>()
+  await startWithData(fake, memory(notes))
   expect(calls).toEqual([`persist`])
+  await startWithData(fake, memory(notes))
+  expect(calls).toEqual([`persist`])
+})
+
+Deno.test(`a device asked before this version is not asked again`, async () => {
+  const { fake, calls } = manager(false)
+  await startWithData(fake, memory(new Map([[`caldav-tasks:persistence-asked`, `1`]])))
+  expect(calls).toEqual([])
 })
 
 Deno.test(`nothing is requested when the browser already keeps the data`, async () => {
   const { fake, calls } = manager(true)
-  expect(await requestPersistence(fake, memory())).toBe(true)
+  await startWithData(fake, memory())
   expect(calls).toEqual([])
-})
-
-Deno.test(`a browser without the storage API, or one that throws, gets no request and no error`, async () => {
-  expect(await requestPersistence(undefined as unknown as StorageManagerLike, memory())).toBe(false)
-  const throwing: StorageManagerLike = {
-    persisted: () => Promise.reject(new Error(`blocked`)),
-    persist: () => Promise.reject(new Error(`blocked`)),
-  }
-  expect(await requestPersistence(throwing, memory())).toBe(false)
 })
 
 Deno.test(`persistence is requested when the app first has a task, and not before`, async () => {

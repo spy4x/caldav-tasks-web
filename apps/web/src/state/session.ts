@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals"
 import { type } from "arktype"
+import { createSignedInHint } from "@spy4x/platform/browser/signed-in-hint"
 import { AUTH_PATHS, sessionSchema } from "@api/auth.ts"
 import { apiErrorSchema } from "@api/errors.ts"
 
@@ -30,23 +31,14 @@ const UNREACHABLE = "Cannot reach the server. Check the connection and try again
  */
 export const SIGNED_IN_HINT_KEY = "session:signed-in"
 
-/** Records or forgets the hint. Storage may be blocked; the app then works without it. */
-function rememberSignedIn(signedIn: boolean): void {
-  try {
-    if (signedIn) localStorage.setItem(SIGNED_IN_HINT_KEY, "1")
-    else localStorage.removeItem(SIGNED_IN_HINT_KEY)
-  } catch {
-    // No storage: an offline start shows the sign-in screen.
-  }
-}
-
-function wasSignedIn(): boolean {
-  try {
-    return localStorage.getItem(SIGNED_IN_HINT_KEY) === "1"
-  } catch {
-    return false
-  }
-}
+/**
+ * The hint itself. The stored text stays `1`, as before the library kept it, so a device that is
+ * signed in today still opens offline. Blocked storage remembers nothing: an offline start then
+ * shows the sign-in screen.
+ */
+const signedInHint = createSignedInHint<1>(SIGNED_IN_HINT_KEY, {
+  validate: (value): value is 1 => value === 1,
+})
 
 /**
  * Asks the server whether the session cookie is still good. 200 means signed in and 401 means
@@ -72,8 +64,9 @@ export async function loadSession(): Promise<void> {
   } catch {
     // Offline or the server is out of reach.
   }
-  if (signedIn === undefined) signedIn = wasSignedIn()
-  else rememberSignedIn(signedIn)
+  if (signedIn === undefined) signedIn = signedInHint.recall() !== null
+  else if (signedIn) signedInHint.remember(1)
+  else signedInHint.forget()
   sessionStatus.value = signedIn ? SessionStatus.SignedIn : SessionStatus.SignedOut
 }
 
@@ -95,7 +88,7 @@ export async function signIn(password: string): Promise<string | null> {
   }
   if (response.ok) {
     await response.body?.cancel()
-    rememberSignedIn(true)
+    signedInHint.remember(1)
     sessionStatus.value = SessionStatus.SignedIn
     return null
   }
@@ -117,7 +110,7 @@ export async function signOut(): Promise<string | null> {
   } catch {
     return UNREACHABLE
   }
-  rememberSignedIn(false)
+  signedInHint.forget()
   caldavAccount.value = null
   sessionStatus.value = SessionStatus.SignedOut
   return null
