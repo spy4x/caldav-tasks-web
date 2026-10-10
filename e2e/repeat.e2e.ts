@@ -23,7 +23,7 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
   await page.getByLabel(`Times`).fill(`10`)
   await expect(days.getByRole(`button`, { pressed: true })).toHaveText([`Mon`, `Thu`])
   // Days, end and count fit a phone: nothing makes the page scroll sideways.
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= globalThis.innerWidth))
     .toBe(true)
   await page.getByTestId(`task-save`).click()
   await expect(page).toHaveURL(/\/lists\//)
