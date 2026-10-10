@@ -11,7 +11,7 @@ import { Link } from "@spy4x/preact-ui/link"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { RadioGroup } from "@spy4x/preact-ui/radio"
 import { TagInput } from "@spy4x/preact-ui/tag-input"
-import { UnsavedGuard } from "@spy4x/preact-ui/unsaved-guard"
+import { type LeaveGuard, UnsavedGuard } from "@spy4x/preact-ui/unsaved-guard"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { type AlarmInput } from "@spy4x/time/ical-tasks"
 import { floatingDue } from "./due-label.ts"
@@ -95,6 +95,11 @@ export interface TaskEditorScreenProps {
   navigate: (href: string) => void
   /** Whether the router handles an address, for the guard. Defaults to every address. */
   owns?: (url: URL) => boolean
+  /**
+   * The guard the app's code-started navigations (sidebar, shortcuts) go through, so they ask
+   * before leaving with unsaved changes too.
+   */
+  leaveGuard?: LeaveGuard
   /** Where Back and Cancel go. Defaults to `/`. */
   backHref?: string
 }
@@ -292,7 +297,12 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
 
   return (
     <div class="mx-auto w-full max-w-2xl space-y-6">
-      <UnsavedGuard when={dirty} navigate={navigate} owns={props.owns ?? (() => true)} />
+      <UnsavedGuard
+        when={dirty}
+        navigate={navigate}
+        owns={props.owns ?? (() => true)}
+        leaveGuard={props.leaveGuard}
+      />
       <PageHeader
         title="Edit task"
         subtitle={listName}

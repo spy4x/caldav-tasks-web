@@ -4,6 +4,8 @@ import { act } from "preact/test-utils"
 import { makeTask } from "@ui/task-fixtures.ts"
 import { flatNodes, TaskTree } from "@ui/task-tree.tsx"
 import { focused, mount, must } from "@ui/mount.test.tsx"
+import { UnsavedGuard } from "@spy4x/preact-ui/unsaved-guard"
+import { leaveGuard } from "../leave-guard.ts"
 import { shortcutsOpen } from "../shortcuts.ts"
 import { useShortcuts } from "./use-shortcuts.ts"
 
@@ -12,16 +14,24 @@ const TASKS = [makeTask(`a`, `Alpha`), makeTask(`b`, `Bravo`)]
 
 /** The app's shortcuts over two rows and a text field, with the log of what they did. */
 function Page(
-  { log, path = `/`, quickAdd = false, search = false }: {
+  { log, quickAdd = false, search = false, unsaved = false }: {
     log: string[]
-    path?: string
     quickAdd?: boolean
     search?: boolean
+    unsaved?: boolean
   },
 ) {
-  useShortcuts((to) => log.push(`go ${to}`), path)
+  useShortcuts((to) => log.push(`go ${to}`))
   return (
     <div>
+      {unsaved && (
+        <UnsavedGuard
+          when
+          navigate={() => {}}
+          owns={() => true}
+          leaveGuard={leaveGuard}
+        />
+      )}
       <input id="field" type="text" />
       {quickAdd && <input data-e2e="quick-add-input" type="text" />}
       {search && <input data-e2e="search-input" type="search" value="foo" />}
@@ -132,28 +142,12 @@ Deno.test("n on a page without a quick add goes to Today and focuses the field w
 
 Deno.test("/ on the search page focuses the field and keeps the query and the address", async () => {
   const log: string[] = []
-  await mount(<Page log={log} path="/search" search />, async ({ root, window }) => {
+  await mount(<Page log={log} search />, async ({ root, window }) => {
     await key(window as never, window.document.body as never, `/`)
     expect(log).toEqual([])
     expect(window.document.activeElement?.getAttribute(`data-e2e`)).toBe(`search-input`)
     expect(must<HTMLInputElement>(root, `[data-e2e="search-input"]`).value).toBe(`foo`)
   })
-})
-
-Deno.test("in the task editor g t, g u, g l, n and / do nothing but ? still opens the list", async () => {
-  const log: string[] = []
-  shortcutsOpen.value = false
-  await mount(<Page log={log} path="/tasks/abc" quickAdd />, async ({ window }) => {
-    const body = window.document.body as never
-    for (const name of [`g`, `t`, `g`, `u`, `g`, `l`, `n`, `/`]) {
-      expect(await key(window as never, body, name)).toBe(true)
-    }
-    expect(log).toEqual([])
-    expect(window.document.activeElement).toBe(window.document.body)
-    await key(window as never, body, `?`)
-    expect(shortcutsOpen.value).toBe(true)
-  })
-  shortcutsOpen.value = false
 })
 
 /** Lets the mutation observers run. */
@@ -195,11 +189,18 @@ Deno.test("a second shortcut replaces the first one's wait for its field", async
   })
 })
 
-Deno.test("moving into the task editor after mount turns off the shortcuts that leave it", async () => {
+Deno.test("g t asks before leaving while the page holds unsaved changes, and Leave then goes", async () => {
   const log: string[] = []
-  await mount(<Page log={log} />, async ({ window, rerender }) => {
-    await rerender(<Page log={log} path="/tasks/abc" />)
-    for (const name of [`g`, `t`]) await key(window as never, window.document.body as never, name)
+  await mount(<Page log={log} unsaved />, async ({ window }) => {
+    const body = window.document.body as never
+    await key(window as never, body, `g`)
+    await key(window as never, body, `t`)
     expect(log).toEqual([])
+    const leave = [...window.document.querySelectorAll(`button`)].find((b) =>
+      b.textContent?.trim() === `Leave`
+    )
+    expect(leave).toBeDefined()
+    await act(() => void leave!.click())
+    expect(log).toEqual([`go /`])
   })
 })
