@@ -4,7 +4,7 @@
   "allowScripts": ["npm:@tailwindcss/oxide@4.1.12"],
   // Wait a day before installing a new release, except our own packages: they are published and
   // consumed in the same wave.
-  "minimumDependencyAge": { "age": "1440", "exclude": ["jsr:@spy4x/*"] },
+  "minimumDependencyAge": { "age": "1440", "exclude": ["jsr:@spy4x/*", "npm:@jsr/spy4x__*"] },
   "tasks": {
     // Development: the Vite dev server (http://localhost:5173) proxies /api and /health to the
     // server (http://localhost:8080). Both need `.env`, copied from `.env.example`.
@@ -94,7 +94,10 @@
 
     "@std/path": "jsr:@std/path@1.1.6",
     "@std/expect": "jsr:@std/expect@1.0.17",
-    "@playwright/test": "npm:@playwright/test@1.57.0"
+    "@playwright/test": "npm:@playwright/test@1.57.0",
+    // The npm name of `@spy4x/preact-system`, for playwright.config.ts: Playwright loads the config
+    // itself and finds only packages in `node_modules`. Keep it in step with the `jsr:` line above.
+    "@jsr/spy4x__preact-system": "npm:@jsr/spy4x__preact-system@3.17.0"
     // #endregion Dependencies
   },
   "exclude": [
