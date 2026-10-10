@@ -50,7 +50,7 @@ test("? lists the shortcuts and Escape closes the list, and typing in a field fi
 
   await page.keyboard.press(`/`)
   await expect(page.getByTestId(`search-input`)).toBeFocused()
-  await page.keyboard.type(`jxn?g`, { delay: 60 })
+  await page.keyboard.type(`jxn?g`)
   await expect(page.getByTestId(`search-input`)).toHaveValue(`jxn?g`)
   await expect(dialog).toBeHidden()
 })
@@ -68,7 +68,7 @@ test("n on Lists focuses the new-task field in time for the first letter", async
   await expect(pageTitle(page)).toHaveText(`Lists`)
   await page.keyboard.press(`n`)
   // No wait for the field: a person starts typing right away.
-  await page.keyboard.type(`hello`, { delay: 100 })
+  await page.keyboard.type(`hello`)
   await expect(page.getByTestId(`quick-add-input`)).toHaveValue(`hello`)
 })
 
@@ -80,7 +80,7 @@ test("/ on Today opens the search in time for the first letter", async ({ page }
   await expect(pageTitle(page)).toHaveText(`Today`)
   await page.keyboard.press(`/`)
   // No wait for the field: a person starts typing right away.
-  await page.keyboard.type(`hello`, { delay: 100 })
+  await page.keyboard.type(`hello`)
   await expect(page.getByTestId(`search-input`)).toHaveValue(`hello`)
 })
 
@@ -93,4 +93,13 @@ test("/ on a search with a query keeps the query", async ({ page }) => {
   await expect(page.getByTestId(`search-input`)).toBeFocused()
   await expect(page.getByTestId(`search-input`)).toHaveValue(`foo`)
   await expect(page).toHaveURL(/q=foo/)
+})
+
+test("the search field keeps every letter typed right after the page opens", async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/search`)
+  await page.getByTestId(`search-input`).focus()
+  await page.keyboard.type(`abcdefghij`)
+  await expect(page.getByTestId(`search-input`)).toHaveValue(`abcdefghij`)
+  await expect(page).toHaveURL(/q=abcdefghij/)
 })
