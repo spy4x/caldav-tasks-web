@@ -108,6 +108,13 @@ Deno.test(`forgetting every problem lets the next lost request show the offline 
   })
 })
 
+Deno.test(`a request without a schema succeeds with no data, whatever the reply holds`, async () => {
+  await withApp(async (server) => {
+    server.next = Response.json({ calendars: `nope` })
+    expect(await relay(CALDAV_PATHS.calendars)).toEqual({ ok: true, status: 200, data: undefined })
+  })
+})
+
 Deno.test(`an error code outside the contract is a failure with no code and no server text`, async () => {
   await withApp(async (server) => {
     server.next = error(502, `made_up`, `Basic hunter2 rejected`)

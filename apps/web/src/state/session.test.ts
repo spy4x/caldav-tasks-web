@@ -145,6 +145,15 @@ Deno.test("offline, a device that was never signed in shows the sign-in screen",
   })
 })
 
+Deno.test("offline, a device whose hint holds another value shows the sign-in screen", async () => {
+  for (const stored of ["0", "true", `"1"`]) {
+    await withFetch(offline, async () => {
+      await loadSession()
+      expect(sessionStatus.value).toBe(SessionStatus.SignedOut)
+    }, new Map([[SIGNED_IN_HINT_KEY, stored]]))
+  }
+})
+
 Deno.test("with storage blocked, the session still loads and offline means signed out", async () => {
   const answers = [() => Promise.resolve(json(200, {})), offline]
   await withFetch(() => answers.shift()!(), async () => {

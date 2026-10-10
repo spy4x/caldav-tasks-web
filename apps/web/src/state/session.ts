@@ -64,7 +64,7 @@ export async function loadSession(): Promise<void> {
   } catch {
     // Offline or the server is out of reach.
   }
-  if (signedIn === undefined) signedIn = signedInHint.recall() === 1
+  if (signedIn === undefined) signedIn = signedInHint.recall() !== null
   else if (signedIn) signedInHint.remember(1)
   else signedInHint.forget()
   sessionStatus.value = signedIn ? SessionStatus.SignedIn : SessionStatus.SignedOut
