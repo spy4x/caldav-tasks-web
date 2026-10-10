@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test"
+// The npm name of `@spy4x/preact-system`: Playwright loads this file itself and finds only
+// packages in `node_modules`, where a `jsr:` import puts nothing.
+import { playwrightBaseConfig } from "@jsr/spy4x__preact-system/playwright"
 import { APP_URL, serverEnv } from "./e2e/env.ts"
 
 /**
@@ -7,25 +10,11 @@ import { APP_URL, serverEnv } from "./e2e/env.ts"
  * See https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: "./e2e",
-  testMatch: /.*\.e2e\.ts/,
-  outputDir: "./e2e/results",
-  // Fail the build on CI if a `test.only` was left in the source.
-  forbidOnly: !!Deno.env.get("CI"),
-  retries: Deno.env.get("CI") ? 2 : 0,
-  fullyParallel: false,
-  workers: 1,
-  timeout: 30_000,
-  reporter: [["html", { open: "never" }], ["list"]],
-  use: {
+  ...playwrightBaseConfig({
     baseURL: APP_URL,
-    // Hooks are `data-e2e`, as in the other spy4x apps; `getByTestId` reads them.
-    testIdAttribute: "data-e2e",
-    actionTimeout: 10_000,
-    navigationTimeout: 10_000,
-    trace: "retain-on-failure",
-  },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+    ci: !!Deno.env.get("CI"),
+    chromium: devices["Desktop Chrome"],
+  }),
   webServer: {
     command: "deno task start",
     url: `${APP_URL}/health`,
