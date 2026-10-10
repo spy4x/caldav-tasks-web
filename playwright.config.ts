@@ -16,11 +16,15 @@ export default defineConfig({
     chromium: devices["Desktop Chrome"],
   }),
   webServer: {
-    command: "deno task start",
+    // Starts `deno task start` with throwaway push keys and a temporary data folder.
+    command:
+      "deno run --no-prompt --allow-env --allow-run=deno --allow-read=data --allow-write=data e2e/server.ts",
     url: `${APP_URL}/health`,
     env: serverEnv(),
     // A server left running by hand would hide a broken start, so CI never reuses one.
     reuseExistingServer: !Deno.env.get("CI"),
     timeout: 60_000,
+    // The default is SIGKILL, which would leave the server running and its data folder behind.
+    gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
   },
 })

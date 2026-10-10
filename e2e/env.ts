@@ -22,7 +22,8 @@ const OWNER_PASSWORD_HASH =
 
 /**
  * The environment the server under test starts with: the seven variables it requires. The values
- * are fixed test values, not credentials.
+ * are fixed test values, not credentials. `e2e/server.ts` adds the push variables, with keys it
+ * makes at each start.
  */
 export function serverEnv(): Record<string, string> {
   return {
