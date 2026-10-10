@@ -70,7 +70,7 @@ export const PUSH_VARIABLES = [
  * some are set, so half a setup never runs.
  */
 export function readPushConfig(reader: EnvReader = systemEnv): PushConfig | null {
-  if (PUSH_VARIABLES.every((name) => (reader.get(name) ?? "") === "")) return null
+  if (PUSH_VARIABLES.every((name) => reader.get(name) === undefined)) return null
   const config = loadConfig(pushConfigSchema, reader)
   if (!isValidTimeZone(config.REMINDER_TIME_ZONE)) {
     throw pushConfigError("REMINDER_TIME_ZONE", "must be an IANA time zone, such as Europe/Berlin")
