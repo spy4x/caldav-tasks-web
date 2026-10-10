@@ -392,6 +392,8 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
             onChange={(repeatRule) => set({ repeatRule })}
             error={errors.repeat}
             disabled={saving}
+            timed={(fields.dueDate ? fields.dueTime : fields.startTime) !== ""}
+            timeZone={zone}
           />
           <RemindersField
             id="task-reminders"

@@ -478,10 +478,10 @@ Deno.test("a plain repeat rule shows as its frequency and interval, and no rule 
 
 Deno.test("a rule the control cannot build is shown in words and saved back exactly as read", async () => {
   const saved: TaskDraft[] = []
-  const rule = "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
+  const rule = "FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15"
   await mount(async (root) => {
     expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).toBe("custom")
-    expect(e2e(root, "task-repeat-label").textContent).toBe("Every 2 weeks on Mon, Thu")
+    expect(e2e(root, "task-repeat-label").textContent).toBe("Every 2 months on day 15")
     expect(root.querySelector(`[data-e2e="task-repeat-interval"]`)).toBeNull()
     expect((await saveDraft(root, saved)).repeatRule).toBe(rule)
   }, props({ task: task({ repeatRule: rule }), onSave: (draft) => saved.push(draft) }))
@@ -711,17 +711,18 @@ Deno.test("a title-only save of a repeating task with no dates goes through, but
   }, props({ task: undated, onSave: (d) => saved.push(d) }))
 })
 
-Deno.test("rules with an end date or a count show as Custom, and keep their end when saved", async () => {
+Deno.test("rules with an end date or a count open in the end control, and keep their end when saved", async () => {
   for (
-    const rule of [
-      "FREQ=WEEKLY;INTERVAL=2;UNTIL=20261231T000000Z",
-      "FREQ=DAILY;INTERVAL=1;COUNT=5",
+    const [rule, end, shown] of [
+      ["FREQ=WEEKLY;INTERVAL=2;UNTIL=20261231T000000Z", "date", "task-repeat-until"],
+      ["FREQ=DAILY;INTERVAL=1;COUNT=5", "count", "task-repeat-count"],
     ]
   ) {
     const saved: TaskDraft[] = []
     await mount(async (root) => {
-      expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).toBe("custom")
-      expect(root.querySelector(`[data-e2e="task-repeat-interval"]`)).toBeNull()
+      expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).not.toBe("custom")
+      expect((e2e(root, "task-repeat-end") as HTMLSelectElement).value).toBe(end)
+      expect(e2e(root, shown)).not.toBeNull()
       expect((await saveDraft(root, saved)).repeatRule).toBe(rule)
     }, props({ task: task({ repeatRule: rule }), onSave: (draft) => saved.push(draft) }))
   }
