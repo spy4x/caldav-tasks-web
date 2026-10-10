@@ -10,6 +10,8 @@
 !.env.example
 !.env*.age
 
+# The server's data folder in development (DATA_DIR=data): push subscriptions
+/data
 # Packages
 node_modules
 

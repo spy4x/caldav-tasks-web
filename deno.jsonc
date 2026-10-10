@@ -12,14 +12,18 @@
       "command": "echo 'dev servers stopped'",
       "dependencies": ["dev:server", "dev:web"]
     },
-    "dev:server": "deno serve --allow-net --allow-env --allow-read=apps/web/dist --env-file=.env --watch --port 8080 apps/server/+main.ts",
+    "dev:server": "deno serve --allow-net --allow-env --allow-read=apps/web/dist,data --allow-write=data --env-file=.env --watch --port 8080 apps/server/+main.ts",
     "dev:web": "deno task --cwd apps/web dev",
     // Production build of the SPA into apps/web/dist, which the server serves.
     "build": "deno task --cwd apps/web build",
     // Runs the built app the way the container does. Needs the seven variables in the environment.
-    "start": "deno serve --allow-net --allow-env --allow-read=apps/web/dist --port 8080 apps/server/+main.ts",
+    // `data` is the one folder the server may write: the push subscriptions, when DATA_DIR=data.
+    "start": "deno serve --allow-net --allow-env --allow-read=apps/web/dist,data --allow-write=data --port 8080 apps/server/+main.ts",
     // Prints OWNER_PASSWORD_HASH for a password typed or piped in; reads AUTH_PEPPER from .env.
     "password:hash": "deno run --no-prompt --env-file=.env --allow-env=AUTH_PEPPER infra/scripts/password-hash.ts",
+
+    // Writes new VAPID keys for reminder notifications into .env: `deno task vapid:keys mailto:you@example.com`.
+    "vapid:keys": "deno run --no-prompt --allow-read=.env --allow-write=.env infra/scripts/vapid-keys-create.ts",
 
     // Radicale for development and e2e: http://localhost:5232
     "radicale:up": "docker compose -f infra/compose.dev.yml up -d --wait",

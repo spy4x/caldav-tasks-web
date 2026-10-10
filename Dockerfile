@@ -14,8 +14,12 @@ FROM denoland/deno:${DENO_VERSION}
 WORKDIR /app
 # `deno cache` writes node_modules next to deno.jsonc, so /app belongs to the app user.
 RUN chown deno:deno /app
-# The server's source and the dependencies it imports; the SPA is already built. Nothing in this
-# image is written at run time, so the app runs as the base image's non-root `deno` user.
+# /data is the one folder the server writes at run time, and only with reminder notifications on
+# (DATA_DIR=/data): the push subscriptions. Mount a volume there; it must belong to the `deno`
+# user (uid and gid 1993), as this folder does.
+RUN mkdir /data && chown deno:deno /data
+# The server's source and the dependencies it imports; the SPA is already built. Nothing else is
+# written at run time, so the app runs as the base image's non-root `deno` user.
 COPY --from=build --chown=deno:deno /app/deno.jsonc /app/deno.lock ./
 COPY --from=build --chown=deno:deno /app/apps/server ./apps/server
 COPY --from=build --chown=deno:deno /app/apps/web/deno.json ./apps/web/deno.json
@@ -27,4 +31,4 @@ RUN deno cache --frozen apps/server/+main.ts apps/server/healthcheck.ts
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD ["deno", "run", "--allow-net=127.0.0.1", "--allow-env", "apps/server/healthcheck.ts"]
-CMD ["deno", "serve", "--allow-net", "--allow-env", "--allow-read=apps/web/dist", "--port", "8080", "apps/server/+main.ts"]
+CMD ["deno", "serve", "--allow-net", "--allow-env", "--allow-read=apps/web/dist,/data", "--allow-write=/data", "--port", "8080", "apps/server/+main.ts"]
