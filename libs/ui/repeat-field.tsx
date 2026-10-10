@@ -79,14 +79,14 @@ const UNIT: Record<RruleFreq, string> = {
 
 /**
  * Whether the screen can show a rule in its controls and write it back whole: a frequency, an
- * interval, an end, and for a weekly rule plain weekdays. Month days, months, ordinals and another
- * week start are left to the "Custom" fallback.
+ * interval, an end, and for a weekly rule weekdays. Month days, months, `BYDAY` on another
+ * frequency (the library allows ordinals only on a monthly one) and another week start are left to
+ * the "Custom" fallback.
  */
 function isPlain(rule: Rrule): boolean {
   return rule.byMonthDay.length === 0 && rule.byMonth.length === 0 &&
     rule.weekStart === RruleWeekday.Monday &&
-    (rule.byDay.length === 0 ||
-      (rule.freq === RruleFreq.Weekly && rule.byDay.every((day) => day.ordinal === undefined)))
+    (rule.byDay.length === 0 || rule.freq === RruleFreq.Weekly)
 }
 
 /** The rule as `RRULE` text, or `null` when the library refuses it. */
@@ -219,14 +219,14 @@ export function RepeatField(
   const setEndDay = (day: string) => {
     if (!plain) return
     const until = untilOf(day, timed, timeZone)
-    emit({ ...plain, count: undefined, until })
+    emit({ ...plain, until })
   }
 
   const setCount = (next: string) => {
     setCountText(next)
     if (!plain) return
     const count = whole(next, 1, 999)
-    if (count !== undefined) emit({ ...plain, until: undefined, count })
+    if (count !== undefined) emit({ ...plain, count })
     else if (next.trim() === ``) emit({ ...plain, count: undefined })
   }
 

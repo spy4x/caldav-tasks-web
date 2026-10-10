@@ -289,5 +289,6 @@ Deno.test("every control has a name and a disabled field disables them all", () 
   expect(html).toContain(`aria-label="Days of the week"`)
   const controls = html.match(/<(button|input|select)\b[^>]*>/g)!
   expect(controls.length).toBeGreaterThanOrEqual(12)
-  for (const control of controls) expect(control).toContain(`disabled`)
+  // The class list carries `disabled:` variants, so look for the attribute itself.
+  for (const control of controls) expect(control).toMatch(/\sdisabled(?:=|\s|>)/)
 })
