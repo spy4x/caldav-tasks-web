@@ -53,7 +53,10 @@ It is off until the server has push keys. To set it up:
    `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` into `.env`. The address is how a push service can
    reach you. Keep the private key secret; new keys end every device's subscription.
 2. Set `DATA_DIR` to a folder the server may write and that survives a restart: `data` in
-   development, `/data` in the container, with a volume there owned by user and group 1993.
+   development, `/data` in the container, with a volume there. The volume must be writable by
+   the user the container runs as: 1993 unless you set one. A new named volume is; a folder
+   mounted from the host needs that owner. If the folder or the file in it cannot be used, the
+   server says so in one log line and runs with notifications off.
 3. Set `REMINDER_TIME_ZONE` to your IANA zone, such as `Europe/Berlin`. A reminder on a task with
    a date and no time arrives at 09:00 in this zone.
 
@@ -63,6 +66,11 @@ What the server stores, in one file, `push.json` in `DATA_DIR`: each device's pu
 (the address of its push service and two keys), and for each reminder sent in the last hour the
 task's id and the reminder's time, so none is sent twice. It stores no task text. A notification carries the task's title, encrypted
 for that device, through the browser vendor's push service.
+
+The server sends only to a push address that is `https` and public, and checks that when a device
+subscribes and again before each send. Two limits remain: a host name is looked up at each check
+and again on the connection, so a name that answers differently in between gets past it, and any
+port of a public host is accepted. Only the signed-in owner can add an address.
 
 On an iPhone or iPad, notifications work only after you add the app to the Home Screen (Share,
 then Add to Home Screen) and open it from there. Settings says so when that is the case.

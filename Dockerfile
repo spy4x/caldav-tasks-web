@@ -15,9 +15,11 @@ WORKDIR /app
 # `deno cache` writes node_modules next to deno.jsonc, so /app belongs to the app user.
 RUN chown deno:deno /app
 # /data is the one folder the server writes at run time, and only with reminder notifications on
-# (DATA_DIR=/data): the push subscriptions. Mount a volume there; it must belong to the `deno`
-# user (uid and gid 1993), as this folder does.
-RUN mkdir /data && chown deno:deno /data
+# (DATA_DIR=/data): the push subscriptions. Mount a volume there that the user the container runs
+# as can write: `deno` (uid and gid 1993) unless another is set, as with `docker run --user`.
+# Any user may write this folder, and a new named volume takes its owner and mode from it, so
+# that works for every user; a folder mounted from the host keeps its own owner.
+RUN mkdir /data && chown deno:deno /data && chmod 1777 /data
 # The server's source and the dependencies it imports; the SPA is already built. Nothing else is
 # written at run time, so the app runs as the base image's non-root `deno` user.
 COPY --from=build --chown=deno:deno /app/deno.jsonc /app/deno.lock ./
