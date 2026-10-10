@@ -97,3 +97,19 @@ Deno.test("on an iPhone Settings explains Add to Home Screen and has no Install 
   expect(html).toContain(`Add to Home Screen`)
   expect(html).not.toContain(`install-app`)
 })
+
+Deno.test("Settings shows the Notifications block only when push is given, and its button turns it on", async () => {
+  expect(renderToString(<SettingsScreen {...props()} />)).not.toContain(`data-push-status`)
+  let enabled = 0
+  await mount(
+    <SettingsScreen
+      {...props({ push: { status: `off`, onEnable: () => enabled++, onDisable: () => {} } })}
+    />,
+    async ({ root, act }) => {
+      const block = must<HTMLElement>(root, `[role="group"][data-push-status="off"]`)
+      expect(block.textContent).toContain(`Notifications`)
+      await act(() => must<HTMLButtonElement>(block, `[data-push-action="toggle"]`).click())
+      expect(enabled).toBe(1)
+    },
+  )
+})

@@ -12,6 +12,7 @@ import { leaveGuard } from "./leave-guard.ts"
 import { useShortcuts } from "./views/use-shortcuts.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
+import { startPush } from "./state/push.ts"
 import { toasts } from "./state/toasts.ts"
 import { InstallOffer } from "./views/InstallOffer.tsx"
 import { SyncBar } from "./views/SyncBar.tsx"
@@ -57,6 +58,8 @@ function Gate() {
 function SignedInApp() {
   const [location, navigate] = useLocation()
   useEffect(() => startSync(), [])
+  // Here and not in Settings, so every page load saves this device's subscription again.
+  useEffect(() => startPush(), [])
   const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
   useShortcuts(navigate)
   return (

@@ -1,5 +1,6 @@
 import type { ComponentChildren, JSX } from "preact"
 import type { InstallPromptProps } from "@spy4x/preact-system/install-prompt"
+import { PushSettings, type PushSettingsProps } from "@spy4x/preact-system/push-settings"
 import { Button } from "@spy4x/preact-ui/button"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { ThemeToggle, type ThemeToggleStore } from "@spy4x/preact-ui/theme-toggle"
@@ -24,6 +25,11 @@ export interface SettingsScreenProps {
   installMode?: InstallPromptProps["mode"]
   /** Shows the browser's install dialog. */
   onInstall?: () => void
+  /**
+   * Whether this device gets reminder notifications, and the actions that turn them on and off.
+   * Left out, Settings has no Notifications block.
+   */
+  push?: PushSettingsProps
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
   onSignOut: () => void
@@ -37,8 +43,9 @@ const UNKNOWN = `Not known yet. It loads when the server answers.`
 
 /**
  * Settings: the theme, the CalDAV server and account in use, the time zone, the version and
- * "Sign out", with one sentence on how to sign out everywhere. Nothing here is edited except the
- * theme: the server and account come from the install's environment.
+ * "Sign out", with one sentence on how to sign out everywhere, and reminder notifications for this
+ * device. Nothing else here is edited except the theme: the server and account come from the
+ * install's environment.
  */
 export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
   return (
@@ -73,6 +80,7 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
           <Row term="Time zone" e2e="settings-zone">{props.timeZone}</Row>
           <Row term="Version" e2e="settings-version">{props.version}</Row>
         </dl>
+        {props.push && <PushSettings {...props.push} />}
         <section aria-labelledby="settings-sign-out" class="flex flex-col gap-2">
           <h2
             id="settings-sign-out"
