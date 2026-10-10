@@ -41,6 +41,32 @@ counts live in memory.
 Behind a reverse proxy, the server reads the client address from `X-Real-IP`, and believes it only
 when the proxy connects from a private or loopback address. Traefik sends it by default.
 
+## Notifications
+
+The app can remind you of a task on each device where you turn notifications on, in Settings. It
+sends what Tasks.org stores as the task's reminders, so a reminder set on the phone also arrives in
+the browser.
+
+It is off until the server has push keys. To set it up:
+
+1. Run `deno task vapid:keys mailto:you@example.com`. It writes `VAPID_PUBLIC_KEY`,
+   `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` into `.env`. The address is how a push service can
+   reach you. Keep the private key secret; new keys end every device's subscription.
+2. Set `DATA_DIR` to a folder the server may write and that survives a restart: `data` in
+   development, `/data` in the container, with a volume there owned by user and group 1993.
+3. Set `REMINDER_TIME_ZONE` to your IANA zone, such as `Europe/Berlin`. A reminder on a task with
+   a date and no time arrives at 09:00 in this zone.
+
+Set all five or none: with only some, the server refuses to start and names the missing ones.
+
+What the server stores, in one file, `push.json` in `DATA_DIR`: each device's push subscription
+(the address of its push service and two keys), and for each reminder sent in the last hour the
+task's id and the reminder's time, so none is sent twice. It stores no task text. A notification carries the task's title, encrypted
+for that device, through the browser vendor's push service.
+
+On an iPhone or iPad, notifications work only after you add the app to the Home Screen (Share,
+then Add to Home Screen) and open it from there. Settings says so when that is the case.
+
 ## Development
 
 You need [Deno](https://deno.com/) 2 and Docker.

@@ -15,6 +15,10 @@ is built. Public repo: https://github.com/spy4x/caldav-tasks-web
   `@spy4x/time/ical` and caches `{ href, etag, ics }` in IndexedDB. Every edit patches the original
   text, so nothing Tasks.org or another client wrote is dropped.
 - No server-side database. Sign-in is one owner password and a signed, expiring session cookie.
+- Reminder notifications are optional (`apps/server/push/`). When configured, a runner in the
+  server reads the tasks every minute, only to find reminders that came due, and pushes each to
+  the owner's subscribed browsers. It never writes a task. The one file the server writes is
+  `push.json` in `DATA_DIR`: the push subscriptions and which reminders were sent (task id and time), no task text.
 - "Tasks.org semantics": a list is a CalDAV calendar, a tag is a `CATEGORIES` value, a subtask
   links to its parent with `RELATED-TO` (`RELTYPE=PARENT`), manual order is `X-APPLE-SORT-ORDER`,
   priority is 1 (high), 5 (medium), 9 (low) or 0 (none), and a repeating task is one VTODO whose
@@ -24,14 +28,15 @@ is built. Public repo: https://github.com/spy4x/caldav-tasks-web
 
 ```
 deno.jsonc            workspace, tasks, pinned imports. deno.lock is committed.
-apps/server/          Hono: +main.ts (entry, `deno serve`), config.ts, app.ts
+apps/server/          Hono: +main.ts (entry, `deno serve`), config.ts, app.ts, push/ (reminders)
 apps/web/             Preact SPA: index.html, vite.config.ts, src/main.tsx, src/app.tsx
 libs/api/             JSON contract between server and SPA, one file per lane: `errors.ts`
-                     (shared), `auth.ts`, `caldav.ts` (arktype schemas and types)
+                     (shared), `auth.ts`, `caldav.ts`, `push.ts` (arktype schemas and types)
 libs/tasks/           what is the app's in the task logic: PRODID, wording, test fixtures (the logic is in
                      `@spy4x/time/ical-tasks-*` and `@spy4x/platform/universal/ical-tasks-view`)
 libs/ui/              screens: pure, props in and callbacks out
-e2e/                  Playwright; fixtures seed Radicale
+e2e/                  Playwright; fixtures seed Radicale; server.ts starts the server with
+                      throwaway push keys
 tests/                guard tests: ui-boundary and spacing
 infra/compose.dev.yml Radicale for development and e2e
 .woodpecker/ci.yml    check, build, e2e on pull requests, main and tags
@@ -55,11 +60,14 @@ Use the names in `deno.jsonc`; never guess one.
 | `deno task radicale:up` / `radicale:down` | Radicale at :5232                                             |
 | `deno task e2e`                           | Playwright against the built app and Radicale                 |
 | `deno task env:decrypt` / `env:encrypt`   | age64 `.env` handling                                         |
+| `deno task vapid:keys <contact>`          | writes new push keys into `.env`                              |
 
 ## Rules
 
-- **Configuration:** all seven variables in `.env.example` are required. The server exits naming
-  each missing one. No fallbacks, no development defaults. `.env.example` holds placeholders only.
+- **Configuration:** the first seven variables in `.env.example` are required. The server exits
+  naming each missing one. The five push variables are optional as a group: all empty turns
+  reminder notifications off, some empty stops the start. No fallbacks, no development defaults.
+  `.env.example` holds placeholders only.
 - **Screens in `libs/ui` are pure.** They import no store, router, `fetch` or app code
   (`tests/ui-boundary.test.ts` enforces it). Wiring lives in `apps/web/src`.
 - **Spacing** uses the scale of `@spy4x/preact-theme/spacing` (`tests/spacing.test.ts`).
@@ -68,7 +76,8 @@ Use the names in `deno.jsonc`; never guess one.
   below. If it is missing, file the issue in the library and wait for the release; do not keep a
   local copy.
 - **Errors never carry a credential.** No response body, log line or error message may hold
-  `CALDAV_PASSWORD` or any other secret.
+  `CALDAV_PASSWORD` or any other secret. The push code also never logs a push endpoint, a key or a
+  task's text.
 
 ## Shared libraries
 
