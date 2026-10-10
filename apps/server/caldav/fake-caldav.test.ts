@@ -59,6 +59,8 @@ export class FakeCalDav implements CalDavClient {
   ])
   /** When set, every call after discovery and listing fails with this. */
   failWith: CalDavError | null = null
+  /** Reading the objects of a calendar at one of these addresses fails with its error. */
+  failLists = new Map<string, CalDavError>()
   /** When set, discovery fails with this. */
   discoverFails: CalDavError | null = null
   private version = 0
@@ -84,15 +86,18 @@ export class FakeCalDav implements CalDavClient {
     return this.record(["listCalendars", String(home)], () => ok(this.calendars))
   }
   listObjects(calendar: string | URL, options: { component: string; includeCompleted?: boolean }) {
-    return this.record(["listObjects", String(calendar), options], () =>
-      ok(
+    return this.record(["listObjects", String(calendar), options], () => {
+      const error = this.failLists.get(String(calendar))
+      if (error) return { success: false as const, output: null, error }
+      return ok(
         [...this.objects]
           .filter(([url, object]) =>
             url.startsWith(String(calendar)) &&
             (options.includeCompleted || !object.data.includes("COMPLETED:"))
           )
           .map(([url, object]) => ({ url, ...object })),
-      ))
+      )
+    })
   }
   getObjects(): Promise<never> {
     throw new Error("not used by the relay")

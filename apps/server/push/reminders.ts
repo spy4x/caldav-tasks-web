@@ -20,9 +20,12 @@ export const DATE_ONLY_REMINDER_TIME = "09:00"
 
 /** Why the tasks could not be read. The text holds an operation and a code, nothing of a task. */
 export class ReminderReadError extends Error {
+  /** The name of the CalDAV error code, such as `Forbidden`. */
+  readonly code: string
   constructor(operation: string, code: CalDavErrorCode) {
     super(`${operation} failed: ${CalDavErrorCode[code]}`)
     this.name = "ReminderReadError"
+    this.code = CalDavErrorCode[code]
   }
 }
 
@@ -47,10 +50,16 @@ export interface RemindersOptions {
  * The text of every open task in every list that can hold tasks: the calendars the relay lists
  * (`holdsTasks`), read fresh. Completed tasks are left out by the CalDAV server. It only reads.
  *
- * @throws {ReminderReadError} when the CalDAV server fails; nothing is sent for that tick.
+ * A list that cannot be read while another can is left out, so one broken list never silences
+ * the rest: `log` gets one line with how many were left out and the error codes, never a list's
+ * name or address. A reminder of that list that came due meanwhile is not sent later.
+ *
+ * @throws {ReminderReadError} when the account, a home or every list cannot be read; nothing is
+ * sent for that tick and the runner tries the same stretch of time again.
  */
 export function createTaskReader(
   client: RemindersOptions["client"],
+  log: (line: string) => void,
 ): () => Promise<string[]> {
   let homes: string[] | undefined
   async function read<T>(operation: string, run: () => Promise<CalDavResult<T>>): Promise<T> {
@@ -62,22 +71,34 @@ export function createTaskReader(
     // Discovery is kept once it succeeds, as the relay keeps it.
     homes ??= (await read("discover", () => client.discover())).homeUrls
     const texts: string[] = []
+    const failed: ReminderReadError[] = []
+    let lists = 0
     for (const home of homes) {
       const calendars = await read("listCalendars", () => client.listCalendars(home))
       for (const calendar of calendars.filter(holdsTasks)) {
-        const objects = await read(
-          "listObjects",
-          () => client.listObjects(calendar.url, { component: "VTODO", includeCompleted: false }),
-        )
-        for (const object of objects) texts.push(object.data)
+        lists++
+        try {
+          const objects = await read(
+            "listObjects",
+            () => client.listObjects(calendar.url, { component: "VTODO", includeCompleted: false }),
+          )
+          for (const object of objects) texts.push(object.data)
+        } catch (error) {
+          if (!(error instanceof ReminderReadError)) throw error
+          failed.push(error)
+        }
       }
     }
+    if (failed.length === 0) return texts
+    if (failed.length === lists) throw failed[0]
+    const codes = [...new Set(failed.map((error) => error.code))].join(", ")
+    log(`reminders: ${failed.length} of ${lists} task lists could not be read: ${codes}`)
     return texts
   }
 }
 
 /** The class name of whatever was thrown: enough to find a bug, and never a task or an address. */
-function nameOf(error: unknown): string {
+export function nameOf(error: unknown): string {
   return error instanceof Error ? error.name : typeof error
 }
 
@@ -101,7 +122,7 @@ export function createReminders(options: RemindersOptions): ReminderRunner {
   }
   const home = createReminderNotify({ ...base, url: "/" })
   return createReminderRunner({
-    listTasks: createTaskReader(options.client),
+    listTasks: createTaskReader(options.client, log),
     notify: (reminder) => {
       let notify = home
       try {

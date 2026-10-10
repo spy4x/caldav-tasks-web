@@ -126,6 +126,19 @@ Deno.test("logs a CalDAV failure as one line with no task text, and sends when i
   expect(sender.sent.map((push) => push.message.title)).toEqual(["Due at a UTC time"])
 })
 
+Deno.test("a list that cannot be read is left out and logged as a count, and the other lists still remind", async () => {
+  const broken = `${DAV}/test-user/secret-list/`
+  const { dav, sender, lines, tickAt } = await reminders(
+    { [`${TASKS}utc.ics`]: DUE_KINDS.utc },
+    "2026-10-08T23:29:30Z",
+  )
+  dav.calendars.unshift({ url: broken, displayName: "Secret list", components: ["VTODO"] })
+  dav.failLists.set(broken, { code: CalDavErrorCode.Forbidden, message: "Secret list leaked" })
+  await tickAt("2026-10-08T23:30:30Z")
+  expect(sender.sent.map((push) => push.message.title)).toEqual(["Due at a UTC time"])
+  expect(lines).toEqual(["reminders: 1 of 2 task lists could not be read: Forbidden"])
+})
+
 Deno.test("logs a push that every device refused as a count and a status only", async () => {
   const { sender, lines, tickAt } = await reminders(
     { [`${TASKS}utc.ics`]: DUE_KINDS.utc },
