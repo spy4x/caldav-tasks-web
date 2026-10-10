@@ -75,3 +75,25 @@ Deno.test("the Show shortcuts button opens the shortcuts list", async () => {
     },
   )
 })
+
+Deno.test("Settings offers an Install button only while the browser can install the app", async () => {
+  let installs = 0
+  await mount(
+    <SettingsScreen {...props({ installMode: `prompt`, onInstall: () => installs++ })} />,
+    async ({ root, act }) => {
+      await act(() => must<HTMLButtonElement>(root, `[data-e2e="install-app"]`).click())
+      expect(installs).toBe(1)
+    },
+  )
+  for (const mode of [`installed`, `unavailable`] as const) {
+    const html = renderToString(<SettingsScreen {...props({ installMode: mode })} />)
+    expect(html).not.toContain(`Install app`)
+  }
+  expect(renderToString(<SettingsScreen {...props()} />)).not.toContain(`Install app`)
+})
+
+Deno.test("on an iPhone Settings explains Add to Home Screen and has no Install button", () => {
+  const html = renderToString(<SettingsScreen {...props({ installMode: `ios` })} />)
+  expect(html).toContain(`Add to Home Screen`)
+  expect(html).not.toContain(`install-app`)
+})

@@ -1,4 +1,5 @@
 import type { ComponentChildren, JSX } from "preact"
+import type { InstallPromptProps } from "@spy4x/preact-system/install-prompt"
 import { Button } from "@spy4x/preact-ui/button"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { ThemeToggle, type ThemeToggleStore } from "@spy4x/preact-ui/theme-toggle"
@@ -16,6 +17,13 @@ export interface SettingsScreenProps {
   timeZone: string
   /** The app's version. */
   version: string
+  /**
+   * Whether and how the app can be installed here. `prompt` shows an Install button, `ios` says
+   * how to add it from Safari; `installed` and `unavailable` show nothing.
+   */
+  installMode?: InstallPromptProps["mode"]
+  /** Shows the browser's install dialog. */
+  onInstall?: () => void
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
   onSignOut: () => void
@@ -46,6 +54,17 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
           <Row term="CalDAV account" e2e="settings-account">
             <span class="break-all">{props.caldavUsername ?? UNKNOWN}</span>
           </Row>
+          {(props.installMode === `prompt` || props.installMode === `ios`) && (
+            <Row term="Install app" e2e="settings-install">
+              {props.installMode === `prompt`
+                ? (
+                  <Button variant="outline" onClick={props.onInstall} data-e2e="install-app">
+                    Install
+                  </Button>
+                )
+                : <span>Tap Share, then Add to Home Screen.</span>}
+            </Row>
+          )}
           <Row term="Keyboard shortcuts" e2e="settings-shortcuts">
             <Button variant="outline" onClick={props.onShowShortcuts} data-e2e="show-shortcuts">
               Show shortcuts
