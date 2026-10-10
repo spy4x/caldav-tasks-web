@@ -1,5 +1,5 @@
 import type { JSX } from "preact"
-import { useEffect, useState } from "preact/hooks"
+import { useEffect, useRef, useState } from "preact/hooks"
 import { IconArrowPath } from "@spy4x/preact-icons"
 import { Button } from "@spy4x/preact-ui/button"
 import { Field } from "@spy4x/preact-ui/field"
@@ -28,14 +28,41 @@ export interface RepeatFieldProps {
   error?: string
   disabled?: boolean
   /**
-   * Whether the date the task repeats from (its due date, else its start) has a time. An end date
-   * is then written as a UTC moment, the end of that day in `timeZone`, as RFC 5545 asks for a
-   * timed task; otherwise it is a plain date. Default: no time.
+   * The kind of the date the task repeats from (its due date, else its start) and the zone its
+   * wall clock is read in; see {@link repeatAnchor}. An end date is written in the same form
+   * (RFC 5545 section 3.3.10): a date, a floating time, or a UTC moment. Default: a date.
    */
-  timed?: boolean
-  /** The zone an end date is read and written in when `timed`. Default `UTC`. */
-  timeZone?: string
+  anchor?: RepeatAnchor
 }
+
+/** The kind of the date a rule repeats from, and the zone its time is read in. */
+export interface RepeatAnchor {
+  kind: IcalDateKind
+  /** An IANA zone name. */
+  timeZone: string
+}
+
+/**
+ * The {@link RepeatAnchor} of a task's date as the editor will save it.
+ *
+ * @param time The time the editor shows for that date, `""` for none.
+ * @param original The date the task has now, if any: a time added to it keeps its kind and zone.
+ * @param zone The editor's own zone, for a UTC time and for a new (floating) time.
+ */
+export function repeatAnchor(
+  time: string,
+  original: { kind: IcalDateKind; time?: string; tzid?: string } | undefined,
+  zone: string,
+): RepeatAnchor {
+  if (time === ``) return { kind: IcalDateKind.Date, timeZone: zone }
+  if (original?.time === undefined) return { kind: IcalDateKind.Floating, timeZone: zone }
+  return {
+    kind: original.kind,
+    timeZone: original.kind === IcalDateKind.Zoned && original.tzid ? original.tzid : zone,
+  }
+}
+
+const DATE_ANCHOR: RepeatAnchor = { kind: IcalDateKind.Date, timeZone: `UTC` }
 
 const NONE = `none`
 const CUSTOM = `custom`
@@ -113,17 +140,30 @@ function untilDay(until: IcalDateValue, zone: string): string {
   return isoDateInTz(new Date(`${until.date}T${until.time}Z`), zone)
 }
 
-/** The `UNTIL` for an end on `day`: a date, or the last second of that day in `zone` as UTC. */
-function untilOf(day: string, timed: boolean, zone: string): IcalDateValue | undefined {
+/**
+ * The `UNTIL` for an end on `day`, in the form of the task's date: a date for a date, the last
+ * second of the day as a floating time for a floating one, and that second as a UTC moment (read
+ * in the anchor's zone) for a UTC or zoned one.
+ */
+function untilOf(day: string, anchor: RepeatAnchor): IcalDateValue | undefined {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return undefined
-  if (!timed) return { kind: IcalDateKind.Date, date: day }
+  if (anchor.kind === IcalDateKind.Date) return { kind: IcalDateKind.Date, date: day }
+  if (anchor.kind === IcalDateKind.Floating) {
+    return { kind: IcalDateKind.Floating, date: day, time: `23:59:59` }
+  }
   try {
-    const instant = resolveWallClock(day, `23:59`, zone).instant
+    const instant = resolveWallClock(day, `23:59`, anchor.timeZone).instant
     const utc = new Date(instant.getTime() + 59_000).toISOString()
     return { kind: IcalDateKind.Utc, date: utc.slice(0, 10), time: utc.slice(11, 19) }
   } catch {
     return undefined
   }
+}
+
+/** The rule in words, with its end day as the end date field shows it. */
+function describeLabel(rule: Rrule, endDay: string): string {
+  const text = describeRrule({ ...rule, until: undefined })
+  return endDay ? `${text}, until ${endDay}` : text
 }
 
 /** Reads a whole number in `min` to `max` from what a person typed, or `undefined`. */
@@ -142,7 +182,7 @@ function whole(text: string, min: number, max: number): number | undefined {
  * person picks one of the others. Changing the interval or the days keeps the rule's end.
  */
 export function RepeatField(
-  { id, value, onChange, error, disabled, timed = false, timeZone = `UTC` }: RepeatFieldProps,
+  { id, value, onChange, error, disabled, anchor = DATE_ANCHOR }: RepeatFieldProps,
 ): JSX.Element {
   const parsed = value ? parseRrule(value) : undefined
   const rule = parsed?.success ? parsed.output : undefined
@@ -154,15 +194,14 @@ export function RepeatField(
 
   const ruleEnd = plain?.until ? END_DATE : plain?.count !== undefined ? END_COUNT : END_NEVER
   const [endMode, setEndMode] = useState(ruleEnd)
-  // An end chosen but not yet filled in is not part of the rule; any other change of the rule's
-  // own end (another task, a new rule) wins.
+  // An end chosen but not yet filled in is not part of the rule, so it is kept while the value is
+  // the one this field wrote last. Any other value (another task, a rule set from outside) wins.
+  const written = useRef<string | null>(value)
   useEffect(() => {
-    if (ruleEnd !== END_NEVER) setEndMode(ruleEnd)
-  }, [ruleEnd])
-  useEffect(() => {
-    if (!value) setEndMode(END_NEVER)
-  }, [value])
-  const endDay = plain?.until ? untilDay(plain.until, timeZone) : ``
+    if (value !== written.current) setEndMode(ruleEnd)
+    written.current = value
+  }, [value, ruleEnd])
+  const endDay = plain?.until ? untilDay(plain.until, anchor.timeZone) : ``
   const [countText, setCountText] = useState(String(plain?.count ?? ``))
   useEffect(() => setCountText(String(plain?.count ?? ``)), [plain?.count])
 
@@ -178,14 +217,21 @@ export function RepeatField(
   /** Writes `next`, or does nothing when the library refuses it. */
   const emit = (next: Rrule) => {
     const out = write(next)
-    if (out !== null) onChange(out)
+    if (out === null) return
+    written.current = out
+    onChange(out)
   }
 
   const pick = (next: string) => {
-    if (next === NONE) return onChange(null)
+    if (next === NONE) {
+      written.current = null
+      setEndMode(END_NEVER)
+      return onChange(null)
+    }
     if (next === CUSTOM) return
     const freq = Number(next) as RruleFreq
     // The end carries over to another frequency; the days belong to a weekly rule only.
+    if (!plain) setEndMode(END_NEVER)
     const base = plain ?? bare(freq, interval)
     emit({
       ...base,
@@ -218,7 +264,7 @@ export function RepeatField(
 
   const setEndDay = (day: string) => {
     if (!plain) return
-    const until = untilOf(day, timed, timeZone)
+    const until = untilOf(day, anchor)
     emit({ ...plain, until })
   }
 
@@ -265,7 +311,7 @@ export function RepeatField(
           </Field>
           <p class="flex items-center gap-2 pb-2 text-sm text-muted">
             <IconArrowPath class="size-4" aria-hidden="true" />
-            <span data-e2e="task-repeat-label">{describeRrule(plain)}</span>
+            <span data-e2e="task-repeat-label">{describeLabel(plain, endDay)}</span>
           </p>
         </div>
       )}
@@ -309,6 +355,7 @@ export function RepeatField(
                 name={`${id}-until`}
                 type="date"
                 value={endDay}
+                required
                 disabled={disabled}
                 onInput={(event) => setEndDay(event.currentTarget.value)}
                 data-e2e={`${id}-until`}
@@ -325,6 +372,7 @@ export function RepeatField(
                 step={1}
                 inputMode="numeric"
                 value={countText}
+                required
                 disabled={disabled}
                 onInput={(event) => setCount(event.currentTarget.value)}
                 data-e2e={`${id}-count`}

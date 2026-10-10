@@ -482,7 +482,7 @@ Deno.test("a rule the control cannot build is shown in words and saved back exac
   await mount(async (root) => {
     expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).toBe("custom")
     expect(e2e(root, "task-repeat-label").textContent).toBe("Every 2 months on day 15")
-    expect(root.querySelector(`[data-e2e="task-repeat-interval"]`)).toBeNull()
+    expect(root.querySelector(`[data-e2e="task-repeat-interval"]`) === null).toBe(true)
     expect((await saveDraft(root, saved)).repeatRule).toBe(rule)
   }, props({ task: task({ repeatRule: rule }), onSave: (draft) => saved.push(draft) }))
 
@@ -722,10 +722,79 @@ Deno.test("rules with an end date or a count open in the end control, and keep t
     await mount(async (root) => {
       expect((e2e(root, "task-repeat-freq") as HTMLSelectElement).value).not.toBe("custom")
       expect((e2e(root, "task-repeat-end") as HTMLSelectElement).value).toBe(end)
-      expect(e2e(root, shown)).not.toBeNull()
+      expect(e2e(root, shown) !== null).toBe(true)
       expect((await saveDraft(root, saved)).repeatRule).toBe(rule)
     }, props({ task: task({ repeatRule: rule }), onSave: (draft) => saved.push(draft) }))
   }
+})
+
+Deno.test("an end date is written in the form of the task's date, in the editor's zone, and the last day is the chosen one", async () => {
+  const cases: Array<[string, Partial<Task>, string, string?]> = [
+    // A date: a date.
+    [
+      "a date",
+      { due: { kind: IcalDateKind.Date, date: "2019-12-31" } },
+      "FREQ=DAILY;UNTIL=20200101;INTERVAL=1",
+    ],
+    // A time set in this app is floating: a floating end, whatever the zone says about UTC.
+    [
+      "floating",
+      { due: { kind: IcalDateKind.Floating, date: "2019-12-31", time: "20:00:00" } },
+      "FREQ=DAILY;UNTIL=20200101T235959;INTERVAL=1",
+    ],
+    // UTC: the end of 1 January in Los Angeles is already 2 January in UTC.
+    [
+      "utc",
+      { due: { kind: IcalDateKind.Utc, date: "2019-12-31", time: "20:00:00" } },
+      "FREQ=DAILY;UNTIL=20200102T075959Z;INTERVAL=1",
+    ],
+    // Zoned: the task's own zone, not the editor's.
+    [
+      "zoned",
+      {
+        due: { kind: IcalDateKind.Zoned, date: "2019-12-31", time: "09:00:00", tzid: "Asia/Tokyo" },
+      },
+      "FREQ=DAILY;UNTIL=20200101T145959Z;INTERVAL=1",
+    ],
+  ]
+  for (const [name, patch, expected] of cases) {
+    const saved: TaskDraft[] = []
+    await mount(
+      async (root) => {
+        await choose(root, "task-repeat-end", "date")
+        await type(root, "task-repeat-until", "2020-01-01")
+        const rule = (await saveDraft(root, saved)).repeatRule
+        expect([name, rule]).toEqual([name, expected])
+      },
+      props({
+        task: task({ ...patch, repeatRule: "FREQ=DAILY;INTERVAL=1" }),
+        timeZone: "America/Los_Angeles",
+        onSave: (draft) => saved.push(draft),
+      }),
+    )
+  }
+})
+
+Deno.test("a time typed into a date-only task makes its end date floating", async () => {
+  const saved: TaskDraft[] = []
+  await mount(
+    async (root) => {
+      await type(root, "task-due-time", "07:00")
+      await choose(root, "task-repeat-end", "date")
+      await type(root, "task-repeat-until", "2020-01-01")
+      expect((await saveDraft(root, saved)).repeatRule).toBe(
+        "FREQ=DAILY;UNTIL=20200101T235959;INTERVAL=1",
+      )
+    },
+    props({
+      task: task({
+        due: { kind: IcalDateKind.Date, date: "2019-12-31" },
+        repeatRule: "FREQ=DAILY;INTERVAL=1",
+      }),
+      timeZone: "Asia/Tokyo",
+      onSave: (draft) => saved.push(draft),
+    }),
+  )
 })
 
 Deno.test("Enter in the amount box adds the reminder and does not save the task", async () => {

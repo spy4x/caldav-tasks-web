@@ -2,7 +2,9 @@
 import { expect } from "@std/expect"
 import { useState } from "preact/hooks"
 import { renderToString } from "preact-render-to-string"
-import { RepeatField } from "./repeat-field.tsx"
+import { IcalDateKind, type IcalDateValue } from "@spy4x/time/ical"
+import { nextOccurrence, parseRrule } from "@spy4x/time/rrule"
+import { type RepeatAnchor, repeatAnchor, RepeatField } from "./repeat-field.tsx"
 import { mount, must } from "./mount.test.tsx"
 
 interface Host {
@@ -12,11 +14,10 @@ interface Host {
 
 /** The field with the state a screen would hold for it, so a change comes back as the new value. */
 function Controlled(
-  { initial, host, timed, timeZone }: {
+  { initial, host, anchor }: {
     initial: string | null
     host: Host
-    timed?: boolean
-    timeZone?: string
+    anchor?: RepeatAnchor
   },
 ) {
   const [value, setValue] = useState(initial)
@@ -24,8 +25,7 @@ function Controlled(
     <RepeatField
       id="r"
       value={value}
-      timed={timed}
-      timeZone={timeZone}
+      anchor={anchor}
       onChange={(next) => {
         host.emitted.push(next)
         setValue(next)
@@ -119,39 +119,158 @@ Deno.test("the day toggles exist only for a weekly rule, are buttons that say wh
         `false`,
       ])
       await choose(act, root, `r-freq`, `1`)
-      expect(root.querySelector(`[aria-label="Days of the week"]`)).toBeNull()
+      expect(root.querySelector(`[aria-label="Days of the week"]`) === null).toBe(true)
       expect(last(host)).toBe(`FREQ=DAILY;INTERVAL=1`)
     },
   )
 })
 
-Deno.test("ending on a date writes UNTIL as a date, and a timed task as the end of that day in UTC", async () => {
-  const dated: Host = { emitted: [] }
-  await mount(
-    <Controlled initial="FREQ=DAILY;INTERVAL=1" host={dated} />,
-    async ({ root, act }) => {
-      await choose(act, root, `r-end`, `date`)
-      // Chosen but not filled in: not part of the rule yet.
-      expect(dated.emitted).toEqual([])
-      await typeInto(act, root, `r-until`, `2026-12-01`)
-      expect(last(dated)).toBe(`FREQ=DAILY;UNTIL=20261201;INTERVAL=1`)
-    },
-  )
+/** Where the task goes next when it is completed on `due`, the way the app's completion does it. */
+function nextAfter(rule: string, due: IcalDateValue): IcalDateValue | null {
+  const parsed = parseRrule(rule)
+  if (!parsed.success) throw new Error(parsed.error.message)
+  // A date and a floating time are read as UTC, as the app's completion does.
+  const instant = new Date(`${due.date}T${due.time ?? `00:00:00`}Z`)
+  const next = nextOccurrence(parsed.output, { after: instant, start: due })
+  if (!next.success) throw new Error(next.error.message)
+  return next.output
+}
 
-  const timed: Host = { emitted: [] }
+const floating = (date: string, time: string): IcalDateValue => ({
+  kind: IcalDateKind.Floating,
+  date,
+  time,
+})
+
+Deno.test("ending on a date writes UNTIL as a date for a date, and the day is the chosen one when the task is completed", async () => {
+  const host: Host = { emitted: [] }
+  await mount(<Controlled initial="FREQ=DAILY;INTERVAL=1" host={host} />, async ({ root, act }) => {
+    await choose(act, root, `r-end`, `date`)
+    // Chosen but not filled in: not part of the rule yet.
+    expect(host.emitted).toEqual([])
+    await typeInto(act, root, `r-until`, `2026-12-01`)
+    expect(last(host)).toBe(`FREQ=DAILY;UNTIL=20261201;INTERVAL=1`)
+    const dated = { kind: IcalDateKind.Date, date: `2026-11-30` }
+    expect(nextAfter(last(host)!, dated)?.date).toBe(`2026-12-01`)
+    expect(nextAfter(last(host)!, { ...dated, date: `2026-12-01` })).toBeNull()
+  })
+})
+
+Deno.test("a floating time is ended with a floating UNTIL, so the last day is the chosen one in any zone", async () => {
+  // In Los Angeles the evening of 1 January is already 2 January in UTC; in Tokyo the morning is
+  // still 31 December in UTC. A floating end must not care.
+  for (
+    const [zone, time] of [
+      [`America/Los_Angeles`, `20:00:00`],
+      [`America/Los_Angeles`, `07:00:00`],
+      [`Asia/Tokyo`, `06:00:00`],
+      [`Asia/Tokyo`, `18:00:00`],
+      [`Europe/Berlin`, `23:30:00`],
+    ]
+  ) {
+    const host: Host = { emitted: [] }
+    const anchor = { kind: IcalDateKind.Floating, timeZone: zone }
+    await mount(
+      <Controlled initial="FREQ=DAILY;INTERVAL=1" host={host} anchor={anchor} />,
+      async ({ root, act }) => {
+        await choose(act, root, `r-end`, `date`)
+        await typeInto(act, root, `r-until`, `2020-01-01`)
+        const rule = last(host)!
+        expect(rule).toBe(`FREQ=DAILY;UNTIL=20200101T235959;INTERVAL=1`)
+        expect(nextAfter(rule, floating(`2019-12-31`, time))?.date).toBe(`2020-01-01`)
+        expect(nextAfter(rule, floating(`2020-01-01`, time))).toBeNull()
+        expect(input(root, `r-until`).value).toBe(`2020-01-01`)
+        expect(must(root, `[data-e2e="task-repeat-label"]`).textContent).toContain(
+          `until 2020-01-01`,
+        )
+      },
+    )
+  }
+})
+
+Deno.test("a UTC or zoned time is ended at the end of the chosen day in its zone, as UTC", async () => {
+  for (
+    const [kind, zone, expected] of [
+      [IcalDateKind.Utc, `America/Los_Angeles`, `20200102T075959Z`],
+      [IcalDateKind.Utc, `Asia/Tokyo`, `20200101T145959Z`],
+      [IcalDateKind.Zoned, `Europe/Berlin`, `20200101T225959Z`],
+    ] as const
+  ) {
+    const host: Host = { emitted: [] }
+    await mount(
+      <Controlled
+        initial="FREQ=DAILY;INTERVAL=1"
+        host={host}
+        anchor={{ kind, timeZone: zone }}
+      />,
+      async ({ root, act }) => {
+        await choose(act, root, `r-end`, `date`)
+        await typeInto(act, root, `r-until`, `2020-01-01`)
+        expect(last(host)).toBe(`FREQ=DAILY;UNTIL=${expected};INTERVAL=1`)
+        // What the person typed comes back out of the rule they just wrote.
+        expect(input(root, `r-until`).value).toBe(`2020-01-01`)
+      },
+    )
+  }
+})
+
+Deno.test("the summary and the end date field name the same day for a UTC end in a zone west of UTC", async () => {
+  const host: Host = { emitted: [] }
   await mount(
     <Controlled
-      initial="FREQ=DAILY;INTERVAL=1"
-      host={timed}
-      timed
-      timeZone="Europe/Berlin"
+      initial="FREQ=WEEKLY;UNTIL=20261231T000000Z;INTERVAL=1"
+      host={host}
+      anchor={{ kind: IcalDateKind.Utc, timeZone: `America/New_York` }}
     />,
-    async ({ root, act }) => {
+    ({ root }) => {
+      expect(input(root, `r-until`).value).toBe(`2026-12-30`)
+      expect(must(root, `[data-e2e="task-repeat-label"]`).textContent).toBe(
+        `Weekly, until 2026-12-30`,
+      )
+      return Promise.resolve()
+    },
+  )
+})
+
+Deno.test("the anchor follows the time the editor shows: a date without one, a floating time when one is new, the old kind and zone otherwise", () => {
+  const zoned = {
+    kind: IcalDateKind.Zoned,
+    date: `2026-10-12`,
+    time: `09:00:00`,
+    tzid: `Asia/Tokyo`,
+  }
+  const utc = { kind: IcalDateKind.Utc, date: `2026-10-12`, time: `09:00:00` }
+  const date = { kind: IcalDateKind.Date, date: `2026-10-12` }
+  const zone = `America/Los_Angeles`
+  expect(repeatAnchor(``, zoned, zone)).toEqual({ kind: IcalDateKind.Date, timeZone: zone })
+  expect(repeatAnchor(`07:00`, undefined, zone)).toEqual({
+    kind: IcalDateKind.Floating,
+    timeZone: zone,
+  })
+  expect(repeatAnchor(`07:00`, date, zone)).toEqual({ kind: IcalDateKind.Floating, timeZone: zone })
+  expect(repeatAnchor(`07:00`, utc, zone)).toEqual({ kind: IcalDateKind.Utc, timeZone: zone })
+  expect(repeatAnchor(`07:00`, zoned, zone)).toEqual({
+    kind: IcalDateKind.Zoned,
+    timeZone: `Asia/Tokyo`,
+  })
+})
+
+Deno.test("an end that is chosen but not filled in stops the save, and the Ends choice follows a rule that changes from outside", async () => {
+  const host: Host = { emitted: [] }
+  await mount(
+    <Controlled initial="FREQ=DAILY;INTERVAL=1" host={host} />,
+    async ({ root, act, rerender }) => {
       await choose(act, root, `r-end`, `date`)
-      await typeInto(act, root, `r-until`, `2026-12-01`)
-      // 23:59:59 in Berlin (UTC+1 in December) is 22:59:59 UTC.
-      expect(last(timed)).toBe(`FREQ=DAILY;UNTIL=20261201T225959Z;INTERVAL=1`)
-      expect(input(root, `r-until`).value).toBe(`2026-12-01`)
+      expect(input(root, `r-until`).required).toBe(true)
+      await choose(act, root, `r-end`, `count`)
+      expect(input(root, `r-count`).required).toBe(true)
+      // Another rule arrives, with no end: the pending choice does not outlive it.
+      await rerender(<RepeatField id="r" value="FREQ=WEEKLY;INTERVAL=3" onChange={() => {}} />)
+      expect(input(root, `r-end`).value).toBe(`never`)
+      await rerender(
+        <RepeatField id="r" value="FREQ=WEEKLY;COUNT=4;INTERVAL=3" onChange={() => {}} />,
+      )
+      expect(input(root, `r-end`).value).toBe(`count`)
     },
   )
 })
@@ -250,8 +369,8 @@ Deno.test("a rule with a month day, an ordinal, a daily weekday list or another 
     const host: Host = { emitted: [] }
     await mount(<Controlled initial={rule} host={host} />, ({ root }) => {
       expect(input(root, `r-freq`).value).toBe(`custom`)
-      expect(root.querySelector(`[data-e2e="r-end"]`)).toBeNull()
-      expect(root.querySelector(`[aria-label="Days of the week"]`)).toBeNull()
+      expect(root.querySelector(`[data-e2e="r-end"]`) === null).toBe(true)
+      expect(root.querySelector(`[aria-label="Days of the week"]`) === null).toBe(true)
       expect(host.emitted).toEqual([])
       return Promise.resolve()
     })
@@ -265,7 +384,7 @@ Deno.test("Does not repeat clears the rule with its days and end", async () => {
     async ({ root, act }) => {
       await choose(act, root, `r-freq`, `none`)
       expect(last(host)).toBeNull()
-      expect(root.querySelector(`[data-e2e="r-end"]`)).toBeNull()
+      expect(root.querySelector(`[data-e2e="r-end"]`) === null).toBe(true)
       // A new rule starts with no end, whatever the cleared one had.
       await choose(act, root, `r-freq`, `2`)
       expect(last(host)).toBe(`FREQ=WEEKLY;INTERVAL=1`)

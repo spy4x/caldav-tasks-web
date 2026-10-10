@@ -56,3 +56,19 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
   )
   expect(await readTask(list.taskUrl)).not.toContain(`COUNT`)
 })
+
+test("an end that is chosen but left empty stops the save with the browser's message", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await page.getByLabel(`Repeat`, { exact: true }).selectOption({ label: `Daily` })
+  await page.getByLabel(`Ends`).selectOption({ label: `On a date` })
+  await page.getByTestId(`task-save`).click()
+  await expect(page.getByLabel(`End date`)).toHaveJSProperty(`validity.valueMissing`, true)
+  await expect(page).not.toHaveURL(/\/lists\//)
+  expect(await readTask(list.taskUrl)).not.toContain(`RRULE`)
+
+  await page.getByLabel(`Ends`).selectOption({ label: `After a number of times` })
+  await page.getByTestId(`task-save`).click()
+  await expect(page.getByLabel(`Times`)).toHaveJSProperty(`validity.valueMissing`, true)
+  await expect(page).not.toHaveURL(/\/lists\//)
+})

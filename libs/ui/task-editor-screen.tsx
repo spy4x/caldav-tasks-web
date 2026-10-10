@@ -24,7 +24,7 @@ import {
 } from "@spy4x/time/ical-tasks-model"
 import { ConflictDialog } from "./conflict-dialog.tsx"
 import { RemindersField } from "./reminders-field.tsx"
-import { RepeatField } from "./repeat-field.tsx"
+import { repeatAnchor, RepeatField } from "./repeat-field.tsx"
 
 /** What the editor hands back on Save: every field it shows, not only the ones that changed. */
 export interface TaskDraft {
@@ -392,8 +392,11 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
             onChange={(repeatRule) => set({ repeatRule })}
             error={errors.repeat}
             disabled={saving}
-            timed={(fields.dueDate ? fields.dueTime : fields.startTime) !== ""}
-            timeZone={zone}
+            anchor={repeatAnchor(
+              fields.dueDate ? fields.dueTime : fields.startTime,
+              fields.dueDate ? task.due : task.start,
+              zone,
+            )}
           />
           <RemindersField
             id="task-reminders"
