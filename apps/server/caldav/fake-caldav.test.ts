@@ -13,7 +13,7 @@ import {
   type NewCalendar,
 } from "@spy4x/caldav"
 import { AUTH_PATHS } from "@api/auth.ts"
-import { createApp } from "../app.ts"
+import { type AppOptions, createApp } from "../app.ts"
 import { TEST_CONFIG, TEST_OWNER_PASSWORD } from "../test-config.ts"
 
 export const STATIC_ROOT = fromFileUrl(new URL("../testdata", import.meta.url))
@@ -207,9 +207,13 @@ export interface SendInit {
 }
 
 /** A fresh app with its own fake CalDAV account and a signed-in session. */
-export async function setup(): Promise<Setup> {
+export async function setup(options: AppOptions = {}): Promise<Setup> {
   const dav = new FakeCalDav()
-  const app = await createApp(TEST_CONFIG, { staticRoot: STATIC_ROOT, caldav: { client: dav } })
+  const app = await createApp(TEST_CONFIG, {
+    staticRoot: STATIC_ROOT,
+    caldav: { client: dav },
+    ...options,
+  })
   const signIn = await app.request(AUTH_PATHS.signIn, {
     method: "POST",
     headers: {

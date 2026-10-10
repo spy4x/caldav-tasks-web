@@ -12,15 +12,22 @@ type RefusalStatus = 400 | 408 | 413 | 415
 /** What a request body over {@link CALDAV_MAX_REQUEST_BYTES} answers: this server refused it. */
 export const REQUEST_TOO_LARGE = "The request is larger than this server accepts"
 
-/** Reads and checks a JSON body under {@link CALDAV_MAX_REQUEST_BYTES}, or answers the refusal. */
-export async function readRequest<T>(c: Context, schema: Type<T>): Promise<T | Response> {
+/**
+ * Reads and checks a JSON body under `maxBytes` ({@link CALDAV_MAX_REQUEST_BYTES} unless given), or
+ * answers the refusal.
+ */
+export async function readRequest<T>(
+  c: Context,
+  schema: Type<T>,
+  maxBytes: number = CALDAV_MAX_REQUEST_BYTES,
+): Promise<T | Response> {
   const contentType = c.req.header("content-type") ?? ""
   if (!/^application\/json\s*(;|$)/i.test(contentType)) {
     return refuse(c, 415, "Send the request as JSON")
   }
   let body: unknown
   try {
-    body = await readJsonBody(c, { maxBytes: CALDAV_MAX_REQUEST_BYTES })
+    body = await readJsonBody(c, { maxBytes })
   } catch (error) {
     if (!(error instanceof HTTPException)) throw error
     // readJsonBody throws only 400, 408 and 413, each with a message that holds no body.

@@ -1,5 +1,6 @@
 import { PATHS } from "@ui/frame.tsx"
 import type { Task, TaskList } from "@spy4x/time/ical-tasks-model"
+import { taskPath as taskPathOf } from "@api/push.ts"
 import { SessionStatus } from "./state/session.ts"
 
 /** Every address the app answers, as the router reads them. */
@@ -38,7 +39,7 @@ export function listSettingsPath(list: Pick<TaskList, `href`> | string): string 
 
 /** The address of a task's editor. */
 export function taskPath(task: Pick<Task, `uid`>): string {
-  return `/tasks/${encodeURIComponent(task.uid)}`
+  return taskPathOf(task.uid)
 }
 
 /** The list a `/lists/:slug` address names, or `undefined`. */

@@ -31,6 +31,8 @@ export enum ApiErrorCode {
   TooLarge = "too_large",
   /** Too many failed sign-in attempts; try again later. */
   TooManyAttempts = "too_many_attempts",
+  /** No device is subscribed, or no device got the notification. */
+  PushFailed = "push_failed",
 }
 
 /** The body of every error response. It never carries a credential. */

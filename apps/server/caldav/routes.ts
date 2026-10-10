@@ -228,7 +228,7 @@ export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOp
 }
 
 /** Whether a calendar can hold tasks: it lists VTODO, or does not say, which allows any. */
-function holdsTasks(calendar: CalDavCalendar): boolean {
+export function holdsTasks(calendar: CalDavCalendar): boolean {
   return calendar.components.length === 0 || calendar.components.includes("VTODO")
 }
 
