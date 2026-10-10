@@ -193,6 +193,83 @@ Deno.test("when the key request fails at start the block leaves Checking and say
   })
 })
 
+/** Resolves once a key request made from now on has failed, or throws after a second. */
+async function untilAskFailed(): Promise<void> {
+  // An earlier test may have left it set.
+  pushKeyUnreachable.value = false
+  for (let tries = 0; tries < 100 && !pushKeyUnreachable.value; tries++) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  expect(pushKeyUnreachable.value).toBe(true)
+}
+
+/** Gives the test a page it can hide and show, for its length. Deno has no `document`. */
+async function withPage(test: (page: EventTarget & { visibilityState: string }) => Promise<void>) {
+  const page = Object.assign(new EventTarget(), { visibilityState: "visible" })
+  const scope = globalThis as { document?: unknown }
+  scope.document = page
+  try {
+    await test(page)
+  } finally {
+    delete scope.document
+  }
+}
+
+Deno.test("after a failed key request the key is asked for again when the browser goes online, and the block recovers", async () => {
+  let reachable = false
+  await withBrowser(null, async () => {
+    await withFetch(
+      () => reachable ? Response.json({ publicKey: "BKey" }) : offline(),
+      async (sent) => {
+        const stop = startPush()
+        await untilAskFailed()
+        reachable = true
+        globalThis.dispatchEvent(new Event("online"))
+        await untilStatus("off")
+        expect(pushKeyUnreachable.value).toBe(false)
+        expect(sent).toHaveLength(2)
+        // With the key known there is nothing left to ask for.
+        globalThis.dispatchEvent(new Event("online"))
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(sent).toHaveLength(2)
+        stop()
+      },
+    )
+  })
+})
+
+Deno.test("after a failed key request the key is asked for again when the page is shown, not when it is hidden", async () => {
+  let reachable = false
+  await withPage(async (page) => {
+    await withBrowser(null, async () => {
+      await withFetch(
+        () => reachable ? Response.json({ publicKey: "BKey" }) : offline(),
+        async (sent) => {
+          const stop = startPush()
+          await untilAskFailed()
+          reachable = true
+          page.visibilityState = "hidden"
+          page.dispatchEvent(new Event("visibilitychange"))
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          expect(sent).toHaveLength(1)
+          page.visibilityState = "visible"
+          page.dispatchEvent(new Event("visibilitychange"))
+          await untilStatus("off")
+          expect(sent).toHaveLength(2)
+          stop()
+          // Stopped: a later failure is not followed by another request.
+          pushKeyUnreachable.value = true
+          page.dispatchEvent(new Event("visibilitychange"))
+          globalThis.dispatchEvent(new Event("online"))
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          expect(sent).toHaveLength(2)
+          pushKeyUnreachable.value = false
+        },
+      )
+    })
+  })
+})
+
 Deno.test("starting the app on a subscribed device saves its subscription on the server again", async () => {
   const subscription = { endpoint: ENDPOINT, toJSON: () => SUBSCRIPTION }
   await withBrowser(subscription, async () => {

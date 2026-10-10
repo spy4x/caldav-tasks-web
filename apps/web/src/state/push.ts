@@ -123,17 +123,36 @@ export const push = createPushSubscription(() => ({
  * back. A device that is subscribed is saved on the server again on every start, which repairs a
  * subscription the server lost.
  *
+ * While the server could not be asked for its key, it is asked again each time the page comes
+ * back or the browser goes online, so the block in Settings recovers without a reload.
+ *
  * @returns The function that stops it.
  */
 export function startPush(): () => void {
-  let stop: (() => void) | undefined
+  let stopStore: (() => void) | undefined
   let stopped = false
-  void loadPushKey().then((key) => {
+  let asking = false
+  async function ask(): Promise<void> {
+    if (asking) return
+    asking = true
+    const key = await loadPushKey()
+    asking = false
+    if (stopped) return
     publicKey.value = key
-    if (!stopped) stop = push.start()
-  })
+    if (stopStore) void push.refresh()
+    else stopStore = push.start()
+  }
+  const page = (globalThis as { document?: Document }).document
+  const askAgain = (): void => {
+    if (pushKeyUnreachable.value && page?.visibilityState !== "hidden") void ask()
+  }
+  void ask()
+  page?.addEventListener("visibilitychange", askAgain)
+  globalThis.addEventListener("online", askAgain)
   return () => {
     stopped = true
-    stop?.()
+    page?.removeEventListener("visibilitychange", askAgain)
+    globalThis.removeEventListener("online", askAgain)
+    stopStore?.()
   }
 }
