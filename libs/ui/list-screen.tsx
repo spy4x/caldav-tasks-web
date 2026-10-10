@@ -9,7 +9,7 @@ import { isOpen, type Task, type TaskList } from "@spy4x/time/ical-tasks-model"
 import { buildTree, SortMode, sortTasks } from "@spy4x/platform/universal/ical-tasks-view"
 import { PATHS } from "./frame.tsx"
 import type { QuickAddResult } from "@spy4x/platform"
-import { QuickAdd } from "./quick-add.tsx"
+import { QuickAdd } from "@spy4x/preact-ui/quick-add"
 import { FocusKeeper } from "./task-focus.tsx"
 import { EmptyBody, LoadingBody, ScreenLayout } from "./task-screen.tsx"
 import { TaskTree } from "./task-tree.tsx"
@@ -117,6 +117,9 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
           onAdd={props.onQuickAdd}
           zone={props.zone}
           busy={props.quickAddBusy}
+          label="New task"
+          placeholder="Add a task"
+          labels={{ submit: "Add task", noTitle: "Add a title to create the task" }}
           hint={`Added to ${list.name}`}
         />
       }
