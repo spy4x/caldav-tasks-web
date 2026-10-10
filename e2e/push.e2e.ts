@@ -104,7 +104,9 @@ test(`the server gives its push key, stores a device's subscription once and for
   // An uncompressed P-256 point, base64url: what `pushManager.subscribe` takes.
   expect(key).toMatch(/^B[A-Za-z0-9_-]{86}$/)
 
-  // A public address that is never contacted: nothing here sends a notification.
+  // A public address, because the server refuses a private or a documentation one (192.0.2.1).
+  // The server's reminder runner is live, so it would be contacted if a reminder came due in the
+  // moment it is stored; the address is removed below.
   const endpoint = `https://8.8.8.8/push/e2e-${Date.now()}`
   const body = {
     deviceId: await deviceId(page, endpoint),
