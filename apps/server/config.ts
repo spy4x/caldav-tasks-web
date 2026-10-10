@@ -65,13 +65,14 @@ export const PUSH_VARIABLES = [
 ] as const satisfies readonly (keyof PushConfig)[]
 
 /**
- * Reads the push group. `null` when none of its variables is set (an empty value counts as unset):
- * notifications are off. Throws a `ConfigError` naming every missing or bad variable when only
+ * Reads the push group. `null` when none of its variables is set (a value that is empty or only
+ * white space counts as unset): notifications are off. Throws a `ConfigError` naming every missing or bad variable when only
  * some are set, so half a setup never runs.
  */
 export function readPushConfig(reader: EnvReader = systemEnv): PushConfig | null {
-  if (PUSH_VARIABLES.every((name) => reader.get(name) === undefined)) return null
-  const config = loadConfig(pushConfigSchema, reader)
+  const trimmed: EnvReader = { get: (name) => reader.get(name)?.trim() || undefined }
+  if (PUSH_VARIABLES.every((name) => trimmed.get(name) === undefined)) return null
+  const config = loadConfig(pushConfigSchema, trimmed)
   if (!isValidTimeZone(config.REMINDER_TIME_ZONE)) {
     throw pushConfigError("REMINDER_TIME_ZONE", "must be an IANA time zone, such as Europe/Berlin")
   }

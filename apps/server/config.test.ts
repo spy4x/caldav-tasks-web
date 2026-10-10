@@ -89,10 +89,12 @@ function pushError(env: Record<string, string>): ConfigError {
   throw new Error("the push group was accepted")
 }
 
-Deno.test("push is off when none of its variables is set, or all are blank", () => {
+Deno.test("push is off when none of its variables is set, or all are blank or white space", () => {
   expect(readPushConfig(createEnvReader({ ...TEST_CONFIG }))).toBe(null)
-  const blank = Object.fromEntries(PUSH_VARIABLES.map((name) => [name, ""]))
-  expect(readPushConfig(createEnvReader({ ...TEST_CONFIG, ...blank }))).toBe(null)
+  for (const empty of ["", " ", "\t \n"]) {
+    const blank = Object.fromEntries(PUSH_VARIABLES.map((name) => [name, empty]))
+    expect(readPushConfig(createEnvReader({ ...TEST_CONFIG, ...blank }))).toBe(null)
+  }
 })
 
 Deno.test("push is on with its five variables set", () => {
