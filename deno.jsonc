@@ -52,7 +52,7 @@
     // nothing, because it holds a workspace member). apps/server/main.test.ts starts the server
     // entry as a child process, so it runs on its own with permission to. The guard tests under
     // tests/ read source files, so each runs with its own grant.
-    "test": "deno test --no-prompt --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE --allow-read=apps/server,libs/ui --ignore=tests,apps/server/main.test.ts && deno test --no-prompt --allow-read --allow-env --allow-net --allow-run apps/server/main.test.ts && deno test --no-prompt --allow-read=apps,libs tests/spacing.test.ts && deno test --no-prompt --allow-read=libs/ui tests/ui-boundary.test.ts",
+    "test": "deno test --no-prompt --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE --allow-read=apps/server,libs/ui --ignore=tests,apps/server/main.test.ts && deno test --no-prompt --allow-read --allow-write --allow-env --allow-net --allow-run apps/server/main.test.ts && deno test --no-prompt --allow-read=apps,libs tests/spacing.test.ts && deno test --no-prompt --allow-read=libs/ui tests/ui-boundary.test.ts",
     "e2e": "PLAYWRIGHT_HTML_OUTPUT_DIR=./e2e/report deno run -A --node-modules-dir=auto npm:playwright@1.57.0 test",
     "fix": {
       "command": "echo 'Fixes applied!'",

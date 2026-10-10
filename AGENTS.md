@@ -19,6 +19,8 @@ is built. Public repo: https://github.com/spy4x/caldav-tasks-web
   server reads the tasks every minute, only to find reminders that came due, and pushes each to
   the owner's subscribed browsers. It never writes a task. The one file the server writes is
   `push.json` in `DATA_DIR`: the push subscriptions and which reminders were sent (task id and time), no task text.
+  A data folder or file that cannot be used turns notifications off with one log line; it never
+  stops the server.
 - "Tasks.org semantics": a list is a CalDAV calendar, a tag is a `CATEGORIES` value, a subtask
   links to its parent with `RELATED-TO` (`RELTYPE=PARENT`), manual order is `X-APPLE-SORT-ORDER`,
   priority is 1 (high), 5 (medium), 9 (low) or 0 (none), and a repeating task is one VTODO whose
