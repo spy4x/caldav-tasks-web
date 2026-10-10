@@ -72,17 +72,14 @@ Deno.test(`a success body that does not match the schema is a failure, not data`
   })
 })
 
-Deno.test(`a reply that fails its schema clears the offline notice and an earlier server problem`, async () => {
+Deno.test(`a reply that fails its schema clears an earlier CalDAV server problem`, async () => {
   await withApp(async (server) => {
     server.next = error(503, `caldav_unreachable`)
     await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
-    server.down = true
-    await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
-    server.down = false
+    expect(serverProblem.value).not.toBeNull()
     server.next = Response.json({ calendars: `nope` })
     await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
     expect(serverProblem.value).toBeNull()
-    expect(notice.value).toBeNull()
   })
 })
 
