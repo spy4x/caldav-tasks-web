@@ -5,7 +5,7 @@ import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { formatDateLong, isoDateInTz } from "@spy4x/time/tz"
 import type { Task, TaskList } from "@spy4x/time/ical-tasks-model"
 import type { QuickAddResult } from "@spy4x/platform"
-import { QuickAdd } from "./quick-add.tsx"
+import { QuickAdd } from "@spy4x/preact-ui/quick-add"
 import { FocusKeeper } from "./task-focus.tsx"
 import { EmptyBody, GroupHeading, LoadingBody, ScreenLayout } from "./task-screen.tsx"
 import { flatNodes, TaskTree } from "./task-tree.tsx"
@@ -59,6 +59,9 @@ export function TodayScreen(props: TodayScreenProps): JSX.Element {
           onAdd={props.onQuickAdd}
           zone={props.zone}
           busy={props.quickAddBusy}
+          label="New task"
+          placeholder="Add a task"
+          labels={{ submit: "Add task", noTitle: "Add a title to create the task" }}
           hint={(parsed) =>
             parsed.due ? `Added to your default list` : `Added to your default list, due today`}
         />
