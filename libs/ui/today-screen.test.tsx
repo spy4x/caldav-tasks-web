@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
 import { renderToString } from "preact-render-to-string"
-import { mount, must, texts } from "./mount.test.tsx"
+import { focused, mount, must, texts } from "./mount.test.tsx"
 import { dateOnly, dateTime, makeTask } from "./task-fixtures.ts"
 import { TodayScreen, type TodayScreenProps } from "./today-screen.tsx"
 import type { TaskList } from "@spy4x/time/ical-tasks-model"
@@ -134,7 +134,7 @@ Deno.test("quick add on Today carries the app's wording, not the library's", asy
     expect(must(root, `[data-e2e="quick-add-live"]`).textContent).toContain(
       `Add a title to create the task`,
     )
-    expect(window.document.activeElement).toBe(input)
+    expect(focused(window)).toBe("input quick-add-input")
   })
 })
 
