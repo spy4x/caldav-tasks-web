@@ -7,6 +7,7 @@ import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { TaskStatus } from "@spy4x/time/ical-tasks-model"
 import { notice, OFFLINE_NOTICE } from "./connection.ts"
 import { cacheUnavailable, getStorage, useStorage } from "./db.ts"
+import { getOutbox } from "./outbox.ts"
 import { pendingEntries } from "./pending.ts"
 import { refresh } from "./sync.ts"
 import { keepMineAfterConflict, saveTask, setTaskDone, tasks, WriteKind } from "./tasks.ts"
@@ -36,6 +37,13 @@ function editElsewhere(server: FakeServer, from: string, to: string) {
     etag: server.nextEtag(),
     ics: found.ics.replace(from, to),
   })
+}
+
+/** A refresh after another client's write, which moves the calendar's change marker. */
+async function refreshChanged(server: FakeServer) {
+  server.calendarList = [{ ...server.calendarList[0], changeMarker: `c2` }]
+  await refresh()
+  server.sent.length = 0
 }
 
 const puts = (server: FakeServer) => server.count(`PUT`, CALDAV_PATHS.object)
@@ -80,6 +88,44 @@ Deno.test(`a write that gets no answer is queued and the cached copy is the serv
     expect(notice.value).toBe(OFFLINE_NOTICE)
     expect(tasks.value[0].title).toBe(`Changed`)
     expect((await getStorage().listTasks())[0].ics).toBe(before.ics)
+  })
+})
+
+Deno.test(`an edit queued from an older copy than the cached one keeps the change made elsewhere`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    editElsewhere(server, `SUMMARY:Buy milk`, `SUMMARY:Buy cheese`)
+    await refreshChanged(server)
+    setBrowserOnline(false)
+
+    const result = await saveTask(before, { notes: `Three litres` }, NOW)
+
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    expect(tasks.value[0].title).toBe(`Buy cheese`)
+    expect(tasks.value[0].notes).toBe(`Three litres`)
+
+    setBrowserOnline(true)
+    await getOutbox().flush()
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`SUMMARY:Buy cheese`)
+    expect(onServer).toContain(`DESCRIPTION:Three litres`)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`an edit of a field the cached copy changed too is a conflict when it has to be queued`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    editElsewhere(server, `SUMMARY:Buy milk`, `SUMMARY:Buy cheese`)
+    await refreshChanged(server)
+    setBrowserOnline(false)
+
+    const result = await saveTask(before, { title: `Buy oat milk` }, NOW)
+
+    if (result.kind !== WriteKind.Conflict) throw new Error(`expected conflict, got ${result.kind}`)
+    expect(result.conflict.theirs.title).toBe(`Buy cheese`)
+    expect(pendingEntries.value).toEqual([])
   })
 })
 

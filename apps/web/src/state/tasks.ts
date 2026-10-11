@@ -212,8 +212,19 @@ async function queueStep(base: Task, step: Extract<Step, { ok: true; ics: string
   return fromOutcome(await queueUpdate(base, step.ics), step.task)
 }
 
-/** Builds the write from the copy the person saw and queues it. */
+/**
+ * Builds the write from the copy the person saw and queues it. When the cache already holds a
+ * newer version than that copy (an editor kept open through a refresh), the write is rebased onto
+ * the cached one first, so the queue never holds text that undoes a change made elsewhere.
+ */
 async function queueFirst(base: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
+  const cached = tasks.value.find((task) => task.href === base.href)
+  if (cached && base.etag && cached.etag !== base.etag) {
+    const rebased = plan.rebase(base, cached)
+    if (!rebased.ok) return stepFailure(rebased, base, edit, cached)
+    if (`alreadyDone` in rebased) return { kind: WriteKind.Saved, task: cached }
+    return await queueStep(cached, rebased)
+  }
   const first = plan.first(base)
   if (!first.ok) return stepFailure(first, base, edit, undefined)
   if (`alreadyDone` in first) return { kind: WriteKind.Saved, task: base }
