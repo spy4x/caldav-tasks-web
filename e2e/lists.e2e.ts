@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import { uuidV7 } from "@jsr/spy4x__platform/universal/uuid"
 import { RADICALE_URL } from "./env.ts"
 import {
   addSeededTask,
@@ -23,7 +24,8 @@ function calendarUrlOf(pageUrl: string): string {
 }
 
 test("creates a list with a colour Tasks.org reads, then renames and recolours it", async ({ page }) => {
-  const name = `E2E list ${crypto.randomUUID().slice(0, 8)}`
+  // The end of a version 7 id is random; its start is the time, the same for a whole minute.
+  const name = `E2E list ${uuidV7().slice(-8)}`
   await signIn(page)
   await page.goto(`/lists`)
   await page.getByRole(`button`, { name: `New list` }).click()
