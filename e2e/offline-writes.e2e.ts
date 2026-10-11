@@ -161,8 +161,9 @@ test("Keep mine that cannot complete the task as changed elsewhere says why, wri
 
   const why =
     `Keep mine is not possible: the task as it was changed elsewhere cannot be completed here. Use theirs, then complete it in Tasks.org.`
-  // Once on the card and once in the toast that announces it.
-  await expect(page.getByText(why)).toHaveCount(2)
+  // On the card, which keeps it, and in the toast, which announces it.
+  await expect(page.locator(`[data-conflict-id]`).getByText(why)).toBeVisible()
+  await expect(page.getByRole(`alert`).filter({ hasText: why })).toBeVisible()
   await expect(page.getByRole(`button`, { name: `Keep mine` })).toHaveCount(0)
   expect(await readTask(list.taskUrl)).not.toContain(`STATUS:COMPLETED`)
 
