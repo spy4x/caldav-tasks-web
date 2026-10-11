@@ -169,15 +169,22 @@ test(`the browser's Back asks before leaving the editor with unsaved changes: St
   await expect(pageTitle(page)).toHaveText(`Today`)
 })
 
-test(`the browser's Forward asks before leaving the editor with unsaved changes: Stay keeps the text, Leave goes forward`, async ({ page }) => {
-  // Leave the editor for Lists with nothing unsaved and come back: Lists is now one step forward.
+/**
+ * Opens the editor, leaves it for Lists with nothing unsaved and comes Back, so Lists is one step
+ * forward. Then types an unsaved change and returns the title field.
+ */
+async function editWithListsAhead(page: Page) {
   await openEditor(page)
   await page.getByRole(`button`, { name: `Lists`, exact: true }).click()
   await expect(pageTitle(page)).toHaveText(`Lists`)
   await page.goBack()
   await expect(page).toHaveURL(/\/tasks\//)
   await expect(question(page)).toBeHidden()
-  const title = await editTitle(page, `Changed but not saved`)
+  return await editTitle(page, `Changed but not saved`)
+}
+
+test(`the browser's Forward asks before leaving the editor with unsaved changes: Stay keeps the text, then Back asks again and Leave goes to Lists`, async ({ page }) => {
+  const title = await editWithListsAhead(page)
 
   await page.goForward()
   await expect(question(page)).toBeVisible()
@@ -190,6 +197,17 @@ test(`the browser's Forward asks before leaving the editor with unsaved changes:
 
   // Staying put the editor on a new history entry on top of Lists, so Lists is now one step back.
   await page.goBack()
+  await expect(question(page)).toBeVisible()
+  await expect(title).toHaveValue(`Changed but not saved`)
+  await question(page).getByRole(`button`, { name: `Leave` }).click()
+  await expect(page).not.toHaveURL(/\/tasks\//)
+  await expect(pageTitle(page)).toHaveText(`Lists`)
+})
+
+test(`the browser's Forward asks before leaving the editor with unsaved changes: Leave goes forward`, async ({ page }) => {
+  await editWithListsAhead(page)
+
+  await page.goForward()
   await expect(question(page)).toBeVisible()
   await question(page).getByRole(`button`, { name: `Leave` }).click()
   await expect(page).not.toHaveURL(/\/tasks\//)
