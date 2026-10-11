@@ -467,6 +467,60 @@ Deno.test(`a tick that cannot be made on the other device's version sends nothin
   })
 })
 
+/**
+ * A tick made offline, then a new title, that "Keep mine" refuses: the other device made the task
+ * repeat with no due date. Resolves with what the card said before the refusal.
+ */
+async function refusedTick(server: FakeServer): Promise<string> {
+  const before = await start(server)
+  setBrowserOnline(false)
+  await setTaskDone(before, true, NOW)
+  editElsewhere(server, `Their milk\r\nRRULE:FREQ=WEEKLY\r\nDTSTART;VALUE=DATE:20261001`)
+  await reconnect()
+  const told = conflicts.value[0].message
+  // The queue gives this edit a new idempotency key, and the writes that follow it keep that key.
+  await saveTask(tasks.value[0], { title: `Oat milk` }, NOW)
+  const refused = await keepMineOf(conflicts.value[0].id, NOW)
+  expect(conflicts.value.map((c) => [c.message, c.canKeepMine])).toEqual([[refused, false]])
+  return told
+}
+
+Deno.test(`unticking the task after a refused Keep mine brings the button back, and Keep mine then writes the title onto the other device's version`, async () => {
+  await withApp(async (server) => {
+    const told = await refusedTick(server)
+
+    await setTaskDone(tasks.value[0], false, NOW)
+
+    expect(conflicts.value.map((c) => [c.message, c.canKeepMine])).toEqual([[told, undefined]])
+
+    expect(await keepMineOf(conflicts.value[0].id, NOW)).toBeNull()
+
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`SUMMARY:Oat milk`)
+    expect(onServer).toContain(`RRULE:FREQ=WEEKLY`)
+    expect(onServer).not.toContain(`STATUS:COMPLETED`)
+    expect(conflicts.value).toEqual([])
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`deleting the task after a refused Keep mine shows the delete's card with the button back, and Keep mine deletes it`, async () => {
+  await withApp(async (server) => {
+    await refusedTick(server)
+
+    await deleteTask(tasks.value[0])
+
+    expect(conflicts.value.map((c) => [c.message, c.canKeepMine])).toEqual([
+      [DELETE_KEEPS_NOTHING, undefined],
+    ])
+
+    expect(await keepMineOf(conflicts.value[0].id, NOW)).toBeNull()
+
+    expect(server.objects.has(HREF)).toBe(false)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
 Deno.test(`a save that met a change, could not reread it and was queued keeps the other device's title after Keep mine`, async () => {
   await withApp(async (server) => {
     const before = await start(server)

@@ -18,11 +18,27 @@ export interface TaskConflictItem {
   canKeepMine?: boolean
 }
 
+/** Why "Keep mine" was refused, and the queued text it was refused for. */
+interface Refusal {
+  ics: string
+  message: string
+}
+
 /**
- * Why "Keep mine" was refused, by the idempotency key of the conflict it was refused for. A newer
+ * Every refused "Keep mine", by the idempotency key of the conflict it was refused for. A newer
  * conflict of the same write has a new key, so it starts without a refusal.
  */
-const refusals = signal<ReadonlyMap<string, string>>(new Map())
+const refusals = signal<ReadonlyMap<string, Refusal>>(new Map())
+
+/**
+ * The refusal that still holds for a queued write. A later edit or a delete of the task can keep
+ * the key (the queue renews it only for a write it has sent), so a refusal counts only while the
+ * write is the edit, with the text, it was made for.
+ */
+function refusalOf(entry: TaskEntry): string | undefined {
+  const refusal = refusals.value.get(entry.key)
+  return entry.kind === `update` && refusal?.ics === entry.payload.ics ? refusal.message : undefined
+}
 
 const conflictEntries = computed(() => pendingEntries.value.filter(isConflict))
 
@@ -46,7 +62,7 @@ function messageOf(entry: TaskEntry, refusal: string | undefined): string {
 /** Every write waiting for the person to choose, in the order they were made. */
 export const conflicts = computed<TaskConflictItem[]>(() =>
   conflictEntries.value.map((entry) => {
-    const refusal = refusals.value.get(entry.key)
+    const refusal = refusalOf(entry)
     const item: TaskConflictItem = {
       id: String(entry.seq),
       label: titleOf(entry),
@@ -63,7 +79,7 @@ function find(id: string): TaskEntry | undefined {
 }
 
 function refuse(entry: TaskEntry, message: string): string {
-  refusals.value = new Map(refusals.value).set(entry.key, message)
+  refusals.value = new Map(refusals.value).set(entry.key, { ics: entry.payload.ics, message })
   return message
 }
 
