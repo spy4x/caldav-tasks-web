@@ -375,6 +375,79 @@ Deno.test("Keep mine hands over the form as typed and leaves the form as it is",
   }, base)
 })
 
+Deno.test("their version arriving one render before the conflict leaves the typed title, and Keep mine hands it over", async () => {
+  const kept: TaskDraft[] = []
+  const base = props({ onKeepMine: (draft) => kept.push(draft) })
+  await mount(async (root, window, rerender) => {
+    await type(root, "task-title", "Water the ferns")
+    // The app caches their copy first; the conflict is reported a render later.
+    await rerender({ ...base, task: THEIRS() })
+    expect((e2e(root, "task-title") as HTMLInputElement).value).toBe("Water the ferns")
+    await rerender({ ...base, conflict: true, task: THEIRS() })
+    expect((e2e(root, "task-title") as HTMLInputElement).value).toBe("Water the ferns")
+    await press(window.document.querySelector(`[data-e2e="task-conflict-keep-mine"]`) as never)
+    expect(kept.map((draft) => draft.title)).toEqual(["Water the ferns"])
+  }, base)
+})
+
+Deno.test("Use theirs takes their title when their version arrived one render before the conflict", async () => {
+  const went: string[] = []
+  const base = props({ navigate: (href) => went.push(href) })
+  await mount(async (root, window, rerender) => {
+    await type(root, "task-title", "Water the ferns")
+    await rerender({ ...base, task: THEIRS() })
+    await rerender({ ...base, conflict: true, task: THEIRS() })
+    await press(window.document.querySelector(`[data-e2e="task-conflict-use-theirs"]`) as never)
+    expect((e2e(root, "task-title") as HTMLInputElement).value).toBe("Water")
+
+    await rerender({ ...base, conflict: false, task: THEIRS() })
+    await press(e2e(root, "task-cancel"))
+    expect(window.document.querySelector("dialog") === null).toBe(true)
+    expect(went).toEqual(["/"])
+  }, base)
+})
+
+Deno.test("a version from another device leaves typed notes alone, and Save hands over the version the form started from", async () => {
+  const saved: { draft: TaskDraft; etag: string }[] = []
+  const base = props({ onSave: (draft, from) => saved.push({ draft, etag: from.etag }) })
+  await mount(async (root, _window, rerender) => {
+    await type(root, "task-notes", "Ferns need more.")
+    await rerender({ ...base, task: THEIRS() })
+    expect((e2e(root, "task-notes") as HTMLTextAreaElement).value).toBe("Ferns need more.")
+    await press(e2e(root, "task-save"))
+    // The title is still the one the form started from, so the app's merge sees it as untouched.
+    expect(saved.map((save) => [save.etag, save.draft.title, save.draft.notes])).toEqual([
+      [`"v1"`, "Water the plants", "Ferns need more."],
+    ])
+  }, base)
+})
+
+Deno.test("an untouched form takes a version from another device, and Save then starts from it", async () => {
+  const saved: { draft: TaskDraft; etag: string }[] = []
+  const base = props({ onSave: (draft, from) => saved.push({ draft, etag: from.etag }) })
+  await mount(async (root, _window, rerender) => {
+    await rerender({ ...base, task: THEIRS() })
+    expect((e2e(root, "task-title") as HTMLInputElement).value).toBe("Water")
+    await press(e2e(root, "task-save"))
+    expect(saved.map((save) => [save.etag, save.draft.title])).toEqual([[`"v2"`, "Water"]])
+  }, base)
+})
+
+Deno.test("typing their value back by hand lets the form catch up with their version", async () => {
+  const saved: { draft: TaskDraft; etag: string }[] = []
+  const base = props({ onSave: (draft, from) => saved.push({ draft, etag: from.etag }) })
+  const theirs = () => task({ etag: `"v2"`, title: "Water", notes: "Twice a week." })
+  await mount(async (root, _window, rerender) => {
+    await type(root, "task-title", "Water the ferns")
+    await rerender({ ...base, task: theirs() })
+    expect((e2e(root, "task-notes") as HTMLTextAreaElement).value).toBe("Ferns need less.")
+    await type(root, "task-title", "Water")
+    expect((e2e(root, "task-notes") as HTMLTextAreaElement).value).toBe("Twice a week.")
+    await press(e2e(root, "task-save"))
+    expect(saved.map((save) => save.etag)).toEqual([`"v2"`])
+  }, base)
+})
+
 Deno.test("the subtask form sits outside the editor's form, so Enter in it cannot save the task", async () => {
   await mount(async (root) => {
     const editor = e2e(root, "task-save").closest("form")!

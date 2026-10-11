@@ -1,5 +1,5 @@
 import type { JSX } from "preact"
-import { useEffect, useRef, useState } from "preact/hooks"
+import { useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { hhmmInTz, isoDateInTz, resolveWallClock } from "@spy4x/time/tz"
 import { Button } from "@spy4x/preact-ui/button"
 import { ConfirmDialog } from "@spy4x/preact-ui/confirm-dialog"
@@ -57,7 +57,10 @@ export interface TaskEditorErrors {
 
 /** Props of {@link TaskEditorScreen}. */
 export interface TaskEditorScreenProps {
-  /** The task as stored. A new `etag` (a save went through, or "Use theirs") resets the form. */
+  /**
+   * The task as stored. A new `etag` resets the form, unless it would drop something typed: then
+   * the form stays on the version it started from until a save or "Use theirs".
+   */
   task: Task
   /** Every list, for the list choice. */
   lists: readonly TaskList[]
@@ -67,8 +70,13 @@ export interface TaskEditorScreenProps {
   subtasks?: readonly Task[]
   /** Where a subtask opens, to make its title a link. */
   subtaskHref?: (subtask: Task) => string
-  /** Called with the whole form when it is valid and Save is pressed. Never while `saving`. */
-  onSave: (draft: TaskDraft) => void
+  /**
+   * Called with the whole form when it is valid and Save is pressed. Never while `saving`. `base`
+   * is the version the form started from, which is older than `task` when the stored task changed
+   * while the form held something typed: the save must be made against `base`, so the change made
+   * elsewhere is merged or reported as a conflict, never overwritten unseen.
+   */
+  onSave: (draft: TaskDraft, base: Task) => void
   /** A save is running: the form is disabled and Save shows its wait. */
   saving?: boolean
   /** Why the last save was refused. */
@@ -174,6 +182,13 @@ function fieldsOf(task: Task, zone: string): Fields {
   }
 }
 
+/** The fields whose value differs between two versions of the form. */
+function changedFields(from: Fields, to: Fields): (keyof Fields)[] {
+  return (Object.keys(to) as (keyof Fields)[]).filter((key) =>
+    JSON.stringify(from[key]) !== JSON.stringify(to[key])
+  )
+}
+
 /**
  * The date value for what the inputs hold. Untouched inputs give back the task's own value, so a
  * zone, a seconds part or a floating time survives a save that did not change it. A new time keeps
@@ -237,24 +252,35 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
   const { task, lists, navigate, saving = false } = props
   const backHref = props.backHref ?? "/"
   const zone = props.timeZone ?? `UTC`
+  // The version the form started from. It trails `task` while the form holds something typed that
+  // the newer stored version lacks.
+  const [base, setBase] = useState(task)
   const [fields, setFields] = useState(() => fieldsOf(task, zone))
-  const [baseline, setBaseline] = useState(() => fieldsOf(task, zone))
+  const baseline = useMemo(() => fieldsOf(base, zone), [base, zone])
   const [checked, setChecked] = useState<TaskEditorErrors>({})
   const [attempt, setAttempt] = useState(0)
   const [asking, setAsking] = useState(false)
   const form = useRef<HTMLDivElement>(null)
-  const seen = useRef({ uid: task.uid, etag: task.etag })
 
-  // A newer stored version (a save went through, or "Use theirs") replaces the form. During a
-  // conflict it does not: the form keeps what was typed until a choice is made.
-  useEffect(() => {
-    if (seen.current.uid === task.uid && seen.current.etag === task.etag) return
-    seen.current = { uid: task.uid, etag: task.etag }
-    if (props.conflict) return
+  /** Drops what the form holds and starts it from the stored task. */
+  const restart = () => {
+    setBase(task)
     setFields(fieldsOf(task, zone))
-    setBaseline(fieldsOf(task, zone))
     setChecked({})
-  }, [task, props.conflict])
+  }
+
+  // A newer stored version replaces the form only when nothing typed is lost by it: the form is
+  // untouched, or the new version already holds every value that was typed (the save went through).
+  // Otherwise another device changed the task, and the form keeps what was typed, on the version it
+  // started from, whether or not the conflict has been reported yet. Once nothing typed would be
+  // lost any more (the person typed their value themselves), the form catches up.
+  useEffect(() => {
+    if (base.uid === task.uid && base.etag === task.etag) return
+    const stored = fieldsOf(task, zone)
+    const typed = changedFields(baseline, fields)
+    const lost = typed.some((key) => JSON.stringify(fields[key]) !== JSON.stringify(stored[key]))
+    if (base.uid !== task.uid || !lost) restart()
+  }, [task, fields])
 
   const errors: TaskEditorErrors = { ...props.errors, ...checked }
   const errorKey = `${errors.title ?? ""}|${errors.due ?? ""}|${errors.start ?? ""}|${
@@ -265,7 +291,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
     form.current?.querySelector<HTMLElement>(`[aria-invalid="true"]`)?.focus()
   }, [errorKey, attempt])
 
-  const dirty = JSON.stringify(fields) !== JSON.stringify(baseline)
+  const dirty = changedFields(baseline, fields).length > 0
   const set = (patch: Partial<Fields>) => {
     setFields((current) => ({ ...current, ...patch }))
     setChecked({})
@@ -274,8 +300,8 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
   const draft = (): TaskDraft => ({
     title: fields.title.trim(),
     notes: fields.notes,
-    due: dateOf(fields.dueDate, fields.dueTime, task.due, zone),
-    start: dateOf(fields.startDate, fields.startTime, task.start, zone),
+    due: dateOf(fields.dueDate, fields.dueTime, base.due, zone),
+    start: dateOf(fields.startDate, fields.startTime, base.start, zone),
     priority: fields.priority,
     listHref: fields.listHref,
     tags: fields.tags,
@@ -290,7 +316,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
       setAttempt((count) => count + 1)
       return
     }
-    props.onSave(draft())
+    props.onSave(draft(), base)
   }
 
   const listName = lists.find((list) => list.href === task.listHref)?.name
@@ -404,7 +430,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
             disabled={saving}
             anchor={repeatAnchor(
               fields.dueDate ? fields.dueTime : fields.startTime,
-              fields.dueDate ? task.due : task.start,
+              fields.dueDate ? base.due : base.start,
               zone,
             )}
           />
@@ -470,9 +496,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
         onKeepMine={() => props.onKeepMine?.(draft())}
         onUseTheirs={() => {
           // Their version is the current `task`: the form drops what was typed and starts from it.
-          setFields(fieldsOf(task, zone))
-          setBaseline(fieldsOf(task, zone))
-          setChecked({})
+          restart()
           props.onUseTheirs?.()
         }}
       />

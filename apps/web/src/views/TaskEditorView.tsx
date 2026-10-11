@@ -72,7 +72,9 @@ export function TaskEditorView() {
       tagSuggestions={allTags.value}
       subtasks={tasks.value.filter((candidate) => candidate.parentUid === task.uid)}
       subtaskHref={taskPath}
-      onSave={(draft) => void run(() => saveTask(task, draftToEdit(task, draft)))}
+      // `base` is the version the form started from: saving against it lets a change made
+      // elsewhere since then be merged, or reported as a conflict.
+      onSave={(draft, base) => void run(() => saveTask(base, draftToEdit(base, draft)))}
       saving={saving.value}
       errors={errors.value}
       conflict={conflict.value !== null}
@@ -83,7 +85,7 @@ export function TaskEditorView() {
         const edit = draftToEdit(collided.base, draft)
         void run(() => keepMineAfterConflict({ ...collided, edit }))
       }}
-      // The cache already holds their copy and the form has reset to it.
+      // The cache already holds their copy and the screen has restarted the form from it.
       onUseTheirs={() => conflict.value = null}
       timeZone={browserZone()}
       onAddSubtask={(title) =>
