@@ -1,3 +1,5 @@
+// The npm name of `@spy4x/platform`: Playwright loads this file through Node (see deno.jsonc).
+import { uuidV7 } from "@jsr/spy4x__platform/universal/uuid"
 import { CALDAV_PASSWORD, CALDAV_USERNAME, RADICALE_URL } from "../env.ts"
 
 /** A task list the fixture created on Radicale, with the one task in it. */
@@ -41,7 +43,7 @@ export async function seedTaskList(
   title = `Seeded task`,
   extraLines: string[] = [],
 ): Promise<SeededList> {
-  const id = crypto.randomUUID()
+  const id = uuidV7()
   const calendarUrl = `${RADICALE_URL}/${CALDAV_USERNAME}/${id}/`
   await caldav(
     `MKCALENDAR`,
@@ -56,7 +58,7 @@ export async function seedTaskList(
 </C:mkcalendar>`,
     [201],
   )
-  const uid = crypto.randomUUID()
+  const uid = uuidV7()
   const taskUrl = `${calendarUrl}${uid}.ics`
   await caldav(
     `PUT`,
@@ -87,7 +89,7 @@ export async function addSeededTask(
   title: string,
   extraLines: string[] = [],
 ): Promise<string> {
-  const uid = crypto.randomUUID()
+  const uid = uuidV7()
   const taskUrl = `${list.calendarUrl}${uid}.ics`
   await caldav(
     `PUT`,

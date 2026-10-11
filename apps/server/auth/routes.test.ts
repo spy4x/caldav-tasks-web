@@ -2,6 +2,9 @@
 import { expect } from "@std/expect"
 import { fromFileUrl } from "@std/path"
 import type { Hono } from "hono"
+import { type } from "arktype"
+import { createSignedPayloadCodec } from "@spy4x/platform/signed-payload"
+import { isUuid } from "@spy4x/platform/universal/uuid"
 import { createApp } from "../app.ts"
 import { TEST_CONFIG, TEST_OWNER_PASSWORD } from "../test-config.ts"
 import { AUTH_PATHS } from "@api/auth.ts"
@@ -100,6 +103,46 @@ Deno.test("the owner password starts a session in a Secure, HttpOnly, SameSite=S
     caldavUrl: TEST_CONFIG.CALDAV_URL,
     caldavUsername: TEST_CONFIG.CALDAV_USERNAME,
   })
+})
+
+/** The session cookie's codec as the server builds it, to read a cookie or write an older one. */
+function sessionCodec(now: () => number) {
+  return createSignedPayloadCodec({
+    secret: TEST_CONFIG.SESSION_SECRET,
+    purpose: "caldav-tasks-web.session",
+    version: 1,
+    schema: type({ sid: "string", expiresAt: "number.integer" }),
+    now,
+  })
+}
+
+Deno.test("a new session's id is a UUID version 7", async () => {
+  const { app } = await setup()
+  const cookie = await signedIn(app)
+  const read = await sessionCodec(() => START).verify(cookie, {
+    context: TEST_CONFIG.OWNER_PASSWORD_HASH,
+  })
+  if (!read.ok) throw new Error("the test could not read the session cookie")
+  expect(isUuid(read.value.sid, 7)).toBe(true)
+})
+
+Deno.test("a session signed before the change, with a UUID version 4 as its id, is still read and can sign out", async () => {
+  const { app } = await setup()
+  const sid = "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b"
+  expect(isUuid(sid, 4)).toBe(true)
+  const cookie = await sessionCodec(() => START).sign(
+    { sid, expiresAt: START + SESSION_TTL_MS },
+    { ttlMs: SESSION_TTL_MS, context: TEST_CONFIG.OWNER_PASSWORD_HASH },
+  )
+
+  const session = await send(app, AUTH_PATHS.session, { cookie })
+  expect(session.status).toBe(200)
+  expect((await session.json()).expiresAt).toBe(new Date(START + SESSION_TTL_MS).toISOString())
+
+  const signOut = await send(app, AUTH_PATHS.signOut, { method: "POST", cookie })
+  expect(signOut.status).toBe(204)
+  const replay = await send(app, AUTH_PATHS.session, { cookie })
+  expect(replay.status).toBe(401)
 })
 
 Deno.test("a wrong password answers 401 and sets no cookie", async () => {

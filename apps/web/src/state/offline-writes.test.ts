@@ -2,10 +2,17 @@
 import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { CALDAV_PATHS } from "@api/caldav.ts"
+import { isUuid } from "@spy4x/platform/universal/uuid"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { conflicts, keepMineOf, useTheirsOf } from "./conflicts.ts"
 import { getStorage } from "./db.ts"
-import { createTestOutboxStore, getOutbox, loadOutbox, useOutboxStore } from "./outbox.ts"
+import {
+  createTestOutboxStore,
+  fileIdFor,
+  getOutbox,
+  loadOutbox,
+  useOutboxStore,
+} from "./outbox.ts"
 import { pendingEntries } from "./pending.ts"
 import { refresh } from "./sync.ts"
 import { saveTask, setTaskDone, tasks, WriteKind } from "./tasks.ts"
@@ -103,6 +110,12 @@ Deno.test(`a delete made offline hides the task at once and is sent on reconnect
     expect(await getStorage().listTasks()).toEqual([])
     expect(tasks.value).toEqual([])
   })
+})
+
+Deno.test(`a UID that cannot be a file name gets a UUID version 7 as its file id, any other keeps its own`, () => {
+  expect(isUuid(fileIdFor(`mail@example.com/1`), 7)).toBe(true)
+  const old = `3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b`
+  expect(fileIdFor(old)).toBe(old)
 })
 
 Deno.test(`a task created offline is sent on reconnect and becomes the server's task`, async () => {

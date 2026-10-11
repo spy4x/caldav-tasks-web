@@ -16,6 +16,7 @@ import {
   type OutboxStore,
   type Outcome,
 } from "@spy4x/realtime/outbox"
+import { uuidV7 } from "@spy4x/platform/universal/uuid"
 import { createIndexedDbOutboxStore } from "@spy4x/realtime/outbox-indexeddb"
 import { parseTask, type Task } from "@spy4x/time/ical-tasks-model"
 import {
@@ -286,7 +287,7 @@ export function entityIdOf(task: Task): string {
 
 /** The file id a new task's object is named by: its UID when that is a plain file name. */
 export function fileIdFor(uid: string): string {
-  return isSafeEntityId(uid) ? uid : crypto.randomUUID()
+  return isSafeEntityId(uid) ? uid : uuidV7()
 }
 
 /** The queued write for a task, if one is waiting. */

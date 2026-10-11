@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test"
+import { uuidV7 } from "@jsr/spy4x__platform/universal/uuid"
 import { CALDAV_PATHS } from "../libs/api/caldav.ts"
 import { CALDAV_PASSWORD } from "./env.ts"
 import { deleteList, readTask, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
@@ -62,7 +63,7 @@ test("lists the task lists on Radicale and a list's open tasks, completed ones o
 
   const done = await relay(page, CALDAV_PATHS.objects, `POST`, {
     calendar: calendarHref,
-    ics: task(crypto.randomUUID(), [
+    ics: task(uuidV7(), [
       `SUMMARY:Done task`,
       `STATUS:COMPLETED`,
       `COMPLETED:20261008T100000Z`,
@@ -116,7 +117,7 @@ test("an update with a stale etag answers 412 conflict and the task stays as it 
 })
 
 test("refuses a task outside the listed calendars", async ({ page }) => {
-  const elsewhere = `/someone-else/${crypto.randomUUID()}/a.ics`
+  const elsewhere = `/someone-else/${uuidV7()}/a.ics`
   const answer = await relay(page, `${CALDAV_PATHS.object}?href=${encodeURIComponent(elsewhere)}`)
   expect(answer.status).toBe(400)
   expect(JSON.parse(answer.text).code).toBe(`bad_request`)

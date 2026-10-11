@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception"
 import { type } from "arktype"
 import { createSignedPayloadCodec } from "@spy4x/platform/signed-payload"
 import { clientIp, clientIpBucket, humanRetry } from "@spy4x/platform/rate-limit/client-ip"
+import { uuidV7 } from "@spy4x/platform/universal/uuid"
 import { createPasswordHasher } from "@spy4x/server/sign-in"
 import { createLockout } from "@spy4x/server/lockout"
 import { MemoryLockoutStore } from "@spy4x/server/lockout/memory-store"
@@ -196,7 +197,7 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
       if (previous) forget(previous)
       const expiresAt = now() + SESSION_TTL_MS
       const token = await sessions.sign(
-        { sid: crypto.randomUUID(), expiresAt },
+        { sid: uuidV7(), expiresAt },
         // Bound to the password hash: a new password ends every session signed under the old one.
         { ttlMs: SESSION_TTL_MS, context: config.OWNER_PASSWORD_HASH },
       )
