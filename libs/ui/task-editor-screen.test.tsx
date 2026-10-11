@@ -422,6 +422,35 @@ Deno.test("a version from another device leaves typed notes alone, and Save hand
   }, base)
 })
 
+Deno.test("typed notes stay when a title typed next to them happens to equal the other device's", async () => {
+  const base = props()
+  await mount(async (root, _window, rerender) => {
+    await type(root, "task-title", "Water")
+    await type(root, "task-notes", "Ferns need more.")
+    await rerender({ ...base, task: THEIRS() })
+    expect((e2e(root, "task-notes") as HTMLTextAreaElement).value).toBe("Ferns need more.")
+  }, base)
+})
+
+Deno.test("untouched due and start dates are handed over as the form's starting version has them, not the newer one's", async () => {
+  const saved: TaskDraft[] = []
+  const start = {
+    kind: IcalDateKind.Zoned,
+    date: "2026-10-11",
+    time: "08:15:30",
+    tzid: "Europe/Berlin",
+  }
+  const first = task({ start })
+  const base = props({ task: first, onSave: (draft) => saved.push(draft) })
+  await mount(async (root, _window, rerender) => {
+    await type(root, "task-notes", "Ferns need more.")
+    const moved = { kind: IcalDateKind.Date, date: "2026-11-01" }
+    await rerender({ ...base, task: task({ etag: `"v2"`, due: moved, start: moved }) })
+    await press(e2e(root, "task-save"))
+    expect(saved.map((draft) => [draft.due, draft.start])).toEqual([[first.due, start]])
+  }, base)
+})
+
 Deno.test("an untouched form takes a version from another device, and Save then starts from it", async () => {
   const saved: { draft: TaskDraft; etag: string }[] = []
   const base = props({ onSave: (draft, from) => saved.push({ draft, etag: from.etag }) })
