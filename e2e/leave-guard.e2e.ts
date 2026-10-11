@@ -146,3 +146,52 @@ test(`a shortcut pressed while the question is open does not change where Leave 
   await question(page).getByRole(`button`, { name: `Leave` }).click()
   await expect(pageTitle(page)).toHaveText(`Lists`)
 })
+
+test(`the browser's Back asks before leaving the editor with unsaved changes: Stay keeps the text, Back asks again, Leave goes back`, async ({ page }) => {
+  await openEditor(page)
+  const title = await editTitle(page, `Changed but not saved`)
+
+  await page.goBack()
+  await expect(question(page)).toBeVisible()
+  await expect(page).toHaveURL(/\/tasks\//)
+  await expect(title).toHaveValue(`Changed but not saved`)
+  await question(page).getByTestId(`confirm-dialog-cancel`).click()
+  await expect(question(page)).toBeHidden()
+  await expect(page).toHaveURL(/\/tasks\//)
+  await expect(title).toHaveValue(`Changed but not saved`)
+
+  await page.goBack()
+  await expect(question(page)).toBeVisible()
+  await expect(title).toHaveValue(`Changed but not saved`)
+  await question(page).getByRole(`button`, { name: `Leave` }).click()
+  await expect(page).not.toHaveURL(/\/tasks\//)
+  // The editor was opened from Today, so that is where Back was going.
+  await expect(pageTitle(page)).toHaveText(`Today`)
+})
+
+test(`the browser's Forward asks before leaving the editor with unsaved changes: Stay keeps the text, Leave goes forward`, async ({ page }) => {
+  // Leave the editor for Lists with nothing unsaved and come back: Lists is now one step forward.
+  await openEditor(page)
+  await page.getByRole(`button`, { name: `Lists`, exact: true }).click()
+  await expect(pageTitle(page)).toHaveText(`Lists`)
+  await page.goBack()
+  await expect(page).toHaveURL(/\/tasks\//)
+  await expect(question(page)).toBeHidden()
+  const title = await editTitle(page, `Changed but not saved`)
+
+  await page.goForward()
+  await expect(question(page)).toBeVisible()
+  await expect(page).toHaveURL(/\/tasks\//)
+  await expect(title).toHaveValue(`Changed but not saved`)
+  await question(page).getByTestId(`confirm-dialog-cancel`).click()
+  await expect(question(page)).toBeHidden()
+  await expect(page).toHaveURL(/\/tasks\//)
+  await expect(title).toHaveValue(`Changed but not saved`)
+
+  // Staying put the editor on a new history entry on top of Lists, so Lists is now one step back.
+  await page.goBack()
+  await expect(question(page)).toBeVisible()
+  await question(page).getByRole(`button`, { name: `Leave` }).click()
+  await expect(page).not.toHaveURL(/\/tasks\//)
+  await expect(pageTitle(page)).toHaveText(`Lists`)
+})
