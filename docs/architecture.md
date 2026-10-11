@@ -19,9 +19,10 @@ flowchart LR
   session. Everything under `/api` except sign-in needs the cookie, and a write needs a request from
   the app's own address.
 - **Relays CalDAV** (`apps/server/caldav`). It lists the calendars that can hold tasks, lists the
-  tasks in one, and creates, updates and deletes one task by its address and etag. A task travels as
-  raw iCalendar text with its `href` and `etag`. The server does not parse it, and it never edits a
-  task or writes one on its own. Every address the browser sends must be a calendar the relay listed
+  tasks in one, creates, updates and deletes one task, and creates, renames, recolours and deletes
+  a list. A task travels as raw iCalendar text with its `href` (its address on the CalDAV server) and
+  its `etag` (a version marker the server changes on every write). The relay does not parse the text,
+  and the server never edits a task or writes one on its own. Every address the browser sends must be a calendar the relay listed
   or a task directly inside one; anything else is refused before a request leaves the server. The
   etag the browser sends is passed through unchanged, so a stale one comes back as `412` and the
   server never overwrites a newer version.
@@ -33,7 +34,7 @@ and a status, never a credential, a task's text or an etag.
 
 ## The browser edits a task without losing fields
 
-The browser app (`apps/web`) does all the work with task text, using `@spy4x/time/ical` and its
+The browser app (`apps/web`) makes every change to task text, using `@spy4x/time/ical` and its
 `ical-tasks-*` modules. To change a task it reads the text as stored, changes only the properties
 that the person edited, and writes the whole text back. Everything else in it, such as another
 client's `X-` properties, its `VALARM` blocks, its `PRODID`, and properties this app does not know,
@@ -41,7 +42,7 @@ stays as it was. `apps/web/src/views/task-edit.test.ts` checks that an untouched
 edit and that only changed fields go in, and `e2e/tasks.e2e.ts` checks against Radicale that a saved
 edit keeps a reminder and an unknown property on the server.
 
-Words follow Tasks.org (`libs/tasks`, `AGENTS.md`): a list is a CalDAV calendar, a tag is a
+The app stores things the way Tasks.org does: a list is a CalDAV calendar, a tag is a
 `CATEGORIES` value, a subtask points to its parent with `RELATED-TO`, manual order is
 `X-APPLE-SORT-ORDER`, priority is 1, 5, 9 or 0, and a repeating task is one task whose dates move when
 you complete it.
@@ -78,9 +79,14 @@ or `/health`.
 Reminder notifications are optional (`apps/server/push`). With the five variables set, a runner in
 the server wakes once a minute and reads every open task in every list that can hold tasks, over
 CalDAV, only to find reminders that came due since the last run. It pushes each one once to every
-subscribed browser, and the notification opens that task. It never writes a task. A list it cannot
-read is skipped and logged as a count and error codes, never a name. If it cannot read any list, it
-sends nothing that minute and tries the same stretch of time again, so no reminder is lost.
+subscribed browser, and the notification opens that task. It never writes a task. To do that the server
+parses each task's text for its title and reminders; this is the only place the server looks inside
+a task.
+
+A list the server is refused for good (forbidden, gone, malformed) is skipped while the others are
+read, and logged as a count and error codes, never a name. A timeout, a network error or a server
+error on any list, or no readable list at all, sends nothing that minute, and the runner tries the
+same stretch of time again, so no reminder is lost.
 
 The one file the server writes is `push.json` in `DATA_DIR`. It holds the push subscriptions, and the
 runner's "last run" time and which reminders were sent (task id and time, no task text). A data
@@ -93,5 +99,5 @@ folder that cannot be used turns notifications off with one log line and does no
 - **A server database.** The server keeps no tasks, no accounts and no sessions. Your CalDAV server
   has the tasks, the browser has its cache and queue, and `push.json` is the only server state.
 - **Moving a task between lists** is refused for now (`state/tasks.test.ts`).
-- **A repeat rule the library cannot reproduce** is shown as "complete it in Tasks.org" instead of
+- **A repeat rule the library cannot reproduce** is shown as "Complete this one in Tasks.org" instead of
   being completed here, so a rule is never rewritten wrongly (`libs/tasks/identity.test.ts`).

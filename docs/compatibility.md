@@ -1,7 +1,7 @@
 # Compatibility
 
-What was tested, and what was not. A row says "tested" only when the evidence is in this repository
-or is the author's own daily use, and the last column says which.
+What was tested, and what was not. A row says "tested" only when a test in this repository backs it.
+"In daily use" means the author runs it and no automated test does.
 
 ## CalDAV servers
 
@@ -34,7 +34,7 @@ are made-up tasks in Tasks.org's form, and the tests that use them are in `apps/
 | --------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Title, notes                      | `SUMMARY`, `DESCRIPTION`                                            | Yes (the repeating task has notes)                                                                                                                        |
 | Due date, with or without a time  | `DUE` as a date, a floating time, a UTC time, or a time with a zone | Yes, one task of each kind                                                                                                                                |
-| Priority                          | `PRIORITY` 1, 5, 9, 0                                               | Yes                                                                                                                                                       |
+| Priority                          | `PRIORITY` 1, 5, 9, 0                                               | The fixtures hold 1 and 5. The editor test saves 0, 1, 5 and 9, and the quick-add test maps its words to 1, 5 and 9.                                      |
 | Tags                              | `CATEGORIES`                                                        | Yes                                                                                                                                                       |
 | Repeat                            | `RRULE`                                                             | Yes, a daily rule; weekly with days and an end are covered by `e2e/repeat.e2e.ts` against Radicale. A rule the app cannot reproduce is left to Tasks.org. |
 | Reminders                         | `VALARM`                                                            | Yes, the default "when due" alarm; kept untouched by an edit (`e2e/tasks.e2e.ts`)                                                                         |

@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **A web companion to [Tasks.org](https://tasks.org/) for your own CalDAV server.** Open your task
-lists in any browser, on the same server your phone syncs with. One install serves one person.
+lists in a browser (tested in Chromium), on the same server your phone syncs with. One install serves one person.
 
 <!-- Video demo goes here once recorded: https://github.com/spy4x/caldav-tasks-web/issues/39 -->
 
@@ -40,8 +40,8 @@ You need a CalDAV account and a way to put the app behind HTTPS. Sign-in uses a 
 and the service worker, install and notifications need a secure origin, so a plain `http://` address
 works only on `localhost`.
 
-First make the password hash (this is the one step that needs [Deno](https://deno.com/) 2 and a
-clone of this repo; the image does not carry the script):
+First make the password hash (this step needs [Deno](https://deno.com/) 2 and a clone of this
+repo, because the image does not carry the script; so do the notification keys, if you want them):
 
 ```bash
 git clone https://github.com/spy4x/caldav-tasks-web && cd caldav-tasks-web
@@ -63,6 +63,8 @@ docker run -d --name caldav-tasks-web --restart unless-stopped -p 8080:8080 \
   -e SESSION_SECRET='<a random string of 32 or more characters>' \
   antonshubin/caldav-tasks-web:latest
 ```
+
+For a real install, pin a release tag such as `v1.7.0` instead of `latest`.
 
 Make the random strings with `openssl rand -base64 32`, once, and keep them: changing
 `SESSION_SECRET` signs everyone out.

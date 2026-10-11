@@ -10,7 +10,8 @@ with yours.
 - A host that runs Docker, and a way to give the app an `https://` address. The session cookie is
   named `__Host-session`, which browsers accept only over HTTPS (or on `localhost`), and the service
   worker, the install prompt and push all need a secure origin too.
-- For one step, [Deno](https://deno.com/) 2 and a clone of this repository (below).
+- For the password hash, and for the notification keys if you want notifications, [Deno](https://deno.com/)
+  2 and a clone of this repository (below).
 
 ## The password hash and the two secrets
 
@@ -66,15 +67,10 @@ Compose reads. Do not commit that file.
 
 ## CALDAV_URL
 
-`CALDAV_URL` is the address the app's server uses to reach your CalDAV server, and it should be the
-server's public `https://` address, because the app discovers your task lists from there. For
-Radicale, that is the address you reach it at, such as `https://caldav.example.com`. For Stalwart, it
-is the mail host's address, such as `https://mail.example.com`. The credentials in `CALDAV_USERNAME`
-and `CALDAV_PASSWORD` are sent to that origin only. The browser never sees them: it talks to this
-app, and this app talks to your CalDAV server.
-
-The container must be able to reach that address. If the CalDAV server runs on the same Docker host,
-use its public address or put both containers on one Docker network and use the container's name.
+`CALDAV_URL` is the address this app's server uses to reach your CalDAV server. Any address the
+container can reach works: the public `https://` address, or, when both run on one Docker network,
+the container's name. For Stalwart, use the mail host's address, such as `https://mail.example.com`.
+The username and password are sent to that address only, and the browser never sees them.
 
 ## Behind a reverse proxy
 
@@ -153,10 +149,10 @@ task's id and the reminder's time, so none is sent twice. No task text. A notifi
 task's title, encrypted for that device, through the browser vendor's push service. Once a minute
 the server reads your open tasks over CalDAV to find reminders that came due; it never writes a task.
 
-The server sends only to a push address that is `https` and public, and checks that when a device
-subscribes and again before each send. Two limits remain: a host name is looked up at each check and
-again on the connection, so a name that answers differently in between gets past it, and any port of
-a public host is accepted. Only the signed-in owner can add an address.
+The server sends a push only to an `https` address on a public host. It checks this when a device
+subscribes and again before each send. Only the signed-in owner can add an address. The check has
+two known gaps: a host name that changes its answer between the check and the connection is not
+caught, and any port on a public host is accepted.
 
 **iPhone and iPad.** Notifications work only after you add the app to the Home Screen (Share, then
 Add to Home Screen) and open it from there. Settings says so when that is the case.
@@ -164,7 +160,7 @@ Add to Home Screen) and open it from there. Settings says so when that is the ca
 ## Upgrading and rolling back
 
 Images are tagged by release: `antonshubin/caldav-tasks-web:v1.7.0`, and `latest` for the newest
-release (a pre-release such as `v1.8.0-rc.1` never moves `latest`). Pin the tag you run.
+release (a pre-release such as `v1.8.0-rc.1` never moves `latest`). Pin the tag you run, rather than `latest`.
 
 ```bash
 # Upgrade: change the tag in compose.yml, then

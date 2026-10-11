@@ -11,7 +11,8 @@ is built. Public repo: https://github.com/spy4x/caldav-tasks-web
 
 - The browser (Preact SPA) talks JSON plus raw iCalendar text to a thin Hono server in one
   container; the server talks CalDAV. The browser never sees the CalDAV password.
-- The server never parses a task. The browser reads, patches and creates tasks with
+- The relay never parses a task (only the reminder runner reads each open task's title and
+  reminders, when notifications are on). The browser reads, patches and creates tasks with
   `@spy4x/time/ical` and caches `{ href, etag, ics }` in IndexedDB. Every edit patches the original
   text, so nothing Tasks.org or another client wrote is dropped.
 - No server-side database. Sign-in is one owner password and a signed, expiring session cookie.
@@ -22,7 +23,7 @@ is built. Public repo: https://github.com/spy4x/caldav-tasks-web
   A data folder or file that cannot be used turns notifications off with one log line; it never
   stops the server.
 - "Tasks.org semantics": a list is a CalDAV calendar, a tag is a `CATEGORIES` value, a subtask
-  links to its parent with `RELATED-TO` (`RELTYPE=PARENT`), manual order is `X-APPLE-SORT-ORDER`,
+  links to its parent with `RELATED-TO` (Tasks.org writes no `RELTYPE`), manual order is `X-APPLE-SORT-ORDER`,
   priority is 1 (high), 5 (medium), 9 (low) or 0 (none), and a repeating task is one VTODO whose
   dates move on completion.
 
