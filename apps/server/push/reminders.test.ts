@@ -139,6 +139,22 @@ Deno.test("a list that cannot be read is left out and logged as a count, and the
   expect(lines).toEqual(["reminders: 1 of 2 task lists could not be read: Forbidden"])
 })
 
+Deno.test("a list that times out once delays the other lists' reminders by a tick and loses none", async () => {
+  const slow = `${DAV}/test-user/slow-list/`
+  const { dav, sender, lines, tickAt } = await reminders(
+    { [`${TASKS}utc.ics`]: DUE_KINDS.utc },
+    "2026-10-08T23:29:30Z",
+  )
+  dav.calendars.unshift({ url: slow, displayName: "Slow list", components: ["VTODO"] })
+  dav.failLists.set(slow, { code: CalDavErrorCode.Timeout, message: "Slow list leaked" })
+  await tickAt("2026-10-08T23:30:30Z")
+  expect(sender.sent).toEqual([])
+  expect(lines).toEqual(["reminders: list-tasks failed: listObjects failed: Timeout"])
+  dav.failLists.delete(slow)
+  await tickAt("2026-10-08T23:31:30Z")
+  expect(sender.sent.map((push) => push.message.title)).toEqual(["Due at a UTC time"])
+})
+
 Deno.test("logs a push that every device refused as a count and a status only", async () => {
   const { sender, lines, tickAt } = await reminders(
     { [`${TASKS}utc.ics`]: DUE_KINDS.utc },

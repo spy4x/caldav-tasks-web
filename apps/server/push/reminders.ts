@@ -29,6 +29,13 @@ export class ReminderReadError extends Error {
   }
 }
 
+/** Failures that pass by themselves: the whole read is tried again, so a late list loses nothing. */
+const PASSING: ReadonlySet<string> = new Set([
+  CalDavErrorCode[CalDavErrorCode.Timeout],
+  CalDavErrorCode[CalDavErrorCode.Network],
+  CalDavErrorCode[CalDavErrorCode.Server],
+])
+
 /** What {@link createReminders} needs. */
 export interface RemindersOptions {
   /** The CalDAV account the relay uses. Only read here. */
@@ -50,12 +57,13 @@ export interface RemindersOptions {
  * The text of every open task in every list that can hold tasks: the calendars the relay lists
  * (`holdsTasks`), read fresh. Completed tasks are left out by the CalDAV server. It only reads.
  *
- * A list that cannot be read while another can is left out, so one broken list never silences
- * the rest: `log` gets one line with how many were left out and the error codes, never a list's
- * name or address. A reminder of that list that came due meanwhile is not sent later.
+ * A list that stays unreadable (forbidden, gone, too large, malformed) while another can be read
+ * is left out, so one broken list never silences the rest: `log` gets one line with how many were
+ * left out and the error codes, never a list's name or address.
  *
- * @throws {ReminderReadError} when the account, a home or every list cannot be read; nothing is
- * sent for that tick and the runner tries the same stretch of time again.
+ * @throws {ReminderReadError} when the account, a home or every list cannot be read, or a list
+ * fails in a way that passes by itself (a timeout, the network, a server error); nothing is sent
+ * for that tick and the runner tries the same stretch of time again, so no reminder is lost.
  */
 export function createTaskReader(
   client: RemindersOptions["client"],
@@ -84,7 +92,7 @@ export function createTaskReader(
           )
           for (const object of objects) texts.push(object.data)
         } catch (error) {
-          if (!(error instanceof ReminderReadError)) throw error
+          if (!(error instanceof ReminderReadError) || PASSING.has(error.code)) throw error
           failed.push(error)
         }
       }
