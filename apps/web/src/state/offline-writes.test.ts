@@ -5,7 +5,7 @@ import { CALDAV_PATHS } from "@api/caldav.ts"
 import { isUuid } from "@spy4x/platform/universal/uuid"
 import { KeepMineStep } from "@spy4x/time/ical-tasks-edit"
 import { fixtureTask, LIST_HREF, RECURRING, task as fixture } from "@tasks/fixtures/tasksorg.ts"
-import { DELETE_KEEPS_NOTHING, keepMineMessage } from "@tasks/identity.ts"
+import { DELETE_KEEPS_NOTHING, KEEP_MINE_UNREADABLE, keepMineMessage } from "@tasks/identity.ts"
 import { conflicts, keepMineOf, useTheirsOf } from "./conflicts.ts"
 import { getStorage } from "./db.ts"
 import {
@@ -518,6 +518,34 @@ Deno.test(`deleting the task after a refused Keep mine shows the delete's card w
 
     expect(server.objects.has(HREF)).toBe(false)
     expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`a server copy that cannot be read sends nothing on Keep mine, and the card says so and offers only theirs`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { notes: `My notes` }, NOW)
+    // The other device left a text with no task in it.
+    const unreadable = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n`
+    server.objects.set(HREF, {
+      ...server.objects.get(HREF)!,
+      etag: server.nextEtag(),
+      ics: unreadable,
+    })
+    await reconnect()
+    expect(conflicts.value.map((c) => [c.reason, c.canKeepMine])).toEqual([[`version`, undefined]])
+    server.sent.length = 0
+
+    const refused = await keepMineOf(conflicts.value[0].id, NOW)
+
+    expect(refused).toBe(KEEP_MINE_UNREADABLE)
+    expect(server.count(`PUT`, CALDAV_PATHS.object)).toBe(0)
+    expect(server.objects.get(HREF)!.ics).toBe(unreadable)
+    expect(conflicts.value.map((c) => [c.message, c.canKeepMine])).toEqual([
+      [KEEP_MINE_UNREADABLE, false],
+    ])
+    expect(pendingEntries.value.map((e) => e.status)).toEqual([`conflict`])
   })
 })
 
