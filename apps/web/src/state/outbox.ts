@@ -317,25 +317,6 @@ export function queueUpdate(base: Task, ics: string): Promise<Outcome<TaskSnapsh
   })
 }
 
-/**
- * Replaces the text of the write that waits for a choice on `entry`'s task with `ics`, made on
- * `server`. Resolves the entry as the queue holds it afterwards, or `undefined` when it is gone.
- */
-export async function requeueOn(
-  entry: TaskEntry,
-  server: TaskSnapshot,
-  ics: string,
-): Promise<TaskEntry | undefined> {
-  const { href, listHref } = entry.payload
-  await getOutbox().submit({
-    kind: `update`,
-    entityId: entry.entityId,
-    version: entry.baseVersion,
-    payload: { href, listHref, ics, baseEtag: server.etag ?? ``, baseIcs: server.ics },
-  })
-  return pendingEntries.value.find((other) => other.seq === entry.seq)
-}
-
 /** Queues the delete of a task. A task created offline and never sent is simply forgotten. */
 export function queueDelete(task: Task): Promise<Outcome<TaskSnapshot>> {
   return getOutbox().submit({

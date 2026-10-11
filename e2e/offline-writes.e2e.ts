@@ -139,6 +139,39 @@ test("Keep mine when both changed the title writes the offline title and keeps t
   await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toHaveCount(0)
 })
 
+test("Keep mine that cannot complete the task as changed elsewhere says why, writes nothing and leaves Use theirs", async ({ page, context }) => {
+  await openList(page)
+  await context.setOffline(true)
+  await page.getByRole(`checkbox`, { name: /Seeded errand/ }).click()
+  await expect(waiting(page, 1)).toBeVisible()
+  // Another device makes the task repeat from a start date, with no due date to move on.
+  await editOnServer(
+    list.taskUrl,
+    (text) =>
+      text.replace(
+        /^SUMMARY:.*$/m,
+        `SUMMARY:Theirs\r\nRRULE:FREQ=WEEKLY\r\nDTSTART;VALUE=DATE:20270104`,
+      ),
+  )
+
+  await context.setOffline(false)
+
+  await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toBeVisible()
+  await page.getByRole(`button`, { name: `Keep mine` }).click()
+
+  const why =
+    `Keep mine is not possible: the task as it was changed elsewhere cannot be completed here. Use theirs, then complete it in Tasks.org.`
+  // Once on the card and once in the toast that announces it.
+  await expect(page.getByText(why)).toHaveCount(2)
+  await expect(page.getByRole(`button`, { name: `Keep mine` })).toHaveCount(0)
+  expect(await readTask(list.taskUrl)).not.toContain(`STATUS:COMPLETED`)
+
+  await page.getByRole(`button`, { name: `Use theirs` }).click()
+
+  await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toHaveCount(0)
+  await expect(page.getByRole(`button`, { name: `Theirs`, exact: true })).toBeVisible()
+})
+
 test("a task changed on the server while offline offers Use theirs, which drops the offline edit", async ({ page, context }) => {
   await openList(page)
   await context.setOffline(true)

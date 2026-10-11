@@ -4,11 +4,19 @@ import { conflicts, keepMineOf, useTheirsOf } from "../state/conflicts.ts"
 import { offline } from "../state/connection.ts"
 import { pendingEntries } from "../state/pending.ts"
 import { runnerState, syncNow } from "../state/sync.ts"
+import { toasts } from "../state/toasts.ts"
+
+/** Keeps the person's change; when that is refused, the card says why and a toast announces it. */
+async function keepMine(id: string): Promise<void> {
+  const refused = await keepMineOf(id)
+  if (refused !== null) toasts.error({ title: ``, body: refused })
+}
 
 /**
  * Whether the changes made here have reached the server, and the ones the server did not take.
  * It shows nothing while everything is synced. A task changed elsewhere offers Keep mine and Use
  * theirs; one deleted elsewhere offers to discard the change, which is all the queue can do for it.
+ * A Keep mine that cannot be done leaves the card with the reason and Use theirs.
  */
 export function SyncBar() {
   const state = runnerState.value
@@ -27,7 +35,7 @@ export function SyncBar() {
       {list.length > 0 && (
         <ConflictChooser
           conflicts={list}
-          onKeepMine={(id) => keepMineOf(id)}
+          onKeepMine={keepMine}
           onUseTheirs={useTheirsOf}
           headingLevel={2}
         />
