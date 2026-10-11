@@ -3,6 +3,7 @@ import {
   addSeededTask,
   deleteList,
   deleteOnServer,
+  editOnServer,
   readList,
   readTask,
   retitleOnServer,
@@ -94,6 +95,48 @@ test("a task changed on the server while offline offers Keep mine, which writes 
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(`SUMMARY:Mine`)
   await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toHaveCount(0)
   await expect(page.getByRole(`button`, { name: `Mine`, exact: true })).toBeVisible()
+})
+
+test("Keep mine after an offline notes edit leaves the title another device wrote and writes the notes", async ({ page, context }) => {
+  await openList(page)
+  await context.setOffline(true)
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await page.getByTestId(`task-notes`).fill(`My notes`)
+  await page.getByTestId(`task-save`).click()
+  await expect(waiting(page, 1)).toBeVisible()
+  await retitleOnServer(list.taskUrl, `Theirs`)
+
+  await context.setOffline(false)
+
+  await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toBeVisible()
+  await page.getByRole(`button`, { name: `Keep mine` }).click()
+
+  await expect.poll(async () => await readTask(list.taskUrl)).toContain(`DESCRIPTION:My notes`)
+  expect(await readTask(list.taskUrl)).toContain(`SUMMARY:Theirs`)
+  await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toHaveCount(0)
+  await expect(page.getByRole(`button`, { name: `Theirs`, exact: true })).toBeVisible()
+})
+
+test("Keep mine when both changed the title writes the offline title and keeps the due date another device set", async ({ page, context }) => {
+  await openList(page)
+  await context.setOffline(true)
+  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await page.getByTestId(`task-title`).fill(`Mine`)
+  await page.getByTestId(`task-save`).click()
+  await expect(page.getByRole(`button`, { name: `Mine`, exact: true })).toBeVisible()
+  await editOnServer(
+    list.taskUrl,
+    (text) => text.replace(/^SUMMARY:.*$/m, `SUMMARY:Theirs\r\nDUE;VALUE=DATE:20270115`),
+  )
+
+  await context.setOffline(false)
+
+  await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toBeVisible()
+  await page.getByRole(`button`, { name: `Keep mine` }).click()
+
+  await expect.poll(async () => await readTask(list.taskUrl)).toContain(`SUMMARY:Mine`)
+  expect(await readTask(list.taskUrl)).toContain(`DUE;VALUE=DATE:20270115`)
+  await expect(page.getByRole(`heading`, { name: `1 change needs your choice` })).toHaveCount(0)
 })
 
 test("a task changed on the server while offline offers Use theirs, which drops the offline edit", async ({ page, context }) => {

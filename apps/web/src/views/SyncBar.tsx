@@ -27,7 +27,7 @@ export function SyncBar() {
       {list.length > 0 && (
         <ConflictChooser
           conflicts={list}
-          onKeepMine={keepMineOf}
+          onKeepMine={(id) => keepMineOf(id)}
           onUseTheirs={useTheirsOf}
           headingLevel={2}
         />

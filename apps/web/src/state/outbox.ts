@@ -295,14 +295,45 @@ export function queuedFor(task: Task): TaskEntry | undefined {
   return entryFor(task.href, pendingEntries.value)
 }
 
-/** Queues the new text of a task (an edit, or a completion). `base` is the copy the person saw. */
+/**
+ * Queues the new text of a task (an edit, or a completion). `base` is the copy the person saw.
+ * While an earlier write of the task waits, `base` already shows that write, so the text the
+ * queue remembers as the server's stays the one the first write was made from.
+ */
 export function queueUpdate(base: Task, ics: string): Promise<Outcome<TaskSnapshot>> {
+  const waiting = queuedFor(base)
+  const baseIcs = waiting ? waiting.payload.baseIcs : base.ics
   return getOutbox().submit({
     kind: `update`,
     entityId: entityIdOf(base),
     version: versionOf(base.etag),
-    payload: { href: base.href, listHref: base.listHref, ics, baseEtag: base.etag },
+    payload: {
+      href: base.href,
+      listHref: base.listHref,
+      ics,
+      baseEtag: base.etag,
+      ...(baseIcs === undefined ? {} : { baseIcs }),
+    },
   })
+}
+
+/**
+ * Replaces the text of the write that waits for a choice on `entry`'s task with `ics`, made on
+ * `server`. Resolves the entry as the queue holds it afterwards, or `undefined` when it is gone.
+ */
+export async function requeueOn(
+  entry: TaskEntry,
+  server: TaskSnapshot,
+  ics: string,
+): Promise<TaskEntry | undefined> {
+  const { href, listHref } = entry.payload
+  await getOutbox().submit({
+    kind: `update`,
+    entityId: entry.entityId,
+    version: entry.baseVersion,
+    payload: { href, listHref, ics, baseEtag: server.etag ?? ``, baseIcs: server.ics },
+  })
+  return pendingEntries.value.find((other) => other.seq === entry.seq)
 }
 
 /** Queues the delete of a task. A task created offline and never sent is simply forgotten. */

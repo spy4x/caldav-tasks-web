@@ -209,6 +209,128 @@ Deno.test(`a task changed elsewhere while offline waits for a choice, and keepin
   })
 })
 
+Deno.test(`keeping mine after an offline notes edit leaves the title the other device wrote and writes the notes`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { notes: `My notes` }, NOW)
+    editElsewhere(server, `Their milk`)
+    await reconnect()
+    expect(conflicts.value.map((c) => c.reason)).toEqual([`version`])
+
+    await keepMineOf(conflicts.value[0].id, NOW)
+
+    const onServer = server.objects.get(HREF)!
+    expect(onServer.ics).toContain(`SUMMARY:Their milk`)
+    expect(onServer.ics).toContain(`DESCRIPTION:My notes`)
+    expect(onServer.ics).toContain(`X-VENDOR:keep me`)
+    expect(pendingEntries.value).toEqual([])
+    expect(tasks.value[0].title).toBe(`Their milk`)
+    expect(tasks.value[0].etag).toBe(onServer.etag)
+  })
+})
+
+Deno.test(`keeping mine when both changed the title writes the person's title and keeps the other device's due date`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    editElsewhere(server, `Their milk\r\nDUE;VALUE=DATE:20261020`)
+    await reconnect()
+
+    await keepMineOf(conflicts.value[0].id, NOW)
+
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`SUMMARY:Oat milk`)
+    expect(onServer).not.toContain(`Their milk`)
+    expect(onServer).toContain(`DUE;VALUE=DATE:20261020`)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`keeping mine after a tick made offline completes the task and keeps the other device's title`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await setTaskDone(before, true, NOW)
+    editElsewhere(server, `Their milk`)
+    await reconnect()
+
+    await keepMineOf(conflicts.value[0].id, NOW)
+
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`STATUS:COMPLETED`)
+    expect(onServer).toContain(`SUMMARY:Their milk`)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`keeping mine after two offline edits of one task still leaves the title the other device wrote`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { notes: `My notes` }, NOW)
+    await saveTask(tasks.value[0], { priority: 1 }, NOW)
+    editElsewhere(server, `Their milk`)
+    await reconnect()
+
+    await keepMineOf(conflicts.value[0].id, NOW)
+
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`SUMMARY:Their milk`)
+    expect(onServer).toContain(`DESCRIPTION:My notes`)
+    expect(onServer).toContain(`PRIORITY:1`)
+  })
+})
+
+Deno.test(`a write queued before its base text was kept still resolves with Keep mine, sent whole`, async () => {
+  await withApp(async (server) => {
+    const store = createTestOutboxStore()
+    useOutboxStore(store)
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { notes: `My notes` }, NOW)
+    // The entry as the app queued it before this text was kept.
+    const [queued] = await store.readOutbox()
+    const { baseIcs: _dropped, ...payload } = queued.payload
+    await store.putEntry({ ...queued, payload })
+    await loadOutbox()
+    editElsewhere(server, `Their milk`)
+    await reconnect()
+
+    await keepMineOf(conflicts.value[0].id, NOW)
+
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`DESCRIPTION:My notes`)
+    expect(onServer).toContain(`SUMMARY:Buy milk`)
+    expect(conflicts.value).toEqual([])
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`a save that met a change, could not reread it and was queued keeps the other device's title after Keep mine`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    server.beforePut = () => {
+      editElsewhere(server, `Their milk`)
+      server.down = true
+    }
+    const result = await saveTask(before, { notes: `My notes` }, NOW)
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    server.beforePut = undefined
+    server.down = false
+    await reconnect()
+    expect(conflicts.value.map((c) => c.reason)).toEqual([`version`])
+
+    await keepMineOf(conflicts.value[0].id, NOW)
+
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`SUMMARY:Their milk`)
+    expect(onServer).toContain(`DESCRIPTION:My notes`)
+  })
+})
+
 Deno.test(`an offline edit is not written over a change the app learned of before it was sent`, async () => {
   await withApp(async (server) => {
     const before = await start(server)

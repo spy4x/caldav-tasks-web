@@ -132,21 +132,28 @@ export async function deleteList(list: SeededList): Promise<void> {
 }
 
 /**
- * Changes a task's title on Radicale the way another client would: with the etag it has now, so
- * Radicale gives the task a new one.
+ * Rewrites one task on Radicale as another client would: `change` gets the stored text and returns
+ * the new one.
  */
-export async function retitleOnServer(taskUrl: string, title: string): Promise<void> {
+export async function editOnServer(
+  taskUrl: string,
+  change: (text: string) => string,
+): Promise<void> {
   const current = await fetch(taskUrl, { headers: { Authorization: authorization() } })
   const etag = current.headers.get(`etag`)
   if (!current.ok || !etag) throw new Error(`GET ${taskUrl} answered ${current.status}`)
-  const text = (await current.text()).replace(/^SUMMARY:.*$/m, `SUMMARY:${title}`)
   await caldav(
     `PUT`,
     taskUrl,
     { "Content-Type": `text/calendar; charset=utf-8`, "If-Match": etag },
-    text,
+    change(await current.text()),
     [200, 201, 204],
   )
+}
+
+/** Changes a task's title on Radicale, as another client would. */
+export async function retitleOnServer(taskUrl: string, title: string): Promise<void> {
+  await editOnServer(taskUrl, (text) => text.replace(/^SUMMARY:.*$/m, `SUMMARY:${title}`))
 }
 
 /** Deletes one task on Radicale, as another client would. */

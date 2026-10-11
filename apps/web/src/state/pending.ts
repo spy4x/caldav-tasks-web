@@ -11,6 +11,12 @@ export interface TaskPayload {
   ics: string
   /** The etag of the server copy the text was made from; empty for a task created offline. */
   baseEtag: string
+  /**
+   * The text of the server copy the write was made from, so "Keep mine" can tell which fields the
+   * person changed. Absent on a create, and on a write queued before this was kept: "Keep mine"
+   * then sends `ics` whole.
+   */
+  baseIcs?: string
 }
 
 /** The server's copy of a task, as the outbox keeps it. `version` moves with the etag. */
