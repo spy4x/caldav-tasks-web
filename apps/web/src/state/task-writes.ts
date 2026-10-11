@@ -1,5 +1,6 @@
 import { CALDAV_PATHS, writeResultSchema } from "@api/caldav.ts"
 import { ApiErrorCode } from "@api/errors.ts"
+import { uuidV7 } from "@spy4x/platform/universal/uuid"
 import { createTask, type NewTaskFields } from "@spy4x/time/ical-tasks-edit"
 import { PRODID } from "@tasks/identity.ts"
 import { parseTask, type Task } from "@spy4x/time/ical-tasks-model"
@@ -26,13 +27,13 @@ export interface NewTaskPlace {
 
 /**
  * Creates a task on the server and in the cache. Offline it is queued and sent when the network
- * returns. `uid` and `now` default to a fresh random UID and the clock; tests pass their own.
+ * returns. `uid` and `now` default to a fresh UUID version 7 and the clock; tests pass their own.
  */
 export async function addTask(
   fields: NewTaskFields,
   place: NewTaskPlace,
   now = new Date(),
-  uid: string = crypto.randomUUID(),
+  uid: string = uuidV7(),
 ): Promise<WriteResult> {
   const built = createTask(fields, {
     uid,

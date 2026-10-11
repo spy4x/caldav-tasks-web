@@ -2,11 +2,12 @@
 import "fake-indexeddb/auto"
 import { expect } from "@std/expect"
 import { CALDAV_PATHS } from "@api/caldav.ts"
+import { isUuid } from "@spy4x/platform/universal/uuid"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { getStorage } from "./db.ts"
 import { refresh } from "./sync.ts"
-import { setTaskDone, tasks, undoWrite, WriteKind } from "./tasks.ts"
+import { saveTask, setTaskDone, tasks, undoWrite, WriteKind } from "./tasks.ts"
 import { addTask, deleteTask, restoreTask } from "./task-writes.ts"
 import { setBrowserOnline, withApp } from "./testing.ts"
 import type { FakeServer } from "./testing.ts"
@@ -50,6 +51,52 @@ Deno.test(`adding a task while offline queues it under its own file name and sho
     expect(result.task.href).toBe(`${LIST_HREF}u.ics`)
     expect(server.sent).toEqual([])
     expect(tasks.value.map((t) => t.title).sort()).toEqual([`Buy milk`, `Pay rent`])
+  })
+})
+
+Deno.test(`a task added without a UID gets a UUID version 7 and is stored under it`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    const result = await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW)
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(isUuid(result.task.uid, 7)).toBe(true)
+    const onServer = server.objects.get(`${LIST_HREF}${result.task.uid}.ics`)!
+    expect(onServer.ics).toContain(`UID:${result.task.uid}`)
+  })
+})
+
+Deno.test(`a task added offline without a UID gets a UUID version 7 and is queued under it`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    setBrowserOnline(false)
+    const result = await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW)
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    expect(isUuid(result.task.uid, 7)).toBe(true)
+    expect(result.task.href).toBe(`${LIST_HREF}${result.task.uid}.ics`)
+    expect(result.task.ics).toContain(`UID:${result.task.uid}`)
+  })
+})
+
+Deno.test(`a task made earlier with a UUID version 4 as its UID is still edited and completed`, async () => {
+  await withApp(async (server) => {
+    const uid = `3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b`
+    const href = `${LIST_HREF}${uid}.ics`
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(href, LIST_HREF, fixture(uid, `Buy milk`))
+    await refresh()
+    expect(isUuid(tasks.value[0].uid, 4)).toBe(true)
+
+    const edited = await saveTask(tasks.value[0], { title: `Buy oat milk` }, NOW)
+    if (edited.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${edited.kind}`)
+    const done = await setTaskDone(edited.task, true, NOW)
+    if (done.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${done.kind}`)
+
+    const onServer = server.objects.get(href)!.ics
+    expect(onServer).toContain(`UID:${uid}`)
+    expect(onServer).toContain(`SUMMARY:Buy oat milk`)
+    expect(onServer).toContain(`STATUS:COMPLETED`)
+    expect(tasks.value.map((t) => t.uid)).toEqual([uid])
   })
 })
 
