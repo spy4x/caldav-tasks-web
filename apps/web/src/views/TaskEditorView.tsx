@@ -10,6 +10,7 @@ import {
   saveTask,
   type TaskConflict,
   tasks,
+  waitsForChoice,
   WriteKind,
 } from "../state/tasks.ts"
 import type { WriteResult } from "../state/tasks.ts"
@@ -20,6 +21,9 @@ import { browserZone } from "./clock.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
 import { deleteWithUndo } from "./task-actions.ts"
 import { draftToEdit } from "./task-edit.ts"
+
+const SAVED_BEHIND_CONFLICT =
+  `Saved on this device only. This task waits for your choice at the top of the page.`
 
 /**
  * The task editor, wired. A save that meets an edit made elsewhere opens the conflict dialog;
@@ -56,8 +60,10 @@ export function TaskEditorView() {
     saving.value = true
     errors.value = {}
     try {
-      if (settle(await write())) {
-        toasts.success({ title: ``, body: `Saved` })
+      const result = await write()
+      if (settle(result)) {
+        if (waitsForChoice(result)) toasts.warning({ title: ``, body: SAVED_BEHIND_CONFLICT })
+        else toasts.success({ title: ``, body: `Saved` })
         navigate(backHref)
       }
     } finally {

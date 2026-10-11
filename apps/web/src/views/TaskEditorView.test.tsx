@@ -8,8 +8,11 @@ import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { must } from "@ui/mount.test.tsx"
 import { onPage } from "./on-page.test.tsx"
 import { refresh } from "../state/sync.ts"
-import { tasks } from "../state/tasks.ts"
-import { withApp } from "../state/testing.ts"
+import { conflicts } from "../state/conflicts.ts"
+import { getOutbox } from "../state/outbox.ts"
+import { saveTask, tasks } from "../state/tasks.ts"
+import { setBrowserOnline, withApp } from "../state/testing.ts"
+import { toasts } from "../state/toasts.ts"
 import type { FakeServer } from "../state/testing.ts"
 import { ROUTES } from "../routes.ts"
 import { TaskEditorView } from "./TaskEditorView.tsx"
@@ -191,5 +194,39 @@ Deno.test(`a repeat set here is kept when another client changed only the title`
       expect(merged).toContain(`SUMMARY:Buy cheese`)
       expect(merged).toContain(`RRULE:FREQ=DAILY;INTERVAL=1`)
     })
+  })
+})
+
+Deno.test(`a save made while an earlier change of the task waits for a choice says it is saved on this device only`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    const stored = server.objects.get(HREF)!
+    // An edit made offline meets a change from another device: it waits in the sync bar.
+    setBrowserOnline(false)
+    await saveTask(tasks.value[0], { notes: `My notes` })
+    server.objects.set(HREF, {
+      ...stored,
+      etag: server.nextEtag(),
+      ics: stored.ics.replace(`SUMMARY:Buy milk`, `SUMMARY:Buy cheese`),
+    })
+    setBrowserOnline(true)
+    await getOutbox().flush()
+    expect(conflicts.value.length).toBe(1)
+    const shown = toasts.list.value.length
+
+    await onPage(editor(), async ({ root }) => {
+      await type(root, `task-title`, `Buy oat milk`)
+      await press(root, `task-save`)
+    })
+
+    const added = toasts.list.value.slice(shown)
+    for (const toast of added) toasts.remove(toast.id)
+    expect(added.map((toast) => [toast.type, toast.body])).toEqual([
+      [
+        `warning`,
+        `Saved on this device only. This task waits for your choice at the top of the page.`,
+      ],
+    ])
+    expect(server.objects.get(HREF)!.ics).not.toContain(`Buy oat milk`)
   })
 })

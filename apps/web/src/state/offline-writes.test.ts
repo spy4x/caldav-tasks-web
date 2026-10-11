@@ -15,7 +15,7 @@ import {
 } from "./outbox.ts"
 import { pendingEntries } from "./pending.ts"
 import { refresh } from "./sync.ts"
-import { saveTask, setTaskDone, tasks, WriteKind } from "./tasks.ts"
+import { saveTask, setTaskDone, tasks, waitsForChoice, WriteKind } from "./tasks.ts"
 import { addTask, deleteTask } from "./task-writes.ts"
 import { error, type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
 
@@ -328,6 +328,32 @@ Deno.test(`a save that met a change, could not reread it and was queued keeps th
     const onServer = server.objects.get(HREF)!.ics
     expect(onServer).toContain(`SUMMARY:Their milk`)
     expect(onServer).toContain(`DESCRIPTION:My notes`)
+  })
+})
+
+Deno.test(`an edit saved while an earlier write of the task waits for a choice is reported as waiting for it, and Keep mine sends both`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { notes: `My notes` }, NOW)
+    editElsewhere(server, `Their milk`)
+    await reconnect()
+    expect(conflicts.value.length).toBe(1)
+
+    const result = await saveTask(tasks.value[0], { priority: 1 }, NOW)
+
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.conflict).toBe(`version`)
+    expect(result.queued).toBeUndefined()
+    expect(waitsForChoice(result)).toBe(true)
+    expect(server.objects.get(HREF)!.ics).not.toContain(`PRIORITY:1`)
+
+    await keepMineOf(conflicts.value[0].id, NOW)
+
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`SUMMARY:Their milk`)
+    expect(onServer).toContain(`DESCRIPTION:My notes`)
+    expect(onServer).toContain(`PRIORITY:1`)
   })
 })
 

@@ -27,7 +27,11 @@ export function tasksOf(listHref: string): Task[] {
 
 /** How a write ended. */
 export enum WriteKind {
-  /** Done on the server, or queued on this device (`queued`) to be sent when the network is back. */
+  /**
+   * Done on the server, or queued on this device (`queued`) to be sent when the network is back,
+   * or kept on this device behind a write the server refused (`conflict`): that one is sent only
+   * after the person chooses in the sync bar.
+   */
   Saved = 1,
   /** The same field changed on the server and in the edit. The screen asks which to keep. */
   Conflict,
@@ -184,6 +188,11 @@ function fromEdit(
     : { ok: false, message: result.error }
 }
 
+/** Whether a saved write waits for the person to choose between their version and the server's. */
+export function waitsForChoice(result: WriteResult): boolean {
+  return result.kind === WriteKind.Saved && result.conflict !== undefined
+}
+
 function failed(message: string): WriteResult {
   return { kind: WriteKind.Failed, message }
 }
@@ -206,10 +215,19 @@ export function fromOutcome(outcome: Outcome<TaskSnapshot>, written: Task): Writ
 }
 
 /** Queues the write `step` made from `base`, to be sent when the network allows. */
-async function queueStep(base: Task, step: Extract<Step, { ok: true; ics: string }>) {
+async function queueStep(
+  base: Task,
+  step: Extract<Step, { ok: true; ics: string }>,
+): Promise<WriteResult> {
   // A task the server has not given a version cannot be written yet, unless a create waits for it.
   if (!base.etag && !queuedFor(base)) return failed(NOT_SYNCED_YET)
-  return fromOutcome(await queueUpdate(base, step.ics), step.task)
+  const result = fromOutcome(await queueUpdate(base, step.ics), step.task)
+  // The write joined one the server refused earlier: nothing is sent until the person chooses.
+  const refused = queuedFor(base)?.conflict
+  if (result.kind === WriteKind.Saved && result.queued && refused) {
+    return { kind: WriteKind.Saved, task: result.task, conflict: refused.reason }
+  }
+  return result
 }
 
 /**
