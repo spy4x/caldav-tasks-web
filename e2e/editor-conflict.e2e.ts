@@ -59,17 +59,15 @@ test("Use theirs after the title changed elsewhere loads their title and leaves 
 })
 
 test("notes typed while the title changes elsewhere survive the page's refresh, and Save keeps both", async ({ page }) => {
-  // The page polls every 30 seconds, so allow one full interval plus a refresh.
-  test.setTimeout(90_000)
   await openEditor(page)
   await page.getByTestId(`task-notes`).fill(`My notes`)
   // The refresh that brings their title: the list read whose answer holds it.
-  const refreshed = page.waitForResponse(
-    async (response) =>
-      response.url().includes(`calendar=`) && (await response.text()).includes(`SUMMARY:Theirs`),
-    { timeout: 45_000 },
+  const refreshed = page.waitForResponse(async (response) =>
+    response.url().includes(`calendar=`) && (await response.text()).includes(`SUMMARY:Theirs`)
   )
   await retitleOnServer(list.taskUrl, `Theirs`)
+  // The page refreshes when its window gains focus; live-updates.e2e.ts covers the 30-second poll.
+  await page.evaluate(() => globalThis.dispatchEvent(new Event(`focus`)))
   await refreshed
 
   await expect(page.getByTestId(`task-notes`)).toHaveValue(`My notes`)
