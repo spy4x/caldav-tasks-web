@@ -87,8 +87,8 @@ function refuse(entry: TaskEntry, message: string): string {
  * Sends the person's change again on top of the server's copy: what they changed wins, everything
  * else the other device did stays (`keepMineText`). When that cannot be done, nothing is sent: the
  * card stays, says why and offers only the server's version, and the reason is resolved here for
- * the caller to announce. A delete, and a write queued before its base text was kept, are sent
- * whole. Does nothing for a stale id.
+ * the caller to announce. A create, a delete, and a write queued before its base text was kept, are
+ * sent whole. Does nothing for a stale id.
  */
 export async function keepMineOf(id: string, now = new Date()): Promise<string | null> {
   const entry = find(id)
