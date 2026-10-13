@@ -45,6 +45,13 @@ export class FakeServer {
   beforePut: ((href: string) => void) | undefined
   /** The same for a DELETE: a change that lands between the read of a task and its delete. */
   beforeDelete: ((href: string) => void) | undefined
+  /**
+   * Calendars shared read-only: the CalDAV server answers every write of a task in one with a 403
+   * that gives no reason, as Stalwart does, and lists no privilege to write there.
+   */
+  readOnly = new Set<string>()
+  /** When set, the answer to every question about privileges, such as a proxy's sign-in page. */
+  privilegesAnswer: (() => Response) | undefined
   private version = 1
 
   nextEtag(): string {
@@ -118,8 +125,18 @@ export class FakeServer {
         calendars: this.calendarList.map((c) => ({ ...c, components: c.components ?? [`VTODO`] })),
       })
     }
+    if (url.pathname === CALDAV_PATHS.privileges) {
+      if (this.privilegesAnswer) return this.privilegesAnswer()
+      const href = url.searchParams.get(`href`)!
+      if (!isPath(href)) return error(400, `bad_request`)
+      const calendar = href.endsWith(`/`) ? href : href.slice(0, href.lastIndexOf(`/`) + 1)
+      const read = [`read`, `read-current-user-privilege-set`]
+      const write = [`write`, `write-content`, `bind`, `unbind`]
+      return Response.json({ privileges: this.readOnly.has(calendar) ? read : [...read, ...write] })
+    }
     if (url.pathname === CALDAV_PATHS.objects && request.method === `POST`) {
       return request.json().then((body: { calendar: string; ics: string; name?: string }) => {
+        if (this.readOnly.has(body.calendar)) return error(403, `caldav_forbidden`)
         const uid = /^UID:(.*)$/m.exec(body.ics)?.[1]?.trim() ?? `new-${this.version}`
         const href = `${body.calendar}${body.name ?? `${uid}.ics`}`
         if (this.objects.has(href)) {
@@ -151,6 +168,7 @@ export class FakeServer {
         if (!body.etag || !isPath(body.href)) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
+        if (this.readOnly.has(found.calendar)) return error(403, `caldav_forbidden`)
         if (found.etag !== body.etag) return error(412, `conflict`)
         const etag = this.nextEtag()
         this.objects.set(body.href, { ...found, etag, ics: body.ics })
@@ -163,6 +181,7 @@ export class FakeServer {
         if (!body.etag || !isPath(body.href)) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
+        if (this.readOnly.has(found.calendar)) return error(403, `caldav_forbidden`)
         if (found.etag !== body.etag) return error(412, `conflict`)
         this.objects.delete(body.href)
         return new Response(null, { status: 204 })

@@ -1114,6 +1114,134 @@ Deno.test(`a task whose create never arrived and was then deleted leaves the que
   })
 })
 
+Deno.test(`an edit refused on a list shared read-only becomes a conflict, and the write behind it is sent`, async () => {
+  await withApp(async (server) => {
+    const shared = `/cal/shared/`
+    const theirs = `${shared}theirs.ics`
+    server.calendarList = [
+      { href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` },
+      { href: shared, displayName: `Shared`, changeMarker: `c1` },
+    ]
+    server.seed(HREF, LIST_HREF, fixture(`1`, `Buy milk`))
+    server.seed(theirs, shared, fixture(`2`, `Their task`))
+    await refresh()
+    server.readOnly.add(shared)
+    server.sent.length = 0
+    setBrowserOnline(false)
+    await saveTask(tasks.value.find((t) => t.href === theirs)!, { title: `Mine now` }, NOW)
+    await saveTask(tasks.value.find((t) => t.href === HREF)!, { title: `Oat milk` }, NOW)
+
+    await reconnect()
+
+    // The refused write is followed by one question about what the account may do there.
+    expect(server.sent.map((s) => [s.method, s.path, s.search.get(`href`)])).toEqual([
+      [`PUT`, CALDAV_PATHS.object, null],
+      [`GET`, CALDAV_PATHS.privileges, theirs],
+      [`PUT`, CALDAV_PATHS.object, null],
+    ])
+    expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Mine now`, `rejected`]])
+    expect(server.objects.get(theirs)!.ics).toContain(`SUMMARY:Their task`)
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Oat milk`)
+    expect(pendingEntries.value.map((e) => e.status)).toEqual([`conflict`])
+  })
+})
+
+Deno.test(`a task added to a list shared read-only becomes a conflict, asked about at the list's address`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    server.readOnly.add(LIST_HREF)
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+
+    await reconnect()
+
+    expect(server.sent.map((s) => [s.method, s.path, s.search.get(`href`)])).toEqual([
+      [`POST`, CALDAV_PATHS.objects, null],
+      [`GET`, CALDAV_PATHS.privileges, LIST_HREF],
+    ])
+    expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Pay rent`, `rejected`]])
+  })
+})
+
+Deno.test(`a write the CalDAV server refuses with a named reason becomes a conflict without a question about privileges`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    setBrowserOnline(true)
+    server.next = Response.json(
+      { code: `caldav_precondition`, message: `Refused`, condition: `valid-calendar-data` },
+      { status: 403 },
+    )
+
+    await getOutbox().flush()
+
+    expect(server.count(`GET`, CALDAV_PATHS.privileges)).toBe(0)
+    expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Oat milk`, `rejected`]])
+  })
+})
+
+/** What a single sign-on in front of the app answers once its session has ended. */
+const signInPage = (status: number) => () =>
+  new Response(`<html>Sign in</html>`, { status, headers: { "content-type": `text/html` } })
+
+const SIGNED_OUT: [string, () => Response][] = [
+  [`a 403 page`, signInPage(403)],
+  [`a 200 sign-in page`, signInPage(200)],
+  [`a redirect to the sign-in page`, () => new Response(null, { status: 302 })],
+  [`the app's own ended session`, () => error(401, `unauthorized`)],
+  [`a failing CalDAV server`, () => error(502, `caldav_failed`)],
+  [`a CalDAV server that refuses the question`, () => error(502, `caldav_refused`)],
+]
+
+for (const [name, answer] of SIGNED_OUT) {
+  Deno.test(`a write answered 403 by a sign-in in front of the app stays queued with no card when the question about privileges gets ${name}`, async () => {
+    await withApp(async (server) => {
+      const before = await start(server)
+      setBrowserOnline(false)
+      await saveTask(before, { title: `Oat milk` }, NOW)
+      await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+      setBrowserOnline(true)
+      server.next = signInPage(403)()
+      server.privilegesAnswer = answer
+
+      await getOutbox().flush()
+
+      expect(server.count(`GET`, CALDAV_PATHS.privileges)).toBe(1)
+      expect(conflicts.value).toEqual([])
+      expect(pendingEntries.value.map((e) => e.status)).toEqual([`pending`, `pending`])
+      expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Buy milk`)
+      // The write behind it was not sent past the one that waits.
+      expect(server.count(`POST`, CALDAV_PATHS.objects)).toBe(0)
+
+      // Signed in again: both go out.
+      server.privilegesAnswer = undefined
+      await getOutbox().flush()
+      expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Oat milk`)
+      expect(pendingEntries.value).toEqual([])
+    })
+  })
+}
+
+Deno.test(`a bare 403 from the CalDAV server stays queued when the account may write there or the server gives no list`, async () => {
+  for (const privileges of [[`read`, `write`], null]) {
+    await withApp(async (server) => {
+      const before = await start(server)
+      setBrowserOnline(false)
+      await saveTask(before, { title: `Oat milk` }, NOW)
+      setBrowserOnline(true)
+      server.next = error(403, `caldav_forbidden`)
+      server.privilegesAnswer = () => Response.json({ privileges })
+
+      await getOutbox().flush()
+
+      expect(server.count(`GET`, CALDAV_PATHS.privileges)).toBe(1)
+      expect(conflicts.value).toEqual([])
+      expect(pendingEntries.value.map((e) => e.status)).toEqual([`pending`])
+    })
+  }
+})
+
 Deno.test(`a queued write answered 401 stays queued, and is sent once the session is back`, async () => {
   await withApp(async (server) => {
     const before = await start(server)
