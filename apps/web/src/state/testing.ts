@@ -137,6 +137,7 @@ export class FakeServer {
     }
     if (url.pathname === CALDAV_PATHS.object && request.method === `GET`) {
       const href = url.searchParams.get(`href`)!
+      if (!isPath(href)) return error(400, `bad_request`)
       const found = this.objects.get(href)
       if (!found) return error(404, `not_found`)
       return Response.json({ href, etag: found.etag, ics: found.ics })
@@ -145,7 +146,7 @@ export class FakeServer {
       return request.json().then((body: { href: string; etag: string; ics: string }) => {
         this.beforePut?.(body.href)
         // The relay refuses a write that carries no etag.
-        if (!body.etag) return error(400, `bad_request`)
+        if (!body.etag || !isPath(body.href)) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
         if (found.etag !== body.etag) return error(412, `conflict`)
@@ -156,7 +157,7 @@ export class FakeServer {
     }
     if (url.pathname === CALDAV_PATHS.object && request.method === `DELETE`) {
       return request.json().then((body: { href: string; etag: string }) => {
-        if (!body.etag) return error(400, `bad_request`)
+        if (!body.etag || !isPath(body.href)) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)
         if (found.etag !== body.etag) return error(412, `conflict`)
@@ -167,6 +168,9 @@ export class FakeServer {
     return error(404, `not_found`)
   }
 }
+
+/** The relay takes an object's address only as a path (`apps/server/caldav/scope.ts`). */
+const isPath = (href: string): boolean => href.startsWith(`/`) && !href.startsWith(`//`)
 
 /** An error body in the contract's shape. */
 export function error(status: number, code: string, message = `Message for ${code}`): Response {
