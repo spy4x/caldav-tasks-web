@@ -1,7 +1,8 @@
 # Security Policy
 
-caldav-tasks-web is being rewritten and has no release yet, so `main` is the only supported
-version.
+Releases are container images tagged `v1.x.y` on Docker Hub (`antonshubin/caldav-tasks-web`). The
+latest release is the supported version: a security fix ships as a new release, and older releases
+get none. Settings shows the version you run.
 
 ## Reporting a vulnerability
 

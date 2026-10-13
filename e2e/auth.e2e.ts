@@ -56,7 +56,8 @@ test(
     await page.reload()
     await expect(pageTitle(page)).toHaveText(`Today`)
 
-    // The UI has no sign-out button yet, so the page calls the route the way the app will.
+    // Settings has the sign-out button, which `sign-out.e2e.ts` presses. Here the page calls the
+    // sign-out route itself.
     const status = await page.evaluate(async () =>
       (await fetch(`/api/auth/sign-out`, { method: `POST` })).status
     )

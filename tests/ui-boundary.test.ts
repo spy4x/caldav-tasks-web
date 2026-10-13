@@ -6,6 +6,7 @@ registerBoundaryTests({
   root: new URL("../", import.meta.url),
   directories: ["libs/ui"],
   skipDirectories: ["node_modules", "dist"],
+  // `deno.jsonc` defines neither `@web/` nor `@server/` today; the rule refuses both all the same.
   boundary: { appAliases: ["@web/", "@server/"], appDirectories: ["apps"] },
   requiredFiles: ["libs/ui/frame.tsx"],
   refusedImports: ["@web/x.ts", "@server/x.ts", "../../apps/web/src/state/auth.ts"],

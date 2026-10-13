@@ -65,8 +65,9 @@ screen shows the change at once. When the network returns, the queue is sent bef
 - Two edits to one task wait as one write. A task created and deleted offline is never sent. A
   create whose answer was lost is not made twice when it is sent again.
 - Each queued write remembers the etag it was made on. If the server's copy has changed, the write
-  becomes a **conflict** and waits for a choice: **Keep mine** sends your version over the server's,
-  **Use theirs** drops your edit. A task deleted elsewhere can only be discarded. Nothing is
+  becomes a **conflict** and waits for a choice: **Keep mine** writes the fields you changed onto
+  the server's copy and leaves the rest of it as the other device wrote it (a queued
+  delete or new task is sent as it is), **Use theirs** drops your edit. A task deleted elsewhere can only be discarded. Nothing is
   overwritten without that choice.
 - A server that is down, or a refused account, keeps the write queued; a refusal that will not pass
   becomes a conflict. The queue survives a reload (`state/offline-writes.test.ts`).
@@ -92,10 +93,14 @@ a task.
 A list the server is refused for good (forbidden, gone, malformed) is skipped while the others are
 read, and logged as a count and error codes, never a name. A timeout, a network error or a server
 error on any list, or no readable list at all, sends nothing that minute, and the runner tries the
-same stretch of time again, so no reminder is lost.
+same stretch of time again. It goes back one hour at most: after an outage, or a stop of the server,
+that lasted longer, the reminders that came due more than an hour ago are dropped and never sent.
 
-The one file the server writes is `push.json` in `DATA_DIR`. It holds the push subscriptions, and the
-runner's "last run" time and which reminders were sent (task id and time, no task text). A data
+The one file the server keeps is `push.json` in `DATA_DIR`. It holds the push subscriptions, and the
+runner's "last run" time and which reminders were sent (task id and time, no task text). The server
+needs the whole folder writable, not only that file: each change goes to a temporary file beside
+it, which is then renamed over it, and at start the server writes and removes an empty
+`.write-check` to test the folder. A data
 folder that cannot be used turns notifications off with one log line and does not stop the server.
 
 ## What is deliberately out
