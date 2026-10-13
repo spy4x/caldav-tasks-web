@@ -187,6 +187,54 @@ Deno.test(`a repeat and a reminder set in the editor reach the server, and remov
   })
 })
 
+Deno.test(`counting from the day of completion is written into the task, an untouched save leaves the text alone, and removing the repeat removes the line`, async () => {
+  await withApp(async (server) => {
+    await start(server, [DUE, `X-KEEP:still here`])
+    const pick = (root: ParentNode, value: string) =>
+      act(() => must<HTMLInputElement>(root, `input[name="repeat-from"][value="${value}"]`).click())
+    await onPage(editor(), async ({ root }) => {
+      await choose(root, `task-repeat-freq`, `2`)
+      await pick(root, `2`)
+      await press(root, `task-save`)
+    })
+    const written = server.objects.get(HREF)!.ics
+    expect(written).toContain(`RRULE:FREQ=WEEKLY;INTERVAL=1`)
+    expect(written).toContain(`X-REPEAT-FROM:COMPLETION`)
+    expect(written).toContain(`X-KEEP:still here`)
+
+    // Opened again it shows the saved choice, and saving it untouched sends nothing new.
+    await onPage(editor(), async ({ root }) => {
+      expect(must<HTMLInputElement>(root, `input[name="repeat-from"][value="2"]`).checked).toBe(
+        true,
+      )
+      await press(root, `task-save`)
+    })
+    expect(server.objects.get(HREF)!.ics).toBe(written)
+
+    await onPage(editor(), async ({ root }) => {
+      await pick(root, `1`)
+      await press(root, `task-save`)
+    })
+    const fromDue = server.objects.get(HREF)!.ics
+    expect(fromDue).toContain(`RRULE:FREQ=WEEKLY;INTERVAL=1`)
+    expect(fromDue).not.toContain(`X-REPEAT-FROM`)
+
+    await onPage(editor(), async ({ root }) => {
+      await pick(root, `2`)
+      await press(root, `task-save`)
+    })
+    expect(server.objects.get(HREF)!.ics).toContain(`X-REPEAT-FROM:COMPLETION`)
+    await onPage(editor(), async ({ root }) => {
+      await choose(root, `task-repeat-freq`, `none`)
+      await press(root, `task-save`)
+    })
+    const cleared = server.objects.get(HREF)!.ics
+    expect(cleared).not.toContain(`RRULE`)
+    expect(cleared).not.toContain(`X-REPEAT-FROM`)
+    expect(cleared).toContain(`X-KEEP:still here`)
+  })
+})
+
 Deno.test(`a repeat changed on both sides is a conflict, and Keep mine writes the repeat from the form`, async () => {
   await withApp(async (server) => {
     await start(server, [DUE, `RRULE:FREQ=DAILY;INTERVAL=1`])

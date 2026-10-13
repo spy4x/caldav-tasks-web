@@ -16,6 +16,7 @@ import { completeMessage } from "@tasks/identity.ts"
 import { offline, relay } from "./connection.ts"
 import { queuedFor, queueUpdate, settle, withdrawQueued } from "./outbox.ts"
 import type { TaskSnapshot } from "./pending.ts"
+import { browserZone } from "../views/clock.ts"
 import { remember, tasks } from "./task-store.ts"
 
 export { remember, setCachedTasks, tasks } from "./task-store.ts"
@@ -106,11 +107,17 @@ function sameDate(a: Task[`due`], b: Task[`due`]): boolean {
 
 /**
  * Completes an open task or reopens a completed one. After a 412 the same change is made on the
- * fresh copy; there is no field to collide on.
+ * fresh copy; there is no field to collide on. `timeZone` is the zone the person reads times in:
+ * a task that repeats from the day it is completed takes that day from it.
  */
-export function setTaskDone(task: Task, done: boolean, now = new Date()): Promise<WriteResult> {
+export function setTaskDone(
+  task: Task,
+  done: boolean,
+  now = new Date(),
+  timeZone = browserZone(),
+): Promise<WriteResult> {
   const change = (current: Task): Step => {
-    const result = done ? completeTask(current, now) : reopenTask(current, now)
+    const result = done ? completeTask(current, now, { timeZone }) : reopenTask(current, now)
     return result.success
       ? { ok: true, task: result.output.task, ics: result.output.ics }
       : { ok: false, message: completeMessage(result.error) }

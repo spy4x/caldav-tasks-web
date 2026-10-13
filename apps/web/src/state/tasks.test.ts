@@ -227,6 +227,49 @@ Deno.test(`completing a repeating task the library cannot reproduce says to comp
   })
 })
 
+/** A weekly task with a date-only due date, three days before 14 October. */
+const WEEKLY = [`DUE;VALUE=DATE:20261011`, `RRULE:FREQ=WEEKLY`]
+/** 23:30 UTC on 14 October: already 01:30 on the 15th in Berlin. */
+const LATE = new Date(`2026-10-14T23:30:00.000Z`)
+
+async function completeWeekly(server: FakeServer, lines: string[], zone: string) {
+  server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+  server.seed(HREF, LIST_HREF, fixture(`1`, `Water plants`, lines))
+  await refresh()
+  const result = await setTaskDone(tasks.value[0], true, LATE, zone)
+  if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+  return result.task
+}
+
+Deno.test(`a task that counts from completion, completed late, is due a week after the day it is in the person's zone`, async () => {
+  await withApp(async (server) => {
+    const saved = await completeWeekly(
+      server,
+      [...WEEKLY, `X-REPEAT-FROM:COMPLETION`],
+      `Europe/Berlin`,
+    )
+
+    expect(saved.due?.date).toBe(`2026-10-22`)
+    expect(saved.status).toBe(TaskStatus.NeedsAction)
+    const onServer = server.objects.get(HREF)!.ics
+    expect(onServer).toContain(`DUE;VALUE=DATE:20261022`)
+    expect(onServer).toContain(`X-REPEAT-FROM:COMPLETION`)
+    // The list shows the cached copy: it has the new date at once.
+    expect(tasks.value[0].due?.date).toBe(`2026-10-22`)
+  })
+})
+
+Deno.test(`the same completion in a zone behind UTC counts from the 14th`, async () => {
+  await withApp(async (server) => {
+    const saved = await completeWeekly(
+      server,
+      [...WEEKLY, `X-REPEAT-FROM:COMPLETION`],
+      `America/New_York`,
+    )
+    expect(saved.due?.date).toBe(`2026-10-21`)
+  })
+})
+
 Deno.test(`a refused CalDAV account fails the write with the server's message and the status in the notice`, async () => {
   await withApp(async (server) => {
     const before = await start(server)

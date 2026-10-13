@@ -5,6 +5,7 @@ import type { ConflictKind } from "@spy4x/preact-system/conflict-chooser"
 import { DELETE_KEEPS_NOTHING, KEEP_MINE_UNREADABLE, keepMineMessage } from "@tasks/identity.ts"
 import { getOutbox } from "./outbox.ts"
 import { pendingEntries, type TaskEntry } from "./pending.ts"
+import { browserZone } from "../views/clock.ts"
 
 /** A queued write the server did not take, as the screen lists it. */
 export interface TaskConflictItem {
@@ -102,7 +103,7 @@ export async function keepMineOf(id: string, now = new Date()): Promise<string |
   const etag = server.etag ?? ``
   const theirs = parseTask({ href, etag, listHref, ics: server.ics })
   if (!theirs.success) return refuse(entry, KEEP_MINE_UNREADABLE)
-  const kept = keepMineText(baseIcs, ics, theirs.output, now)
+  const kept = keepMineText(baseIcs, ics, theirs.output, now, { timeZone: browserZone() })
   if (!kept.success) return refuse(entry, keepMineMessage(kept.error))
   // One step in the queue: a card another tab already settled stores and sends nothing.
   await getOutbox().keepMine(entry, {
