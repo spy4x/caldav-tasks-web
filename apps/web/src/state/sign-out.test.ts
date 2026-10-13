@@ -163,7 +163,7 @@ async function cached(): Promise<{ lists: number; tasks: number }> {
 
 const toastBodies = () => toasts.list.value.map((toast) => toast.body)
 
-Deno.test(`signing out leaves no task and no list in the cache or on the screens`, async () => {
+Deno.test(`signing out leaves no task and no list in the cache`, async () => {
   await withDevice(async () => {
     expect(await cached()).toEqual({ lists: 1, tasks: 1 })
 
@@ -312,7 +312,7 @@ Deno.test(`a sign-out the server refuses keeps the tasks and saves the push subs
   })
 })
 
-Deno.test(`a cache that cannot be cleared still signs out, and says the tasks are still on the device`, async () => {
+Deno.test(`a cache that cannot be cleared still signs out, shows no task, and says a copy is still on the device`, async () => {
   await withDevice(async () => {
     const working = getStorage()
     const broken: TaskStorage = {
@@ -324,6 +324,8 @@ Deno.test(`a cache that cannot be cleared still signs out, and says the tasks ar
     expect(await signOutOfDevice()).toBeNull()
 
     expect(sessionStatus.value).toBe(SessionStatus.SignedOut)
+    expect(tasks.value).toEqual([])
+    expect(calendars.value).toEqual([])
     expect(toastBodies()).toEqual([CLEAR_FAILED])
   })
 })
