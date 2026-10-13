@@ -284,3 +284,26 @@ Deno.test(`Save from an editor that was open while its task moved to a new file 
     })
   })
 })
+
+Deno.test(`the editor lists and counts only the subtasks in the task's own list`, async () => {
+  await withApp(async (server) => {
+    const second = `/dav/tasks/second/`
+    server.calendarList = [
+      { href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` },
+      { href: second, displayName: `Second`, changeMarker: `c1` },
+    ]
+    server.seed(HREF, LIST_HREF, fixture(`1`, `Buy milk`))
+    server.seed(`${LIST_HREF}near.ics`, LIST_HREF, fixture(`near`, `Near`, [`RELATED-TO:1`]))
+    server.seed(`${second}far.ics`, second, fixture(`far`, `Far`, [`RELATED-TO:1`]))
+    await refresh()
+    expect(tasks.value.length).toBe(3)
+    await onPage(editor(), async ({ root }) => {
+      const listed = [...root.querySelectorAll(`[data-e2e="task-subtask"]`)]
+      expect(listed.map((item) => item.textContent)).toEqual([`Near`])
+      await press(root, `task-menu`)
+      await press(root, `task-delete`)
+      const dialog = must(root.ownerDocument, `[data-e2e="task-delete-dialog"]`)
+      expect(dialog.querySelector(`h2`)?.textContent).toBe(`Delete this task and its 1 subtask?`)
+    })
+  })
+})

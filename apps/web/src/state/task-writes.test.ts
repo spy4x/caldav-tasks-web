@@ -221,6 +221,59 @@ Deno.test(`two tasks that name each other as parent are each found once`, async 
   })
 })
 
+const SECOND_HREF = `/dav/tasks/second/`
+
+/** The tree of {@link startTree} plus a second list whose tasks name UIDs of the first. */
+async function startTwoLists(server: FakeServer, second: [uid: string, rest: string[]][]) {
+  server.seed(href(`p`), LIST_HREF, fixture(`p`, `Parent`))
+  server.seed(href(`a`), LIST_HREF, fixture(`a`, `Alpha`, [`RELATED-TO:p`]))
+  for (const [uid, rest] of second) {
+    server.seed(`${SECOND_HREF}${uid}.ics`, SECOND_HREF, fixture(uid, `Second ${uid}`, rest))
+  }
+  server.calendarList = [
+    { href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` },
+    { href: SECOND_HREF, displayName: `Second`, changeMarker: `c1` },
+  ]
+  await refresh()
+  return tasks.value.find((task) => task.uid === `p` && task.listHref === LIST_HREF)!
+}
+
+Deno.test(`a task in another list that names this task as its parent is not counted and stays on the server`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTwoLists(server, [[`far`, [`RELATED-TO:p`]], [`far1`, [
+      `RELATED-TO:a`,
+    ]]])
+    expect(tasks.value.length).toBe(4)
+    expect(subtasksOf(parent, tasks.value).map((task) => task.uid)).toEqual([`a`])
+
+    const { result } = await deleteTaskTree(parent)
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect([...server.objects.keys()].sort()).toEqual([
+      `${SECOND_HREF}far.ics`,
+      `${SECOND_HREF}far1.ics`,
+    ])
+  })
+})
+
+Deno.test(`deleting one of two tasks with the same UID in two lists leaves the other and its subtask`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTwoLists(server, [[`p`, []], [`kid`, [`RELATED-TO:p`]]])
+    expect(tasks.value.length).toBe(4)
+    expect(subtasksOf(parent, tasks.value).map((task) => task.uid)).toEqual([`a`])
+
+    const { result } = await deleteTaskTree(parent)
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect([...server.objects.keys()].sort()).toEqual([
+      `${SECOND_HREF}kid.ics`,
+      `${SECOND_HREF}p.ics`,
+    ])
+    const copy = tasks.value.find((task) => task.uid === `p`)!
+    expect(subtasksOf(copy, tasks.value).map((task) => task.uid)).toEqual([`kid`])
+  })
+})
+
 Deno.test(`deleting a task deletes its subtasks and theirs on the server and leaves the rest`, async () => {
   await withApp(async (server) => {
     const parent = await startTree(server)

@@ -79,7 +79,9 @@ export function TaskEditorView() {
       task={task}
       lists={taskLists.value}
       tagSuggestions={allTags.value}
-      subtasks={tasks.value.filter((candidate) => candidate.parentUid === task.uid)}
+      subtasks={tasks.value.filter((candidate) =>
+        candidate.parentUid === task.uid && candidate.listHref === task.listHref
+      )}
       subtaskHref={taskPath}
       subtaskCount={subtasksOf(task, tasks.value).length}
       onDeleteAsked={() => void loadHiddenSubtasks(task)}

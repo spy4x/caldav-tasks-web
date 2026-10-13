@@ -150,13 +150,15 @@ export async function deleteTask(given: Task): Promise<WriteResult> {
 
 /**
  * Every task under `task`, however deep: its subtasks, their subtasks and so on, found by parent
- * UID among `all`, in any list and whether open or completed, as Tasks.org finds them. Deepest
- * first, so a subtask always comes before its parent. A loop of parents ends where it began.
+ * UID among the tasks of `task`'s own list in `all`, whether open or completed. Tasks.org links a
+ * subtask to a parent only inside one calendar, and the list page builds its tree from one list, so
+ * a task in another list that names the same UID is no subtask here. Deepest first, so a subtask
+ * always comes before its parent. A loop of parents ends where it began.
  */
 export function subtasksOf(task: Task, all: readonly Task[]): Task[] {
   const byParent = new Map<string, Task[]>()
   for (const each of all) {
-    if (each.parentUid === undefined) continue
+    if (each.parentUid === undefined || each.listHref !== task.listHref) continue
     byParent.set(each.parentUid, [...byParent.get(each.parentUid) ?? [], each])
   }
   const seen = new Set([task.uid])
