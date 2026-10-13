@@ -72,3 +72,64 @@ test("an end that is chosen but left empty stops the save with the browser's mes
   await expect(page.getByLabel(`Times`)).toHaveJSProperty(`validity.valueMissing`, true)
   await expect(page).not.toHaveURL(/\/lists\//)
 })
+
+test.describe("a person far ahead of UTC", () => {
+  // Kiritimati is 14 hours ahead of UTC, so for most of the day its date is not the server's.
+  const ZONE = `Pacific/Kiritimati`
+  test.use({ timezoneId: ZONE })
+
+  /** `YYYY-MM-DD` of the day `days` away from today as the person's zone reads it. */
+  function dayFromToday(days: number): string {
+    const today = new Intl.DateTimeFormat(`en-CA`, { timeZone: ZONE }).format(new Date())
+    const moved = new Date(`${today}T00:00:00Z`)
+    moved.setUTCDate(moved.getUTCDate() + days)
+    return moved.toISOString().slice(0, 10)
+  }
+
+  test("a weekly task set to count from completion, completed three days late, is due a week from today", async ({ page }) => {
+    const late = await seedTaskList(`Water the ferns`, [
+      `DUE;VALUE=DATE:${dayFromToday(-3).replaceAll(`-`, ``)}`,
+    ])
+    try {
+      await signIn(page)
+      const slug = new URL(late.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
+      await page.goto(`/lists/${encodeURIComponent(slug)}`)
+      const row = page.getByRole(`button`, { name: `Water the ferns`, exact: true })
+      await row.click()
+
+      // The choice appears with the repeat, and works from the keyboard like any radio group.
+      const choice = page.getByRole(`group`, { name: `Count the next date` })
+      await expect(choice).toHaveCount(0)
+      await page.getByLabel(`Repeat`, { exact: true }).selectOption({ label: `Weekly` })
+      await expect(choice.getByRole(`radio`, { name: `From the due date` })).toBeChecked()
+      await choice.getByRole(`radio`, { name: `From the due date` }).focus()
+      await page.keyboard.press(`ArrowDown`)
+      const fromCompletion = choice.getByRole(`radio`, { name: `From the day it is completed` })
+      await expect(fromCompletion).toBeChecked()
+      await expect(fromCompletion).toBeFocused()
+      await page.getByTestId(`task-save`).click()
+      await expect(page).toHaveURL(/\/lists\//)
+      await expect.poll(async () => await readTask(late.taskUrl)).toContain(
+        `X-REPEAT-FROM:COMPLETION`,
+      )
+
+      await page.getByRole(`checkbox`, { name: /Water the ferns/ }).click()
+      const next = dayFromToday(7)
+      await expect.poll(async () => await readTask(late.taskUrl)).toContain(
+        `DUE;VALUE=DATE:${next.replaceAll(`-`, ``)}`,
+      )
+      const onServer = await readTask(late.taskUrl)
+      expect(onServer).toContain(`X-REPEAT-FROM:COMPLETION`)
+      expect(onServer).not.toContain(`STATUS:COMPLETED`)
+
+      // The task stays open in the list with the new date, at once and after a reload.
+      await row.click()
+      await expect(page.getByTestId(`task-due-date`)).toHaveValue(next)
+      await page.reload()
+      await expect(page.getByTestId(`task-due-date`)).toHaveValue(next)
+      await expect(fromCompletion).toBeChecked()
+    } finally {
+      await deleteList(late)
+    }
+  })
+})
