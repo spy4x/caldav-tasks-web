@@ -195,7 +195,10 @@ With only some set, the server refuses to start and names the missing ones.
 If the folder or the file in it cannot be used, the server says so in one log line and runs with
 notifications off; the tasks keep working.
 
-**What the server stores.** One file, `push.json` in `DATA_DIR`: each device's push subscription
+**What the server stores.** One file, `push.json` in `DATA_DIR`. It needs the whole folder
+writable, not only that file: each change is written to a temporary file beside it and renamed over
+it, and at start the server writes and removes an empty `.write-check` to test the folder, so a
+mount that lets it write `push.json` alone turns notifications off. The file holds each device's push subscription
 (the address of its push service and two keys), and for each reminder sent in the last hour the
 task's id and the reminder's time, so none is sent twice. No task text. A notification carries the
 task's title, encrypted for that device, through the browser vendor's push service. Once a minute
@@ -221,7 +224,7 @@ docker compose pull && docker compose up -d
 ```
 
 With `docker run`, stop and remove the container (`docker rm -f caldav-tasks-web`), then run the
-same command with the new tag. There is no database to migrate. The one file the server writes,
+same command with the new tag. There is no database to migrate. The one file the server keeps,
 `push.json`, stays in the `/data` volume across upgrades. A device that has the app open shows a
 "New version available" bar when a new version is waiting. Settings shows the version you run.
 

@@ -4,7 +4,8 @@
 # IDE
 .idea
 
-# Configs: the owner's encrypted copy .env.age is committed, the plaintext never is
+# Configs: a plaintext .env is never committed. An encrypted .env.age would be let through; none
+# is tracked.
 .age/
 .env*
 !.env.example

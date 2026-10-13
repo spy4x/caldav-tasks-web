@@ -49,10 +49,10 @@ add. The browser keeps such lines when you edit a task, but only the fields in t
 
 ## Browsers
 
-| Browser                                     | Status   | Evidence                                                                                              |
-| ------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
-| Chromium (desktop and a phone-sized window) | Tested   | The browser tests run in Chromium only (`playwright.config.ts`), some of them in a 375 by 812 window. |
-| Firefox, Safari, others                     | Untested | No test runs them.                                                                                    |
+| Browser                                     | Status   | Evidence                                                                                                                |
+| ------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Chromium (desktop and a phone-sized window) | Tested   | The browser tests run in Chromium only (`playwright.config.ts`), one spec (`e2e/repeat.e2e.ts`) in a 375 by 812 window. |
+| Firefox, Safari, others                     | Untested | No test runs them.                                                                                                      |
 
 Installing the app as an app, and Web Push, need HTTPS (or `localhost`). On iPhone and iPad, push
 works only from the app added to the Home Screen; Settings says so. The browser tests check the
