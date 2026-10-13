@@ -106,7 +106,7 @@ export interface Auth {
  * There is no session store. Sign-out remembers the signed-out session's id in memory until it
  * would have expired, so the same cookie is refused even if it was copied. A restart forgets that
  * list; rotating `SESSION_SECRET` ends every session for good. The lockout counters live in memory
- * too, so a restart clears them.
+ * too, so a restart clears them. A lock that starts writes one log line; nothing else here logs.
  */
 export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth {
   const now = options.now ?? Date.now
@@ -119,12 +119,12 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
     schema: sessionPayload,
     now,
   })
-  const perAddress = createLockout({
-    store: new MemoryLockoutStore(),
-    clock,
-    ...PER_ADDRESS_POLICY,
-  })
-  const overall = createLockout({ store: new MemoryLockoutStore(), clock, ...OVERALL_POLICY })
+  const perAddressStore = new MemoryLockoutStore()
+  const overallStore = new MemoryLockoutStore()
+  const perAddress = createLockout({ store: perAddressStore, clock, ...PER_ADDRESS_POLICY })
+  const overall = createLockout({ store: overallStore, clock, ...OVERALL_POLICY })
+  /** When the lock last logged ends, by who it locks, so one lock is logged once. */
+  const loggedLocks = new Map<string, number>()
   const signedOut = new Map<string, number>()
   const expectedOrigin = new URL(config.PUBLIC_URL).origin
   const refuseCrossSite = (c: Context) =>
@@ -144,6 +144,20 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
     const at = now()
     for (const [sid, expiresAt] of signedOut) if (expiresAt <= at) signedOut.delete(sid)
     signedOut.set(session.sid, session.expiresAt)
+  }
+
+  /**
+   * Writes the one line a lock gets, for an operator or a tool that bans addresses: who is locked
+   * and for how long. Called after a wrong password; wrong passwords checked at the same moment
+   * see the same lock, and only the first of them writes. The line never holds a password.
+   */
+  function logLock(subject: string, who: string, store: MemoryLockoutStore): void {
+    const lockedUntil = store.get(subject)?.lockedUntil ?? null
+    // A check that was counted either set a lock that runs from now or cleared the last one.
+    if (lockedUntil === null || loggedLocks.get(who) === lockedUntil) return
+    loggedLocks.set(who, lockedUntil)
+    const wait = humanRetry(lockedUntil - now())
+    console.warn(`auth: sign-in is locked for ${who} for ${wait}, after too many wrong passwords`)
   }
 
   const signInRoutes = new Hono()
@@ -187,6 +201,8 @@ export function createAuth(config: AuthConfig, options: AuthOptions = {}): Auth 
       const { valid } = await hasher.verify(request.password, config.OWNER_PASSWORD_HASH)
       if (!valid) {
         await Promise.all([perAddress.fail(address), overall.fail(OVERALL_SUBJECT)])
+        logLock(address, `address ${address}`, perAddressStore)
+        logLock(OVERALL_SUBJECT, `every address`, overallStore)
         return fail(c, 401, ApiErrorCode.Unauthorized, "Wrong password")
       }
       await Promise.all([perAddress.refund(address), overall.refund(OVERALL_SUBJECT)])

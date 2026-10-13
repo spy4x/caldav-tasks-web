@@ -135,13 +135,13 @@ const writer: CalDavWriter = {
 
 /**
  * The address of an entity. A task that exists has its address for an id; one created on this
- * device is named by a plain file id until the server has it.
+ * device is named by a plain file id for as long as the queue holds a write of it. Every queued
+ * write carries the task's address, whatever its kind: a create that was sent and then deleted is
+ * a queued delete under the same file id.
  */
 function entityHref(entityId: string): string {
-  const created = pendingEntries.value.find((entry) =>
-    entry.entityId === entityId && entry.kind === `create`
-  )
-  if (created) return created.payload.href
+  const queued = pendingEntries.value.find((entry) => entry.entityId === entityId)
+  if (queued) return queued.payload.href
   if (entityId.includes(`/`)) return entityId
   return serverTasks.value.find((task) => task.href.endsWith(`/${entityId}.ics`))?.href ?? entityId
 }

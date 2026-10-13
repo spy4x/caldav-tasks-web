@@ -406,21 +406,101 @@ Deno.test("every /api route except sign-in answers 401 without a session", async
   }
 })
 
-Deno.test("sign-in writes nothing to the console, so no password reaches a log", async () => {
-  const { app } = await setup()
-  const written: unknown[][] = []
+/** Runs `run` and returns every line it wrote to the console, by any of its methods. */
+async function consoleLines(run: () => Promise<void>): Promise<string[]> {
+  const written: string[] = []
   const names = ["log", "info", "warn", "error", "debug"] as const
   const originals = names.map((name) => console[name])
-  for (const name of names) console[name] = (...args: unknown[]) => written.push(args)
+  for (const name of names) console[name] = (...args: unknown[]) => written.push(args.join(" "))
   try {
+    await run()
+  } finally {
+    names.forEach((name, index) => console[name] = originals[index])
+  }
+  return written
+}
+
+/** One wrong password from `peer`; the answer is read and dropped. */
+async function wrongPassword(app: Hono, peer: string): Promise<number> {
+  const response = await signIn(app, "wrong-guess", { peer })
+  await response.body?.cancel()
+  return response.status
+}
+
+Deno.test("a sign-in that starts no lock writes nothing to the console", async () => {
+  const { app } = await setup()
+  const written = await consoleLines(async () => {
     for (const password of ["wrong-guess", TEST_OWNER_PASSWORD]) {
       const response = await signIn(app, password)
       await response.body?.cancel()
     }
     const broken = await signIn(app, "", { body: `{"password":"half` })
     await broken.body?.cancel()
-  } finally {
-    names.forEach((name, index) => console[name] = originals[index])
-  }
+  })
   expect(written).toEqual([])
+})
+
+Deno.test("the wrong password that locks an address writes one line with the address and the wait, and each later lock one more", async () => {
+  const { app, advance } = await setup()
+  const peer = "198.51.100.7"
+  const free = await consoleLines(async () => {
+    for (let attempt = 1; attempt <= 5; attempt++) await wrongPassword(app, peer)
+  })
+  expect(free).toEqual([])
+
+  const first = await consoleLines(async () => {
+    expect(await wrongPassword(app, peer)).toBe(401)
+    // Refused while the lock runs: these never reach the password and write nothing.
+    expect(await wrongPassword(app, peer)).toBe(429)
+    const owner = await signIn(app, TEST_OWNER_PASSWORD, { peer })
+    expect(owner.status).toBe(429)
+    await owner.body?.cancel()
+  })
+  expect(first).toEqual([
+    "auth: sign-in is locked for address 198.51.100.7 for 15 minutes, after too many wrong passwords",
+  ])
+
+  advance(15 * 60_000)
+  const second = await consoleLines(async () => {
+    expect(await wrongPassword(app, peer)).toBe(401)
+  })
+  expect(second).toEqual([
+    "auth: sign-in is locked for address 198.51.100.7 for 30 minutes, after too many wrong passwords",
+  ])
+})
+
+Deno.test("no lock line holds a password that was tried, right or wrong", async () => {
+  const { app } = await setup()
+  const peer = "198.51.100.7"
+  const written = await consoleLines(async () => {
+    for (let attempt = 1; attempt <= 6; attempt++) await wrongPassword(app, peer)
+    const owner = await signIn(app, TEST_OWNER_PASSWORD, { peer })
+    await owner.body?.cancel()
+  })
+  expect(written.length).toBe(1)
+  expect(written.join("\n")).not.toContain("wrong-guess")
+  expect(written.join("\n")).not.toContain(TEST_OWNER_PASSWORD)
+})
+
+Deno.test("six wrong passwords sent at once from one address write one lock line", async () => {
+  const { app } = await setup()
+  const peer = "198.51.100.7"
+  const written = await consoleLines(async () => {
+    await Promise.all(Array.from({ length: 6 }, () => wrongPassword(app, peer)))
+  })
+  expect(written).toEqual([
+    "auth: sign-in is locked for address 198.51.100.7 for 15 minutes, after too many wrong passwords",
+  ])
+})
+
+Deno.test("the lock for every address writes one line that names no address", async () => {
+  const { app } = await setup()
+  const written = await consoleLines(async () => {
+    // One wrong guess each from 31 addresses: no address reaches its own limit.
+    for (let n = 1; n <= 31; n++) await wrongPassword(app, `203.0.113.${n}`)
+    expect(await wrongPassword(app, "203.0.113.200")).toBe(429)
+  })
+  expect(written).toEqual([
+    "auth: sign-in is locked for every address for 1 minute, after too many wrong passwords",
+  ])
 })

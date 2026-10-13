@@ -294,6 +294,51 @@ Deno.test(`sync sends the queued writes before it refreshes, when the network re
   })
 })
 
+Deno.test(`while the CalDAV server keeps refusing a queued write, a change made on another device still shows up and the unsent edit stays`, async () => {
+  await withApp(async (server) => {
+    seedList(server)
+    await refresh()
+    const before = tasks.value.find((t) => t.title === `Buy milk`)!
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` })
+    // A read-only calendar: every write is refused, every read is answered.
+    const answer = server.handle.bind(server)
+    server.handle = (request: Request) => {
+      if (request.method !== `PUT`) return answer(request)
+      server.sent.push({ method: `PUT`, path: CALDAV_PATHS.object, search: new URLSearchParams() })
+      return error(502, `caldav_refused`)
+    }
+    // The phone adds a task and renames the one edited here.
+    server.seed(`${LIST_HREF}phone.ics`, LIST_HREF, task(`3`, `Call mum`))
+    server.seed(OPEN, LIST_HREF, task(`1`, `Their milk`))
+    server.calendarList = [{ ...server.calendarList[0], changeMarker: `ctag-2` }]
+
+    const stop = startSync({
+      document: {
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        visibilityState: `visible`,
+      },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }, {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })
+    try {
+      for (let waited = 0; !runnerState.value?.failures && waited < 200; waited++) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+      expect(server.count(`PUT`, CALDAV_PATHS.object)).toBe(1)
+      expect(pendingEntries.value.map((e) => e.status)).toEqual([`pending`])
+      // The phone's new task is on the page, and the edit made here still shows over the phone's.
+      expect(titles()).toEqual([`Call mum`, `Oat milk`])
+    } finally {
+      stop()
+    }
+  })
+})
+
 /** A storage that fails on every call, as IndexedDB does when blocked. */
 function brokenStorage(): TaskStorage {
   const fail = () => Promise.reject(new DOMException(`blocked`, `SecurityError`))

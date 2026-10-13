@@ -979,3 +979,78 @@ Deno.test(`every write, conflict read and delete names its task and list by path
     expect(server.objects.has(`${LIST_HREF}rent.ics`)).toBe(false)
   })
 })
+
+Deno.test(`a task added on a lost answer and then deleted waits for a choice instead of blocking the queue, and Keep mine deletes it on the server`, async () => {
+  await withApp(async (server) => {
+    const milk = await start(server)
+    const rent = `${LIST_HREF}rent.ics`
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+    setBrowserOnline(true)
+    server.loseNextAnswer = true
+    await getOutbox().flush()
+    expect(server.objects.has(rent)).toBe(true)
+
+    const result = await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
+    expect(result.kind).toBe(WriteKind.Saved)
+    await getOutbox().flush()
+
+    // The server's copy is read at the task's address, so the delete is no longer retried in vain.
+    expect(server.sent.filter((s) => s.method === `GET`).map((s) => s.search.get(`href`)))
+      .toEqual([rent])
+    expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Pay rent`, `version`]])
+
+    // A later offline edit is not held up behind it.
+    setBrowserOnline(false)
+    await saveTask(milk, { title: `Oat milk` }, NOW)
+    await reconnect()
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Oat milk`)
+
+    await keepMineOf(conflicts.value[0].id)
+
+    expect(server.objects.has(rent)).toBe(false)
+    expect(pendingEntries.value).toEqual([])
+    expect((await getStorage().listTasks()).map((t) => t.href)).toEqual([HREF])
+    expect(titles()).toEqual([`Oat milk`])
+  })
+})
+
+Deno.test(`a task whose create never arrived and was then deleted is reported gone, and discarding it empties the queue`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+    setBrowserOnline(true)
+    server.down = true
+    await getOutbox().flush()
+    await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
+    server.down = false
+
+    await getOutbox().flush()
+
+    expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Pay rent`, `gone`]])
+    await useTheirsOf(conflicts.value[0].id)
+    expect(pendingEntries.value).toEqual([])
+    expect(server.objects.has(`${LIST_HREF}rent.ics`)).toBe(false)
+    expect(titles()).toEqual([`Buy milk`])
+  })
+})
+
+Deno.test(`a queued write answered 401 stays queued, and is sent once the session is back`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    setBrowserOnline(true)
+    server.next = error(401, `unauthorized`)
+
+    await getOutbox().flush()
+
+    expect(pendingEntries.value.map((e) => e.status)).toEqual([`pending`])
+    expect(conflicts.value).toEqual([])
+    expect(titles()).toEqual([`Oat milk`])
+    await getOutbox().flush()
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Oat milk`)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
