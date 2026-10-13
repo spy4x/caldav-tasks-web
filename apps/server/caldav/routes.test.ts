@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
-import { CalDavErrorCode } from "@spy4x/caldav"
+import { type CalDavError, CalDavErrorCode, createCalDavClient } from "@spy4x/caldav"
 import { CALDAV_MAX_REQUEST_BYTES, CALDAV_PATHS } from "@api/caldav.ts"
 import { createCaldavRoutes, REQUEST_TOO_LARGE } from "./routes.ts"
 import { TEST_CONFIG } from "../test-config.ts"
@@ -27,12 +27,17 @@ function objectsPath(calendar: string, completed?: string): string {
   return `${CALDAV_PATHS.objects}?${query}`
 }
 
+function privilegesPath(href: string): string {
+  return `${CALDAV_PATHS.privileges}?href=${encodeURIComponent(href)}`
+}
+
 Deno.test("refuses every CalDAV route without a session and calls the CalDAV server for none", async () => {
   const { app, dav } = await setup()
   const requests: [string, string][] = [
     ["GET", CALDAV_PATHS.calendars],
     ["GET", objectsPath(TASKS)],
     ["GET", objectPath(OPEN)],
+    ["GET", privilegesPath(OPEN)],
     ["POST", CALDAV_PATHS.objects],
     ["PUT", CALDAV_PATHS.object],
     ["DELETE", CALDAV_PATHS.object],
@@ -199,6 +204,7 @@ Deno.test("refuses an href outside the listed calendars before any request names
     const requests: [string, unknown][] = [
       [objectPath(href), undefined],
       [objectsPath(href), undefined],
+      [privilegesPath(href), undefined],
       ["PUT", { href, etag: `"e-open"`, ics: OPEN_ICS }],
       ["DELETE", { href, etag: `"e-open"` }],
       ["POST", { calendar: href, ics: OPEN_ICS }],
@@ -213,6 +219,17 @@ Deno.test("refuses an href outside the listed calendars before any request names
       expect([href, target, response.status]).toEqual([href, target, 400])
       expect((await response.json()).code).toBe("bad_request")
     }
+  }
+  // The question about privileges takes a calendar too, but only a listed one that holds tasks.
+  for (
+    const href of ["/other-user/tasks/", "/test-user/", EVENTS, `${TASKS}nested/`, `${DAV}${TASKS}`]
+  ) {
+    const response = await send(privilegesPath(href))
+    expect([href, response.status, (await response.json()).code]).toEqual([
+      href,
+      400,
+      "bad_request",
+    ])
   }
   // A calendar is not a task.
   for (const method of ["GET", "PUT", "DELETE"]) {
@@ -388,6 +405,7 @@ Deno.test("no response body and no log line contains CALDAV_PASSWORD", async () 
           [CALDAV_PATHS.calendars, {}],
           [objectsPath(TASKS, "true"), {}],
           [objectPath(OPEN), {}],
+          [privilegesPath(OPEN), {}],
           [CALDAV_PATHS.objects, { method: "POST", body: { calendar: TASKS, ics: OPEN_ICS } }],
           [CALDAV_PATHS.object, {
             method: "PUT",
@@ -418,11 +436,217 @@ Deno.test("no response body and no log line contains CALDAV_PASSWORD", async () 
   } finally {
     Object.assign(console, originals)
   }
-  // Six routes, once working and once per failure code, then the throwing client.
-  expect(bodies.length).toBe(6 * (1 + CODES.length) + 1)
+  // Seven routes, once working and once per failure code, then the throwing client.
+  expect(bodies.length).toBe(7 * (1 + CODES.length) + 1)
   expect(lines.length).toBeGreaterThanOrEqual(CODES.length)
   for (const text of [...bodies, ...lines]) expect(text).not.toContain(password)
   expect(lines.some((line) => line.includes("getObject threw Error"))).toBe(true)
+})
+
+/** The three writes of a task, each to an address the relay lists. */
+const WRITES: [string, string, unknown][] = [
+  ["POST", CALDAV_PATHS.objects, { calendar: TASKS, ics: OPEN_ICS }],
+  ["PUT", CALDAV_PATHS.object, { href: OPEN, etag: `"e-open"`, ics: OPEN_ICS }],
+  ["DELETE", CALDAV_PATHS.object, { href: OPEN, etag: `"e-open"` }],
+]
+
+Deno.test("passes a 403 the CalDAV server gave a write on as a 403, with the condition it named", async () => {
+  const refusals: [Partial<CalDavError>, unknown][] = [
+    [{ code: CalDavErrorCode.Forbidden }, {
+      code: "caldav_forbidden",
+      message: "The CalDAV server refused this change",
+    }],
+    [{ code: CalDavErrorCode.Forbidden, condition: "need-privileges" }, {
+      code: "caldav_precondition",
+      message: "The CalDAV server does not accept this change",
+      condition: "need-privileges",
+    }],
+    [{ code: CalDavErrorCode.Server, condition: "valid-calendar-data" }, {
+      code: "caldav_precondition",
+      message: "The CalDAV server does not accept this change",
+      condition: "valid-calendar-data",
+    }],
+    // A name that is not a known condition is the server's own text: it is not passed on.
+    [{ code: CalDavErrorCode.Forbidden, condition: "x-vendor-secret" }, {
+      code: "caldav_precondition",
+      message: "The CalDAV server does not accept this change",
+      condition: "other",
+    }],
+  ]
+  const { dav, send } = await setup()
+  for (const [error, body] of refusals) {
+    dav.failWith = { code: CalDavErrorCode.Forbidden, message: "upstream", status: 403, ...error }
+    for (const [method, path, request] of WRITES) {
+      const response = await send(path, { method, body: request })
+      expect([method, response.status, await response.json()]).toEqual([method, 403, body])
+    }
+  }
+})
+
+Deno.test("a 403 the CalDAV server gave a read, and a failure of a write that is not a 403, keep their 502", async () => {
+  const { dav, send } = await setup()
+  dav.failWith = {
+    code: CalDavErrorCode.Forbidden,
+    message: "upstream",
+    status: 403,
+    condition: "need-privileges",
+  }
+  for (const path of [objectPath(OPEN), objectsPath(TASKS), privilegesPath(OPEN)]) {
+    const response = await send(path)
+    expect([path, response.status, await response.json()]).toEqual([path, 502, {
+      code: "caldav_refused",
+      message: "The CalDAV server forbids this for the configured account",
+    }])
+  }
+  for (
+    const failure of [
+      { code: CalDavErrorCode.Unauthorized, message: "upstream", status: 401 },
+      { code: CalDavErrorCode.Server, message: "upstream", status: 500 },
+    ]
+  ) {
+    dav.failWith = failure
+    for (const [method, path, request] of WRITES) {
+      const response = await send(path, { method, body: request })
+      expect([method, response.status]).toEqual([method, 502])
+      await response.body?.cancel()
+    }
+  }
+})
+
+const PRIVILEGES_XML = (inside: string) =>
+  `<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">${inside}</D:multistatus>`
+
+const privilegeSet = (href: string, names: string[]) =>
+  PRIVILEGES_XML(
+    `<D:response><D:href>${href}</D:href><D:propstat><D:prop><D:current-user-privilege-set>${
+      names.map((name) => `<D:privilege><${name}/></D:privilege>`).join("")
+    }</D:current-user-privilege-set></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`,
+  )
+
+const noPrivilegeSet = (href: string) =>
+  PRIVILEGES_XML(
+    `<D:response><D:href>${href}</D:href><D:propstat><D:prop><D:current-user-privilege-set/></D:prop><D:status>HTTP/1.1 404 Not Found</D:status></D:propstat></D:response>`,
+  )
+
+const xml = (body: string, status = 207) =>
+  new Response(body, { status, headers: { "content-type": "application/xml; charset=utf-8" } })
+
+const html = (status: number) =>
+  new Response("<html><body>Sign in</body></html>", {
+    status,
+    headers: { "content-type": "text/html" },
+  })
+
+/**
+ * A relay whose question about privileges goes through the real CalDAV client to a made-up server,
+ * so each test names what that server answers. Calendars and tasks stay the fake account's.
+ */
+async function withUpstream(answer: (request: Request) => Response | Promise<Response>) {
+  const context = await setup()
+  const requests: Request[] = []
+  const real = createCalDavClient({
+    serverUrl: TEST_CONFIG.CALDAV_URL,
+    allowHttp: true,
+    auth: { username: TEST_CONFIG.CALDAV_USERNAME, password: TEST_CONFIG.CALDAV_PASSWORD },
+    timeoutMs: 50,
+    fetch: (input, init) => {
+      const request = new Request(input, init)
+      requests.push(request)
+      return Promise.resolve(answer(request))
+    },
+  })
+  context.dav.getPrivileges = (url) => real.getPrivileges!(url)
+  return { ...context, requests }
+}
+
+Deno.test("answers what the account may do at a listed calendar and at a task in it, asked with one PROPFIND of depth 0", async () => {
+  for (const href of [TASKS, OPEN]) {
+    const { send, requests } = await withUpstream(() =>
+      xml(
+        privilegeSet(href, ["D:read", "D:write-content", "D:x-vendor-secret", "C:read-free-busy"]),
+      )
+    )
+    const response = await send(privilegesPath(href))
+    expect([href, response.status, await response.json()]).toEqual([href, 200, {
+      // A name that is no DAV: privilege of RFC 3744 is left out.
+      privileges: ["read", "write-content"],
+    }])
+    expect(requests.map((r) => [r.method, r.url, r.headers.get("depth")])).toEqual([
+      ["PROPFIND", `${DAV}${href}`, "0"],
+    ])
+  }
+})
+
+Deno.test("answers null, not an empty list, when the CalDAV server gives no privilege list", async () => {
+  const { send } = await withUpstream(() => xml(noPrivilegeSet(TASKS)))
+  const response = await send(privilegesPath(TASKS))
+  expect([response.status, await response.json()]).toEqual([200, { privileges: null }])
+})
+
+Deno.test("answers an empty list when the CalDAV server lists no privilege at all", async () => {
+  const { send } = await withUpstream(() => xml(privilegeSet(TASKS, [])))
+  const response = await send(privilegesPath(TASKS))
+  expect([response.status, await response.json()]).toEqual([200, { privileges: [] }])
+})
+
+/** Each answer of the CalDAV server that is no privilege list, and what the relay answers. */
+const NOT_A_LIST: [string, (request: Request) => Response | Promise<Response>, number, string][] = [
+  ["a 401", () => new Response(null, { status: 401 }), 502, "caldav_refused"],
+  ["a 403 with no body", () => new Response(null, { status: 403 }), 502, "caldav_refused"],
+  ["a 403 sign-in page", () => html(403), 502, "caldav_refused"],
+  [
+    "a redirect to another origin",
+    () => new Response(null, { status: 302, headers: { location: "https://sso.example/login" } }),
+    502,
+    "caldav_failed",
+  ],
+  [
+    "a redirect on the same origin that ends at a sign-in page",
+    (request) =>
+      request.url.endsWith("/login")
+        ? html(200)
+        : new Response(null, { status: 302, headers: { location: "/login" } }),
+    502,
+    "caldav_failed",
+  ],
+  ["a 200 HTML page", () => html(200), 502, "caldav_failed"],
+  ["a 207 that is an HTML page", () => html(207), 502, "caldav_failed"],
+  ["a 404", () => new Response(null, { status: 404 }), 404, "not_found"],
+  ["a 500", () => new Response("boom", { status: 500 }), 502, "caldav_failed"],
+  ["a 503", () => new Response(null, { status: 503 }), 502, "caldav_failed"],
+  [
+    "no answer at all",
+    () => Promise.reject(new TypeError("connection refused")),
+    503,
+    "caldav_unreachable",
+  ],
+  [
+    "no answer in time",
+    (request) =>
+      new Promise((_resolve, reject) =>
+        request.signal.addEventListener("abort", () => reject(request.signal.reason))
+      ),
+    504,
+    "caldav_unreachable",
+  ],
+]
+
+for (const [name, answer, status, code] of NOT_A_LIST) {
+  Deno.test(`the question about privileges fails, and answers no list, when the CalDAV server gives ${name}`, async () => {
+    const { send, requests } = await withUpstream(answer)
+    const response = await send(privilegesPath(TASKS))
+    const body = await response.json()
+    expect([response.status, body.code]).toEqual([status, code])
+    expect("privileges" in body).toBe(false)
+    expect(requests.length).toBeGreaterThan(0)
+  })
+}
+
+Deno.test("the question about privileges fails when the client cannot ask it", async () => {
+  const { dav, send } = await setup()
+  ;(dav as { getPrivileges?: unknown }).getPrivileges = undefined
+  const response = await send(privilegesPath(TASKS))
+  expect([response.status, (await response.json()).code]).toEqual([502, "caldav_failed"])
 })
 
 Deno.test("builds its own client for an http: address that is not public, and refuses to build one for a public http: address", () => {

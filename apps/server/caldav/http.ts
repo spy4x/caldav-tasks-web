@@ -50,5 +50,9 @@ export function outside(c: Context): Response {
 }
 
 export function failed(c: Context, failure: CalDavFailure): Response {
-  return c.json({ code: failure.code, message: failure.message }, failure.status)
+  const { code, message, condition } = failure
+  return c.json(
+    { code, message, ...(condition === undefined ? {} : { condition }) },
+    failure.status,
+  )
 }
