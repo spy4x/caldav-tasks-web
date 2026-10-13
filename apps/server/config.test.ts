@@ -70,6 +70,120 @@ Deno.test("refuses a PUBLIC_URL or CALDAV_URL that is not a URL", () => {
   }
 })
 
+/** The `ConfigError` the seven variables with `changes` applied are refused with. */
+function configError(changes: Record<string, string>): ConfigError {
+  try {
+    readConfig(createEnvReader({ ...TEST_CONFIG, ...changes }))
+  } catch (error) {
+    expect(error).toBeInstanceOf(ConfigError)
+    return error as ConfigError
+  }
+  throw new Error(`the configuration was accepted with ${Object.keys(changes).join(", ")} changed`)
+}
+
+Deno.test("refuses an address that is not http or https, or that carries a username or password", () => {
+  for (const name of ["PUBLIC_URL", "CALDAV_URL"]) {
+    for (
+      const value of [
+        "ftp://tasks.example.com",
+        "mailto:owner@example.com",
+        "https://someone@tasks.example.com",
+        "https://someone:hunter2-hunter2@tasks.example.com",
+      ]
+    ) {
+      const error = configError({ [name]: value })
+      expect([name, value, error.variables]).toEqual([name, value, [name]])
+      expect(describeConfigError(error)).toContain(`${name} must be an http:// or https:// address`)
+      expect(describeConfigError(error)).not.toContain(value)
+      expect(describeConfigError(error)).not.toContain("hunter2")
+    }
+  }
+})
+
+Deno.test("refuses a PUBLIC_URL on plain http, except on the machine itself", () => {
+  for (
+    const value of [
+      "http://tasks.example.com",
+      "http://192.168.1.10:8080",
+      "http://0.0.0.0",
+      "http://nas:8080",
+      // Names that only look like the machine.
+      "http://localhost.example.com",
+      "http://127.0.0.1.example.com",
+    ]
+  ) {
+    const error = configError({ PUBLIC_URL: value })
+    expect([value, error.variables]).toEqual([value, ["PUBLIC_URL"]])
+    expect(describeConfigError(error)).toContain("PUBLIC_URL must start with https://")
+    expect(describeConfigError(error)).not.toContain(value)
+  }
+  for (
+    const value of [
+      "https://tasks.example.com",
+      "https://tasks.example.com:8443/app/",
+      "http://localhost:5173",
+      "http://tasks.localhost:8080",
+      "http://localhost.",
+      "http://127.0.0.1:8080",
+      "http://127.0.0.2",
+      "http://[::1]:8080",
+    ]
+  ) {
+    const env = { ...TEST_CONFIG, PUBLIC_URL: value }
+    expect(readConfig(createEnvReader(env))).toEqual(env)
+  }
+})
+
+Deno.test("accepts a CALDAV_URL on plain http, on any host", () => {
+  for (
+    const value of ["http://radicale:5232", "http://192.168.1.10/dav", "https://dav.example.com"]
+  ) {
+    const env = { ...TEST_CONFIG, CALDAV_URL: value }
+    expect(readConfig(createEnvReader(env))).toEqual(env)
+  }
+})
+
+Deno.test("refuses an owner password hash that is cut short or is still the placeholder", () => {
+  const parts = TEST_CONFIG.OWNER_PASSWORD_HASH.split("$")
+  const damaged = [
+    // What `--env-file` leaves of an unquoted hash, and each shorter or longer cut.
+    ...[1, 2, 3].map((kept) => parts.slice(0, kept).join("$")),
+    "<output of deno task password:hash>",
+  ]
+  for (const value of damaged) {
+    const error = configError({ OWNER_PASSWORD_HASH: value })
+    expect([value, error.variables]).toEqual([value, ["OWNER_PASSWORD_HASH"]])
+    const message = describeConfigError(error)
+    expect(message).toContain("OWNER_PASSWORD_HASH must be the whole output of")
+    expect(message).toContain("single quotes")
+    expect(message).not.toContain(parts[2])
+  }
+})
+
+Deno.test("tells a hash that still carries its quotes to lose them", () => {
+  // `docker run --env-file` does not read quotes: they arrive as part of the value.
+  for (const quote of [`'`, `"`]) {
+    const error = configError({
+      OWNER_PASSWORD_HASH: `${quote}${TEST_CONFIG.OWNER_PASSWORD_HASH}${quote}`,
+    })
+    expect(error.variables).toEqual(["OWNER_PASSWORD_HASH"])
+    const message = describeConfigError(error)
+    expect(message).toContain("OWNER_PASSWORD_HASH has quotes around it")
+    expect(message).toContain("without quotes")
+    expect(message).not.toContain("put it in single quotes")
+    expect(message).not.toContain(TEST_CONFIG.OWNER_PASSWORD_HASH.split("$")[2])
+  }
+})
+
+Deno.test("names every badly shaped variable at once", () => {
+  const error = configError({
+    PUBLIC_URL: "http://tasks.example.com",
+    CALDAV_URL: "ftp://dav.example.com",
+    OWNER_PASSWORD_HASH: "pbkdf2-sha256",
+  })
+  expect(error.variables).toEqual(["CALDAV_URL", "OWNER_PASSWORD_HASH", "PUBLIC_URL"])
+})
+
 /** A complete push group. The keys are placeholders: this reader checks that they are set only. */
 const PUSH = {
   VAPID_PUBLIC_KEY: "test-vapid-public-key",

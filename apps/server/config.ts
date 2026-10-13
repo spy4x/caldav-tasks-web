@@ -1,4 +1,6 @@
+import { isLoopbackHost } from "@spy4x/net/ip"
 import { ConfigError, type EnvReader, loadConfig, systemEnv } from "@spy4x/server/config"
+import { isPasswordHash } from "@spy4x/server/sign-in"
 import { isValidTimeZone } from "@spy4x/time/tz"
 import { type } from "arktype"
 
@@ -26,9 +28,56 @@ export const configSchema = type({
 /** The checked configuration. */
 export type Config = typeof configSchema.infer
 
-/** Reads and checks the environment. Throws a `ConfigError` naming every bad variable. */
+const WEB_ADDRESS_REASON =
+  "must be an http:// or https:// address with no username or password in it"
+
+/** What is wrong with `value` as an address the server fetches or is opened at, or `null`. */
+function webAddressProblem(value: string): string | null {
+  const url = new URL(value)
+  if (url.protocol !== "http:" && url.protocol !== "https:") return WEB_ADDRESS_REASON
+  if (url.username !== "" || url.password !== "") return WEB_ADDRESS_REASON
+  return null
+}
+
+/**
+ * What is wrong with `value` as `PUBLIC_URL`, or `null`. The session cookie is always `Secure`, and
+ * a browser keeps such a cookie over plain `http:` on its own machine only, so any other `http:`
+ * address would start a server nobody can sign in to.
+ */
+function publicUrlProblem(value: string): string | null {
+  const problem = webAddressProblem(value)
+  if (problem) return problem
+  const url = new URL(value)
+  if (url.protocol === "https:" || isLoopbackHost(url.hostname)) return null
+  return "must start with https://, because a browser keeps the sign-in cookie on https only; http:// works on this machine's own names only, such as localhost and 127.0.0.1"
+}
+
+/**
+ * What is wrong with `value` as `OWNER_PASSWORD_HASH`, or `null`. A `.env` loader or a Compose file
+ * that expands `$` cuts the hash short, and a loader that does not read quotes (`docker run
+ * --env-file`) leaves them in the value. Either way every sign-in would answer "Wrong password".
+ */
+function ownerPasswordHashProblem(value: string): string | null {
+  if (isPasswordHash(value)) return null
+  if (/^(['"]).*\1$/s.test(value)) {
+    return "has quotes around it that were not removed: `docker run --env-file` keeps them, so write the hash there without quotes"
+  }
+  return "must be the whole output of `deno task password:hash`: in a .env file that Deno loads put it in single quotes, in a compose.yml write each $ as $$"
+}
+
+/**
+ * Reads and checks the environment. Throws a `ConfigError` naming every bad variable; the checks of
+ * an address's kind and of the hash run once nothing is missing. A reason never holds the value.
+ */
 export function readConfig(reader: EnvReader = systemEnv): Config {
-  return loadConfig(configSchema, reader)
+  const config = loadConfig(configSchema, reader)
+  const issues = [
+    { name: "CALDAV_URL", reason: webAddressProblem(config.CALDAV_URL) },
+    { name: "OWNER_PASSWORD_HASH", reason: ownerPasswordHashProblem(config.OWNER_PASSWORD_HASH) },
+    { name: "PUBLIC_URL", reason: publicUrlProblem(config.PUBLIC_URL) },
+  ].flatMap(({ name, reason }) => (reason === null ? [] : [{ name, reason }]))
+  if (issues.length > 0) throw new ConfigError(issues.map((issue) => issue.name), issues)
+  return config
 }
 
 /**

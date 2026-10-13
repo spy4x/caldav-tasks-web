@@ -34,9 +34,13 @@ of it, made with a key called the pepper.
 
 3. Give the container `AUTH_PEPPER` (the same one), `SESSION_SECRET` and `OWNER_PASSWORD_HASH`.
 
-The hash contains `$` characters. In a shell, wrap it in single quotes. In a `compose.yml`, write
-each `$` as `$$`. A hash made with one pepper does not verify under another, so changing
-`AUTH_PEPPER` locks you out until you make a new hash.
+The hash contains `$` characters. In a shell, and in a `.env` file that Deno loads (`deno task dev`
+reads `.env`), wrap it in single quotes. In a `compose.yml`, write each `$` as `$$`. Without that
+the value is cut short at the first `$`. In a file you pass to `docker run --env-file`, write it
+with no quotes at all: Docker does not read them and hands them on as part of the value. In each of
+these cases the server refuses to start, names `OWNER_PASSWORD_HASH` and says which fix applies. A
+hash made with one pepper does not verify under another, so changing `AUTH_PEPPER` locks you out
+until you make a new hash.
 
 A complete `compose.yml`:
 
@@ -81,6 +85,10 @@ Run the container on a port that only the proxy can reach (the compose file abov
   refuses a sign-in or a write that does not come from that origin (`403`, "Cross-site request
   refused"). A request from a script has to send what a browser sends: with `curl`, add
   `-H 'Origin: https://tasks.example.com' -H 'Sec-Fetch-Site: same-origin'`.
+- **`PUBLIC_URL` must be `https://`.** A browser keeps the sign-in cookie on `https://` only, so the
+  server refuses to start with an `http://` address. The exceptions are the machine's own names,
+  for a browser on the same machine: `localhost`, a name under it such as `tasks.localhost`, an
+  address that starts with `127.`, and `[::1]`.
 - **Forward `X-Real-IP`** with the client's address. Wrong sign-in attempts are counted per client
   address, and the server believes the header only when the proxy connects from a private or
   loopback address. Traefik sends it by default. Without it, every visitor counts as the proxy's
