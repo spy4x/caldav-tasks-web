@@ -14,7 +14,7 @@ import { saveTask, tasks } from "../state/tasks.ts"
 import { setBrowserOnline, withApp } from "../state/testing.ts"
 import { toasts } from "../state/toasts.ts"
 import type { FakeServer } from "../state/testing.ts"
-import { ROUTES } from "../routes.ts"
+import { ROUTES, taskPath } from "../routes.ts"
 import { TaskEditorView } from "./TaskEditorView.tsx"
 
 const HREF = `${LIST_HREF}one.ics`
@@ -25,8 +25,8 @@ async function start(server: FakeServer, rest: string[] = []) {
   await refresh()
 }
 
-function editor() {
-  const { hook } = memoryLocation({ path: `/tasks/1` })
+function editor(uid = `1`) {
+  const { hook } = memoryLocation({ path: taskPath({ uid }) })
   return (
     <Router hook={hook}>
       <Route path={ROUTES.task}>
@@ -63,6 +63,33 @@ async function press(root: ParentNode, name: string) {
 async function settled() {
   for (let i = 0; i < 20; i++) await act(() => new Promise((resolve) => setTimeout(resolve, 5)))
 }
+
+Deno.test(`the editor opens a task whose UID holds @ / ? # + or a percent sign`, async () => {
+  const uids = [
+    `at@example.com`,
+    `sl/ash`,
+    `que?stion`,
+    `ha#sh`,
+    `plus+sign`,
+    `per%cent`,
+    // Reads like an escaped `@`, and is a different task from `a@b`.
+    `a%40b`,
+  ]
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    uids.forEach((uid, index) =>
+      server.seed(`${LIST_HREF}${index}.ics`, LIST_HREF, fixture(uid, `Task ${uid}`))
+    )
+    server.seed(`${LIST_HREF}decoded.ics`, LIST_HREF, fixture(`a@b`, `Task a@b`))
+    await refresh()
+    for (const uid of uids) {
+      await onPage(editor(uid), ({ root }) => {
+        expect(e2e<HTMLInputElement>(root, `task-title`).value).toBe(`Task ${uid}`)
+        return Promise.resolve()
+      })
+    }
+  })
+})
 
 Deno.test(`the editor lists a reminder at a fixed moment in the browser's zone`, async () => {
   const resolved = Intl.DateTimeFormat.prototype.resolvedOptions

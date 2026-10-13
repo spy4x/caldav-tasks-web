@@ -8,6 +8,7 @@ import {
   nextPath,
   signInPath,
   taskPath,
+  taskUid,
 } from "./routes.ts"
 import { SessionStatus } from "./state/session.ts"
 
@@ -88,6 +89,26 @@ Deno.test(`a list address names the list by the last part of its server path`, (
 
 Deno.test(`a task address survives a UID with characters that need escaping`, () => {
   expect(taskPath({ uid: `a b/c` })).toBe(`/tasks/a%20b%2Fc`)
+})
+
+Deno.test(`a task address names its UID again, whatever characters the UID holds`, () => {
+  const uids = [
+    `at@example.com`,
+    `sl/ash`,
+    `que?stion`,
+    `ha#sh`,
+    `plus+sign`,
+    `sp ace`,
+    `per%cent`,
+    `ünï`,
+    // A UID that reads like an escape is not decoded twice.
+    `a%40b`,
+  ]
+  for (const uid of uids) expect(taskUid(taskPath({ uid }))).toBe(uid)
+})
+
+Deno.test(`a task address with a broken escape names what was typed`, () => {
+  expect(taskUid(`/tasks/100%`)).toBe(`100%`)
 })
 
 Deno.test(`a list's settings live under its own address, which the router reads back to the list`, () => {

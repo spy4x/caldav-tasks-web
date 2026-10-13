@@ -83,14 +83,19 @@ export async function seedTaskList(
   return { calendarUrl, taskUrl, uid, title }
 }
 
-/** Adds one more task to a seeded list and returns its address on Radicale. */
+/**
+ * Adds one more task to a seeded list and returns its address on Radicale. `uid` sets the task's
+ * UID, as another CalDAV client would; without it the UID is a new UUID.
+ */
 export async function addSeededTask(
   list: SeededList,
   title: string,
   extraLines: string[] = [],
+  uid?: string,
 ): Promise<string> {
-  const uid = uuidV7()
-  const taskUrl = `${list.calendarUrl}${uid}.ics`
+  const name = uuidV7()
+  uid ??= name
+  const taskUrl = `${list.calendarUrl}${name}.ics`
   await caldav(
     `PUT`,
     taskUrl,
