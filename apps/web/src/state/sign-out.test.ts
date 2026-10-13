@@ -10,7 +10,7 @@ import { getStorage, type TaskStorage, useStorage } from "./db.ts"
 import { createTestOutboxStore, useOutboxStore } from "./outbox.ts"
 import { pendingEntries } from "./pending.ts"
 import { SessionStatus, sessionStatus, SIGNED_IN_HINT_KEY } from "./session.ts"
-import { CLEAR_FAILED, signOutOfDevice, type SignOutWorker } from "./sign-out.ts"
+import { CLEAR_FAILED, signOutOfDevice, type SignOutWorker, unsentChanges } from "./sign-out.ts"
 import { refresh } from "./sync.ts"
 import { saveTask, tasks } from "./tasks.ts"
 import { error, type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
@@ -205,6 +205,19 @@ Deno.test(`signing out leaves no unsent change in the queue`, async () => {
     expect(await device.queue.readOutbox()).toEqual([])
     expect(pendingEntries.value).toEqual([])
     expect(tasks.value).toEqual([])
+  })
+})
+
+Deno.test(`unsent changes are counted from the queue's store, before the screens have read it`, async () => {
+  await withDevice(async (device) => {
+    expect(await unsentChanges()).toBe(0)
+    setBrowserOnline(false)
+    await saveTask(tasks.value[0], { title: `Oat milk` }, NOW)
+    // A page load: the queue is in its store and nothing has read it yet.
+    useOutboxStore(device.queue)
+    expect(pendingEntries.value).toEqual([])
+
+    expect(await unsentChanges()).toBe(1)
   })
 })
 

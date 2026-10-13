@@ -59,8 +59,10 @@ test(`signing out in Settings leaves no task in the browser's storage`, async ({
 test(`signing out with a change that was not sent asks first, and a yes removes it from the browser`, async ({ page }) => {
   await openList(page)
   // The write gets no answer, so it waits in the queue while every other request works.
-  await page.route(`**/api/caldav/objects`, (route) =>
-    route.request().method() === `POST` ? route.abort() : route.continue())
+  await page.route(
+    `**/api/caldav/objects`,
+    (route) => route.request().method() === `POST` ? route.abort() : route.continue(),
+  )
   await page.getByTestId(`quick-add-input`).fill(`Not sent yet`)
   await page.getByTestId(`quick-add-submit`).click()
   await expect(page.getByRole(`button`, { name: `Not sent yet`, exact: true })).toBeVisible()

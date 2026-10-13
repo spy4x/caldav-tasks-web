@@ -4,7 +4,8 @@ import type {
 } from "@spy4x/preact-signals/push-subscription"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { getStorage } from "./db.ts"
-import { clearOutbox, getOutbox } from "./outbox.ts"
+import { clearOutbox, getOutbox, loadOutbox } from "./outbox.ts"
+import { pendingEntries } from "./pending.ts"
 import { push, removePushSubscription, savePushSubscription } from "./push.ts"
 import { signOut, UNREACHABLE } from "./session.ts"
 import { lastSyncedAt, refresh } from "./sync.ts"
@@ -26,6 +27,16 @@ interface SignOutRegistration {
 /** Service-worker port of {@link signOutOfDevice}. `navigator.serviceWorker` satisfies it. */
 export interface SignOutWorker {
   getRegistration(): Promise<SignOutRegistration | undefined>
+}
+
+/**
+ * How many changes made on this device have not reached the server, read from the queue's store
+ * and not from what the screens last saw: right after a page load the two differ. Signing out
+ * deletes them, so the caller asks first when there are any.
+ */
+export async function unsentChanges(): Promise<number> {
+  await loadOutbox()
+  return pendingEntries.value.length
 }
 
 /**
