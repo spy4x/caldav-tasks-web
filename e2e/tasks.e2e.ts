@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test"
+import { uuidV7 } from "@jsr/spy4x__platform/universal/uuid"
 import {
   addSeededTask,
   deleteList,
+  editOnServer,
   readList,
   readTask,
   type SeededList,
@@ -191,6 +193,53 @@ test("undoing a delete puts the task back on the server", async ({ page }) => {
   const restored = await readList(list)
   expect(restored).toContain(`X-E2E-KEEP:still here`)
   expect(restored).toContain(`TRIGGER:-PT15M`)
+})
+
+test("deleting a task with subtasks asks how many, removes them all from the server, and Undo puts them back", async ({ page }) => {
+  const parent = uuidV7()
+  const child = uuidV7()
+  await addSeededTask(list, `Parent`, [], parent)
+  await addSeededTask(list, `Child`, [`RELATED-TO:${parent}`], child)
+  await addSeededTask(list, `Grandchild`, [`RELATED-TO:${child}`])
+  // A completed subtask: the list hides it, and the app has not loaded it when the page opens.
+  const done = await addSeededTask(list, `Done child`, [`RELATED-TO:${parent}`])
+  await editOnServer(
+    done,
+    (text) => text.replace(`STATUS:NEEDS-ACTION`, `STATUS:COMPLETED\r\nCOMPLETED:20261008T100000Z`),
+  )
+  const family = [`SUMMARY:Parent`, `SUMMARY:Child`, `SUMMARY:Grandchild`, `SUMMARY:Done child`]
+  await signIn(page)
+  const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
+  await page.goto(`/lists/${encodeURIComponent(slug)}`)
+  await expect(page.getByRole(`button`, { name: `Grandchild`, exact: true })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Done child`, exact: true })).toHaveCount(0)
+
+  await page.getByRole(`button`, { name: `Parent`, exact: true }).click()
+  await page.getByRole(`button`, { name: `More actions` }).click()
+  await page.getByRole(`menuitem`, { name: `Delete` }).click()
+  const question = page.getByTestId(`task-delete-dialog`)
+  await expect(question.getByRole(`heading`, { name: `Delete this task and its 3 subtasks?` }))
+    .toBeVisible()
+  await question.getByRole(`button`, { name: `Delete` }).click()
+
+  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page.getByText(`Deleted "Parent" and its 3 subtasks`)).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Child`, exact: true })).toHaveCount(0)
+  await expect(page.getByRole(`button`, { name: `Grandchild`, exact: true })).toHaveCount(0)
+  await expect.poll(async () => {
+    const stored = await readList(list)
+    return family.filter((line) => stored.includes(`${line}\r\n`))
+  }).toEqual([])
+  // The task that is no part of the family is still there.
+  expect(await readList(list)).toContain(`SUMMARY:Seeded errand`)
+
+  await page.getByRole(`button`, { name: `Undo` }).click()
+  await expect(page.getByRole(`button`, { name: `Grandchild`, exact: true })).toBeVisible()
+  await expect.poll(async () => {
+    const stored = await readList(list)
+    return family.filter((line) => stored.includes(`${line}\r\n`))
+  }).toEqual(family)
+  expect(await readList(list)).toContain(`RELATED-TO:${child}`)
 })
 
 test("a signed-out visit to a page asks for the password and then opens that page", async ({ page }) => {

@@ -1,6 +1,6 @@
 import type { Task } from "@spy4x/time/ical-tasks-model"
 import { toasts } from "../state/toasts.ts"
-import { deleteTask, restoreTask } from "../state/task-writes.ts"
+import { deleteTaskTree, restoreTask } from "../state/task-writes.ts"
 import { reorderWrites } from "@tasks/reorder.ts"
 import { findCalendar } from "../state/calendars.ts"
 import { loadCompleted } from "../state/sync.ts"
@@ -56,18 +56,49 @@ export async function completeWithUndo(task: Task, done: boolean): Promise<void>
 }
 
 /**
- * Deletes a task and offers Undo in a toast. Undo creates the task again from the text it had.
- * Resolves `true` when the task was deleted.
+ * Loads the completed tasks of the list `task` is in, unless the device has them. A completed
+ * subtask is a subtask: the delete question counts it and the delete takes it, so both need it in
+ * the cache. Offline it stays unknown.
+ */
+export async function loadHiddenSubtasks(task: Task): Promise<void> {
+  if (findCalendar(task.listHref)?.completedLoaded === false) await loadCompleted(task.listHref)
+}
+
+/** Puts deleted tasks back one after another, a task before its subtasks. Stops at a failure. */
+async function restoreAll(deleted: readonly Task[]): Promise<WriteResult> {
+  let result = await restoreTask(deleted[0])
+  for (const task of deleted.slice(1)) {
+    if (result.kind !== WriteKind.Saved) return result
+    result = await restoreTask(task)
+  }
+  return result
+}
+
+/**
+ * Deletes a task with every subtask under it and offers Undo in a toast. Undo creates them again
+ * from the text they had. Resolves `true` when the task itself is gone, so the caller can leave its
+ * page; a subtask the server refused to delete is named in a second toast.
  */
 export async function deleteWithUndo(task: Task): Promise<boolean> {
-  const result = await deleteTask(task)
-  if (!reportFailure(result)) return false
+  await loadHiddenSubtasks(task)
+  const { result, deleted } = await deleteTaskTree(task)
+  const whole = reportFailure(result)
+  if (deleted.length === 0) return false
+  const gone = deleted[0].uid === task.uid
+  const under = deleted.length - 1
   toasts.success({
     title: NO_HEADING,
-    body: `Deleted "${task.title}"`,
-    action: { label: `Undo`, onAction: () => undo(() => restoreTask(task), `Restored`) },
+    body: !gone
+      ? `Deleted ${deleted.length} of the subtasks of "${task.title}"`
+      : under === 0
+      ? `Deleted "${task.title}"`
+      : `Deleted "${task.title}" and its ${under === 1 ? `subtask` : `${under} subtasks`}`,
+    action: {
+      label: `Undo`,
+      onAction: () => undo(() => restoreAll(deleted), `Restored`),
+    },
   })
-  return true
+  return whole || gone
 }
 
 /** The toast for a failed write during a drag: the order may be half changed, so say so. */

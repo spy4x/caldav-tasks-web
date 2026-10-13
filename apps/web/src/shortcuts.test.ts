@@ -3,10 +3,16 @@ import { expect } from "@std/expect"
 import {
   createShortcutMatcher,
   listShortcuts,
+  loadShortcutsPreference,
   SEQUENCE_TIMEOUT_MS,
+  setShortcutsEnabled,
   ShortcutId,
   type ShortcutPress,
   SHORTCUTS,
+  SHORTCUTS_STORAGE_KEY,
+  shortcutsEnabled,
+  shortcutsOpen,
+  type ShortcutsStorage,
 } from "./shortcuts.ts"
 
 let clock = 0
@@ -151,4 +157,93 @@ Deno.test("each dialog row shows exactly the keys that trigger its shortcut", ()
     // It is the first way of the table, the one the description does not already name.
     expect(rows[at].keys).toBe(def.keys[0].join(` `))
   })
+})
+
+/** Presses keys as {@link run} does, with the switch in Settings off. */
+function runOff(keys: string[]) {
+  const match = createShortcutMatcher(() => false)
+  clock = 1000
+  return keys.map((key) => {
+    clock += 100
+    return match(press(key))
+  })
+}
+
+Deno.test("with the switch off no key that types a character fires, alone or in a sequence", () => {
+  const keys = SHORTCUTS.flatMap((def) => def.keys.flat()).filter((key) => key.length === 1)
+  expect(keys).toEqual([`n`, `j`, `k`, `x`, `e`, `/`, `g`, `t`, `g`, `u`, `g`, `l`, `?`])
+  expect(runOff(keys)).toEqual(keys.map(() => undefined))
+})
+
+Deno.test("with the switch off Enter still edits the focused task", () => {
+  expect(runOff([`Enter`])).toEqual([ShortcutId.EditTask])
+})
+
+Deno.test("the matcher follows the switch as it is turned, without being made again", () => {
+  let on = true
+  const match = createShortcutMatcher(() => on)
+  clock = 1000
+  expect(match(press(`n`))).toBe(ShortcutId.NewTask)
+  on = false
+  expect(match(press(`n`))).toBe(undefined)
+  on = true
+  expect(match(press(`n`))).toBe(ShortcutId.NewTask)
+})
+
+/** A device's storage in memory. */
+function memory(
+  initial: Record<string, string> = {},
+): ShortcutsStorage & { kept: Map<string, string> } {
+  const kept = new Map(Object.entries(initial))
+  return {
+    kept,
+    getItem: (key) => kept.get(key) ?? null,
+    setItem: (key, value) => void kept.set(key, value),
+  }
+}
+
+Deno.test("shortcuts are on for a device that never turned the switch", () => {
+  shortcutsEnabled.value = false
+  loadShortcutsPreference(memory())
+  expect(shortcutsEnabled.value).toBe(true)
+})
+
+Deno.test("turning the switch off is remembered on the device, and so is turning it back on", () => {
+  const device = memory()
+  setShortcutsEnabled(false, device)
+  expect(shortcutsEnabled.value).toBe(false)
+  // A reload starts from the default and reads the device.
+  shortcutsEnabled.value = true
+  loadShortcutsPreference(device)
+  expect(shortcutsEnabled.value).toBe(false)
+
+  setShortcutsEnabled(true, device)
+  shortcutsEnabled.value = false
+  loadShortcutsPreference(device)
+  expect(shortcutsEnabled.value).toBe(true)
+  expect([...device.kept.keys()]).toEqual([SHORTCUTS_STORAGE_KEY])
+})
+
+Deno.test("turning the switch off closes the list of shortcuts", () => {
+  shortcutsOpen.value = true
+  setShortcutsEnabled(false, memory())
+  expect(shortcutsOpen.value).toBe(false)
+  setShortcutsEnabled(true, memory())
+})
+
+Deno.test("a device whose storage is blocked keeps shortcuts on and the switch still turns", () => {
+  const blocked: ShortcutsStorage = {
+    getItem: () => {
+      throw new Error(`blocked`)
+    },
+    setItem: () => {
+      throw new Error(`blocked`)
+    },
+  }
+  shortcutsEnabled.value = true
+  loadShortcutsPreference(blocked)
+  expect(shortcutsEnabled.value).toBe(true)
+  setShortcutsEnabled(false, blocked)
+  expect(shortcutsEnabled.value).toBe(false)
+  shortcutsEnabled.value = true
 })

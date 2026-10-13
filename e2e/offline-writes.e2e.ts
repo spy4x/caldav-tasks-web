@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test"
+import { uuidV7 } from "@jsr/spy4x__platform/universal/uuid"
 import {
   addSeededTask,
   deleteList,
@@ -228,5 +229,51 @@ test("a reload while offline keeps the queued writes, and they are sent when the
   await context.setOffline(false)
 
   await expect.poll(async () => await readList(list)).toContain(`SUMMARY:Kept offline`)
+  await expect(page.getByText(/waiting/)).toHaveCount(0)
+})
+
+test("a task with subtasks deleted offline takes them all, a reload keeps every delete, and none is left on the server after reconnect", async ({ page, context }) => {
+  const parent = uuidV7()
+  const child = uuidV7()
+  await addSeededTask(list, `Parent`, [], parent)
+  await addSeededTask(list, `Child`, [`RELATED-TO:${parent}`], child)
+  await addSeededTask(list, `Grandchild`, [`RELATED-TO:${child}`])
+  await openList(page)
+  await underWorker(page)
+  await expect(page.getByRole(`button`, { name: `Grandchild`, exact: true })).toBeVisible()
+  await context.setOffline(true)
+
+  await page.getByRole(`button`, { name: `Parent`, exact: true }).click()
+  await page.getByRole(`button`, { name: `More actions` }).click()
+  await page.getByRole(`menuitem`, { name: `Delete` }).click()
+  const question = page.getByTestId(`task-delete-dialog`)
+  await expect(question.getByRole(`heading`, { name: `Delete this task and its 2 subtasks?` }))
+    .toBeVisible()
+  await question.getByRole(`button`, { name: `Delete` }).click()
+
+  for (const title of [`Parent`, `Child`, `Grandchild`]) {
+    await expect(page.getByRole(`button`, { name: title, exact: true })).toHaveCount(0)
+  }
+  await expect(waiting(page, 3)).toBeVisible()
+
+  await page.reload()
+
+  await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Parent`, exact: true })).toHaveCount(0)
+  await expect(waiting(page, 3)).toBeVisible()
+  const before = await readList(list)
+  for (const title of [`Parent`, `Child`, `Grandchild`]) {
+    expect(before).toContain(`SUMMARY:${title}\r\n`)
+  }
+
+  await context.setOffline(false)
+
+  await expect.poll(async () => {
+    const stored = await readList(list)
+    return [`Parent`, `Child`, `Grandchild`].filter((title) =>
+      stored.includes(`SUMMARY:${title}\r\n`)
+    )
+  }).toEqual([])
+  expect(await readList(list)).toContain(`SUMMARY:Seeded errand`)
   await expect(page.getByText(/waiting/)).toHaveCount(0)
 })

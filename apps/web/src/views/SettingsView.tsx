@@ -1,6 +1,6 @@
 import { useSignal } from "@preact/signals"
 import { SettingsScreen } from "@ui/settings-screen.tsx"
-import { shortcutsOpen } from "../shortcuts.ts"
+import { setShortcutsEnabled, shortcutsEnabled, shortcutsOpen } from "../shortcuts.ts"
 import { caldavAccount } from "../state/session.ts"
 import { signOutOfDevice, unsentChanges } from "../state/sign-out.ts"
 import { install } from "../state/install.ts"
@@ -45,6 +45,8 @@ export function SettingsView() {
         onTest: () => void push.test(),
         labels: pushKeyUnreachable.value ? { unavailable: PUSH_UNREACHABLE } : undefined,
       }}
+      shortcutsEnabled={shortcutsEnabled.value}
+      onToggleShortcuts={setShortcutsEnabled}
       onShowShortcuts={() => shortcutsOpen.value = true}
       onSignOut={async () => {
         busy.value = true

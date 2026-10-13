@@ -14,6 +14,8 @@ const props = (over: Partial<SettingsScreenProps> = {}): SettingsScreenProps => 
   caldavUsername: `owner`,
   timeZone: `Asia/Ho_Chi_Minh`,
   version: `1.2.3`,
+  shortcutsEnabled: true,
+  onToggleShortcuts: () => {},
   onShowShortcuts: () => {},
   onSignOut: () => {},
   ...over,
@@ -107,6 +109,38 @@ Deno.test("the Show shortcuts button opens the shortcuts list", async () => {
       expect(shown).toBe(1)
     },
   )
+})
+
+Deno.test("the Keyboard shortcuts switch is named, shows on or off, and a press asks for the other", async () => {
+  const turned: boolean[] = []
+  const toggle = (on: boolean) => turned.push(on)
+  await mount(
+    <SettingsScreen {...props({ onToggleShortcuts: toggle })} />,
+    async ({ root, act }) => {
+      const control = must<HTMLButtonElement>(root, `[role="switch"]`)
+      expect(control.tagName).toBe(`BUTTON`)
+      expect(control.getAttribute(`aria-checked`)).toBe(`true`)
+      const name = must<HTMLElement>(root, `#${control.getAttribute(`aria-labelledby`)}`)
+      expect(name.textContent).toBe(`Keyboard shortcuts`)
+      await act(() => control.click())
+      expect(turned).toEqual([false])
+    },
+  )
+  await mount(
+    <SettingsScreen {...props({ shortcutsEnabled: false, onToggleShortcuts: toggle })} />,
+    async ({ root, act }) => {
+      const control = must<HTMLButtonElement>(root, `[role="switch"]`)
+      expect(control.getAttribute(`aria-checked`)).toBe(`false`)
+      await act(() => control.click())
+      expect(turned).toEqual([false, true])
+    },
+  )
+})
+
+Deno.test("with shortcuts off Settings does not offer the list of shortcuts", () => {
+  const off = renderToString(<SettingsScreen {...props({ shortcutsEnabled: false })} />)
+  expect(off).not.toContain(`show-shortcuts`)
+  expect(renderToString(<SettingsScreen {...props()} />)).toContain(`show-shortcuts`)
 })
 
 Deno.test("Settings offers an Install button only while the browser can install the app", async () => {

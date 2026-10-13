@@ -62,6 +62,51 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
 /** Whether the shortcuts dialog is open. The `?` key and the Settings button set it. */
 export const shortcutsOpen = signal(false)
 
+/** Where the "Keyboard shortcuts" switch is remembered. `localStorage` satisfies it. */
+export interface ShortcutsStorage {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+}
+
+/** The key the switch is stored under: `off` when it is off, `on` when it was turned back on. */
+export const SHORTCUTS_STORAGE_KEY = `caldav-tasks-shortcuts`
+
+/** The browser's `localStorage`, or nothing where it is missing or blocked. */
+function deviceStorage(): ShortcutsStorage | undefined {
+  try {
+    return globalThis.localStorage
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Whether the shortcuts that are a plain typed key are on: every row of the table but Enter. On
+ * until the person turns the switch in Settings off. It is a preference of the device, not task
+ * data: like the theme it lives in `localStorage`, which signing out does not clear.
+ */
+export const shortcutsEnabled = signal(true)
+
+/** Reads the switch as this device remembers it. `main.tsx` calls it before the first render. */
+export function loadShortcutsPreference(storage = deviceStorage()): void {
+  try {
+    shortcutsEnabled.value = storage?.getItem(SHORTCUTS_STORAGE_KEY) !== `off`
+  } catch {
+    // Storage blocked: the shortcuts stay on, as on a device that never chose.
+  }
+}
+
+/** Turns the shortcuts on or off and remembers it on this device. Off also closes their list. */
+export function setShortcutsEnabled(on: boolean, storage = deviceStorage()): void {
+  shortcutsEnabled.value = on
+  if (!on) shortcutsOpen.value = false
+  try {
+    storage?.setItem(SHORTCUTS_STORAGE_KEY, on ? `on` : `off`)
+  } catch {
+    // Storage blocked or full: the choice holds until the page is closed.
+  }
+}
+
 /**
  * Elements that take the keyboard for themselves: a dialog, an open menu and a listbox. No shortcut
  * fires inside one.
@@ -75,14 +120,24 @@ export type ShortcutPress = HotkeySequenceEvent
  * The matcher for the table: call it with each key press and it returns the shortcut the press
  * completes, or `undefined`. It is `createHotkeyMatcher` over `SHORTCUTS`, with presses inside a
  * dialog, a menu or a listbox ignored.
+ *
+ * While `enabled` answers `false` (the switch in Settings is off), a key that types a character
+ * does nothing: a letter, `/` or `?`, alone or as part of a sequence. That is what a resting hand
+ * or dictation sends. Enter is not such a key and still opens the task whose check has the focus.
+ * The table has no shortcut with Control, Alt or Meta, and the keys a dialog or a menu handles
+ * itself (Escape, the arrows, Enter) never pass through here.
  */
-export function createShortcutMatcher(): (press: ShortcutPress) => ShortcutId | undefined {
+export function createShortcutMatcher(
+  enabled: () => boolean = () => shortcutsEnabled.value,
+): (press: ShortcutPress) => ShortcutId | undefined {
   const bindings: HotkeyBinding<ShortcutId>[] = SHORTCUTS.flatMap((def) =>
     def.keys.map((keys) => ({ id: def.id, keys }))
   )
   return createHotkeyMatcher(bindings, {
     timeoutMs: SEQUENCE_TIMEOUT_MS,
-    ignore: (press) => (press.target as Element | null)?.closest?.(MODAL) != null,
+    ignore: (press) =>
+      (press.target as Element | null)?.closest?.(MODAL) != null ||
+      (press.key.length === 1 && !enabled()),
   })
 }
 
