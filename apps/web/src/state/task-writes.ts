@@ -8,6 +8,7 @@ import { offline, relay } from "./connection.ts"
 import {
   createdHref,
   fileIdFor,
+  isNameTaken,
   queueCreate,
   queueDelete,
   queuedFor,
@@ -58,9 +59,16 @@ export async function restoreTask(task: Task): Promise<WriteResult> {
 }
 
 /** Queues a create and answers with the task as it will be once the server has it. */
-async function queued(listHref: string, ics: string, fileId: string): Promise<WriteResult> {
+async function queued(
+  listHref: string,
+  ics: string,
+  fileId: string,
+  renamed = false,
+): Promise<WriteResult> {
   const outcome = await queueCreate(listHref, fileId, ics)
   if (outcome.kind === `failed`) {
+    // A different task holds the file name: nothing was written, so the task goes under a new one.
+    if (!renamed && isNameTaken(outcome.error)) return await queued(listHref, ics, uuidV7(), true)
     const message = outcome.error instanceof Error ? outcome.error.message : CHANGED_ON_SERVER
     return { kind: WriteKind.Failed, message }
   }

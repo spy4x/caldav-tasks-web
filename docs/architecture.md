@@ -70,6 +70,9 @@ screen shows the change at once. When the network returns, the queue is sent bef
   overwritten without that choice.
 - A server that is down, or a refused account, keeps the write queued; a refusal that will not pass
   becomes a conflict. The queue survives a reload (`state/offline-writes.test.ts`).
+- A new task whose file name a different task already holds is refused by the server. The app
+  queues it again under a new file name and drops the refused write, so it is saved without a
+  choice and the other task is not touched (`state/name-taken.test.ts`).
 
 A service worker caches the app's page and files so the app opens offline. It never caches `/api`
 or `/health`.
