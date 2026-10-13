@@ -19,7 +19,9 @@ import {
  * and for a JSR import that specifier is `jsr:…` or the final `https://jsr.io/…` address depending
  * on whether its loader has met the package yet. That is a matter of timing, so the same sources
  * gave a bundle with a different number of copies of a module on each build. With the file as the
- * specifier, every build bundles each file once.
+ * specifier, every build gives the same bundle, and a module the Deno plugin loads is in it once.
+ * A file that Vite also loads by its plain path never gets such an id, so it is still in the bundle
+ * twice: `libs/api/errors.ts` today, as before this plugin.
  */
 function oneModulePerFile(): Plugin {
   return {
@@ -70,8 +72,10 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(Deno.env.get("APP_VERSION") || "development"),
   },
   resolve: {
-    // Vite, not the Deno plugin, must load libs/ui: the Deno plugin compiles JSX for React, so a
-    // screen loaded through it fails at runtime with "React is not defined".
+    // Vite, not the Deno plugin, loads libs/ui. Version 1 of the Deno plugin compiled JSX for
+    // React, so a screen loaded through it failed at runtime with "React is not defined". A build
+    // with version 2 and no alias holds no `React` call, but the browser tests have never run
+    // against such a build, so the alias stays.
     alias: [{
       find: /^@ui\//,
       replacement: fromFileUrl(new URL("../../libs/ui/", import.meta.url)),
