@@ -1,6 +1,11 @@
 import type { TaskEdit } from "@spy4x/time/ical-tasks-edit"
 import type { AlarmInput } from "@spy4x/time/ical-tasks"
-import type { Task, TaskDate, TaskReminder } from "@spy4x/time/ical-tasks-model"
+import {
+  RepeatFrom,
+  type Task,
+  type TaskDate,
+  type TaskReminder,
+} from "@spy4x/time/ical-tasks-model"
 import type { TaskDraft } from "@ui/task-editor-screen.tsx"
 
 function sameDate(a: TaskDate | null | undefined, b: TaskDate | null | undefined): boolean {
@@ -31,6 +36,9 @@ export function draftToEdit(task: Task, draft: TaskDraft): TaskEdit {
   if (!sameList(draft.tags, task.tags)) edit.tags = draft.tags
   if (draft.listHref !== task.listHref) edit.listHref = draft.listHref
   if (draft.repeatRule !== (task.repeatRule ?? null)) edit.repeatRule = draft.repeatRule
+  if (draft.repeatFrom !== (task.repeatFrom ?? RepeatFrom.DueDate)) {
+    edit.repeatFrom = draft.repeatFrom
+  }
   if (!sameReminders(draft.reminders, task.reminders)) edit.reminders = draft.reminders
   return edit
 }

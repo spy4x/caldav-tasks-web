@@ -2,7 +2,7 @@
 import { expect } from "@std/expect"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { type AlarmInput, AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
-import type { Task } from "@spy4x/time/ical-tasks-model"
+import { RepeatFrom, type Task } from "@spy4x/time/ical-tasks-model"
 import { fixtureTask, LIST_HREF, vtodo } from "@tasks/fixtures/tasksorg.ts"
 import type { TaskDraft } from "@ui/task-editor-screen.tsx"
 import { draftToEdit } from "./task-edit.ts"
@@ -25,6 +25,7 @@ function draft(over: Partial<TaskDraft> = {}): TaskDraft {
     listHref: task.listHref,
     tags: task.tags,
     repeatRule: task.repeatRule ?? null,
+    repeatFrom: task.repeatFrom ?? RepeatFrom.DueDate,
     reminders: task.reminders.map((item) => ({ trigger: item.alarm })),
     ...over,
   }
@@ -75,6 +76,7 @@ Deno.test(`a repeat rule and reminders the person left alone are left out of the
     listHref: repeating.listHref,
     tags: repeating.tags,
     repeatRule: repeating.repeatRule ?? null,
+    repeatFrom: repeating.repeatFrom ?? RepeatFrom.DueDate,
     reminders: repeating.reminders.map((item) => ({ trigger: item.alarm })),
   }
   expect(repeating.reminders).toHaveLength(1)
@@ -87,6 +89,15 @@ Deno.test(`a changed or cleared repeat rule goes into the edit; null clears it`,
   expect(draftToEdit(repeating, { ...base(repeating), repeatRule: null })).toEqual({
     repeatRule: null,
   })
+})
+
+Deno.test(`a changed choice of what the next date is counted from goes into the edit, and an unchanged one is left out`, () => {
+  const fromCompletion: Task = { ...repeating, repeatFrom: RepeatFrom.Completion }
+  expect(draftToEdit(repeating, { ...base(repeating), repeatFrom: RepeatFrom.Completion }))
+    .toEqual({ repeatFrom: RepeatFrom.Completion })
+  expect(draftToEdit(fromCompletion, base(fromCompletion))).toEqual({})
+  expect(draftToEdit(fromCompletion, { ...base(fromCompletion), repeatFrom: RepeatFrom.DueDate }))
+    .toEqual({ repeatFrom: RepeatFrom.DueDate })
 })
 
 Deno.test(`added, removed or cleared reminders go into the edit as the whole list`, () => {
@@ -113,6 +124,7 @@ function base(from: Task): TaskDraft {
     listHref: from.listHref,
     tags: from.tags,
     repeatRule: from.repeatRule ?? null,
+    repeatFrom: from.repeatFrom ?? RepeatFrom.DueDate,
     reminders: from.reminders.map((item) => ({ trigger: item.alarm })),
   }
 }

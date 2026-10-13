@@ -1,7 +1,5 @@
 import { useSignal } from "@preact/signals"
 import { useLocation, useRouter } from "wouter-preact"
-import type { TaskEdit } from "@spy4x/time/ical-tasks-edit"
-import { RepeatFrom, type Task } from "@spy4x/time/ical-tasks-model"
 import { LoadingBody } from "@ui/task-screen.tsx"
 import { type TaskDraft, type TaskEditorErrors, TaskEditorScreen } from "@ui/task-editor-screen.tsx"
 import { leaveGuard } from "../leave-guard.ts"
@@ -26,19 +24,6 @@ import { draftToEdit } from "./task-edit.ts"
 
 const SAVED_BEHIND_CONFLICT =
   `Saved on this device only. This task waits for your choice at the top of the page.`
-
-/**
- * What the form changed against `task`, the choice of what the next date is counted from included.
- * Like every other field, the choice is left out when the person did not change it.
- */
-function editOf(task: Task, draft: TaskDraft): TaskEdit {
-  const edit = draftToEdit(task, draft)
-  const stored = task.repeatFrom ?? RepeatFrom.DueDate
-  if (draft.repeatFrom !== undefined && draft.repeatFrom !== stored) {
-    edit.repeatFrom = draft.repeatFrom
-  }
-  return edit
-}
 
 /**
  * The task editor, wired. A save that meets an edit made elsewhere opens the conflict dialog;
@@ -102,7 +87,7 @@ export function TaskEditorView() {
       onDeleteAsked={() => void loadHiddenSubtasks(task)}
       // `base` is the version the form started from: saving against it lets a change made
       // elsewhere since then be merged, or reported as a conflict.
-      onSave={(draft, base) => void run(() => saveTask(base, editOf(base, draft)))}
+      onSave={(draft, base) => void run(() => saveTask(base, draftToEdit(base, draft)))}
       saving={saving.value}
       errors={errors.value}
       conflict={conflict.value !== null}
@@ -110,7 +95,7 @@ export function TaskEditorView() {
         const collided = conflict.value
         if (!collided) return
         // The form may have changed since the collision, so the edit is made again from it.
-        const edit = editOf(collided.base, draft)
+        const edit = draftToEdit(collided.base, draft)
         void run(() => keepMineAfterConflict({ ...collided, edit }))
       }}
       // The cache already holds their copy and the screen has restarted the form from it.

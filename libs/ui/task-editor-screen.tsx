@@ -44,10 +44,9 @@ export interface TaskDraft {
   repeatRule: string | null
   /**
    * What a repeating task counts its next date from when it is completed: its due date, or the day
-   * it was completed. `RepeatFrom.DueDate` when the task does not repeat. The screen always hands
-   * it over; left out, the task keeps the choice it has.
+   * it was completed. `RepeatFrom.DueDate` when the task does not repeat.
    */
-  repeatFrom?: RepeatFrom
+  repeatFrom: RepeatFrom
   /** The reminders the task has afterwards. Unchanged, they are the ones it was read with. */
   reminders: AlarmInput[]
 }
