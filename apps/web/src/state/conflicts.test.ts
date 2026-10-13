@@ -14,7 +14,7 @@ import { type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
 const HREF = `${LIST_HREF}one.ics`
 const NOW = new Date(`2026-10-14T10:00:00.000Z`)
 
-Deno.test(`keeping mine after an offline tick of a task that counts from completion moves it from the completion day and keeps the other device's title`, async () => {
+Deno.test(`keeping mine after an offline tick of a task that counts from completion completes the other device's daily version from the completion day`, async () => {
   await withApp(async (server: FakeServer) => {
     server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
     server.seed(
@@ -33,7 +33,7 @@ Deno.test(`keeping mine after an offline tick of a task that counts from complet
     server.objects.set(HREF, {
       ...found,
       etag: server.nextEtag(),
-      ics: found.ics.replace(`SUMMARY:Water plants`, `SUMMARY:Water the ferns`),
+      ics: found.ics.replace(`RRULE:FREQ=WEEKLY`, `RRULE:FREQ=DAILY`),
     })
     setBrowserOnline(true)
     await getOutbox().flush()
@@ -41,11 +41,12 @@ Deno.test(`keeping mine after an offline tick of a task that counts from complet
 
     expect(await keepMineOf(conflicts.value[0].id, NOW)).toBeNull()
 
-    // A week from the day it was completed, as the person's own zone reads that day.
-    const next = addDays(isoDateInTz(NOW, browserZone()), 7).replaceAll(`-`, ``)
+    // The other device made it daily, so the tick lands a day after the day it was made, as the
+    // person's own zone reads that day.
+    const next = addDays(isoDateInTz(NOW, browserZone()), 1).replaceAll(`-`, ``)
     const onServer = server.objects.get(HREF)!.ics
     expect(onServer).toContain(`DUE;VALUE=DATE:${next}`)
-    expect(onServer).toContain(`SUMMARY:Water the ferns`)
+    expect(onServer).toContain(`RRULE:FREQ=DAILY`)
     expect(onServer).toContain(`X-REPEAT-FROM:COMPLETION`)
     expect(pendingEntries.value).toEqual([])
   })

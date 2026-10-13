@@ -187,7 +187,7 @@ Deno.test(`a repeat and a reminder set in the editor reach the server, and remov
   })
 })
 
-Deno.test(`counting from the day of completion is written into the task, an untouched save leaves the text alone, and removing the repeat removes the line`, async () => {
+Deno.test(`counting from the day of completion is written into the task, shown when it is opened again, and taken out by picking the due date again`, async () => {
   await withApp(async (server) => {
     await start(server, [DUE, `X-KEEP:still here`])
     const pick = (root: ParentNode, value: string) =>

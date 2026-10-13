@@ -726,7 +726,7 @@ const repeatFrom = (root: ParentNode, from: RepeatFrom) =>
 
 Deno.test("the choice of what the next date is counted from shows only for a repeating task, as a named group that starts on the due date", async () => {
   await mount(async (root) => {
-    expect(e2e(root, "task-repeat-from")).toBeNull()
+    expect(root.querySelector(`[data-e2e="task-repeat-from"]`) === null).toBe(true)
 
     await choose(root, "task-repeat-freq", "2")
     const group = e2e(root, "task-repeat-from")
@@ -739,7 +739,7 @@ Deno.test("the choice of what the next date is counted from shows only for a rep
     )
 
     await choose(root, "task-repeat-freq", "none")
-    expect(e2e(root, "task-repeat-from")).toBeNull()
+    expect(root.querySelector(`[data-e2e="task-repeat-from"]`) === null).toBe(true)
   }, props())
 })
 
