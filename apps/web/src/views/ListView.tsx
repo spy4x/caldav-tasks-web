@@ -4,6 +4,7 @@ import { useEffect } from "preact/hooks"
 import { useLocation, useParams, useSearch } from "wouter-preact"
 import { useUrlFilters } from "@spy4x/preact-signals/use-url-filters"
 import { ListScreen } from "@ui/list-screen.tsx"
+import { LoadingBody } from "@ui/task-screen.tsx"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { loadCompleted } from "../state/sync.ts"
 import { taskLists } from "../state/task-lists.ts"
@@ -38,7 +39,7 @@ export function ListView() {
     if (listHref && showCompleted.value) void loadCompleted(listHref)
   }, [listHref, showCompleted.value])
 
-  if (!list) return calendarsLoaded.value ? <NotFoundView /> : null
+  if (!list) return calendarsLoaded.value ? <NotFoundView /> : <LoadingBody label="Loading list" />
   return (
     <ListScreen
       list={list}

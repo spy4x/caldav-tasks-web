@@ -3,6 +3,7 @@ import { useEffect } from "preact/hooks"
 import { useLocation, useParams } from "wouter-preact"
 import { isTasksOnly } from "@api/caldav.ts"
 import { ListSettingsScreen } from "@ui/list-settings.tsx"
+import { LoadingBody } from "@ui/task-screen.tsx"
 import { calendars, calendarsLoaded } from "../state/calendars.ts"
 import { offline } from "../state/connection.ts"
 import { createList, deleteList, type ListAdminResult, updateList } from "../state/list-admin.ts"
@@ -46,7 +47,9 @@ export function ListSettingsView() {
     }
   }, [listHref, isOffline])
 
-  if (slug !== undefined && !list) return calendarsLoaded.value ? <NotFoundView /> : null
+  if (slug !== undefined && !list) {
+    return calendarsLoaded.value ? <NotFoundView /> : <LoadingBody label="Loading list" />
+  }
 
   /** Runs one change while `busy` is set, and shows why it failed when it did. */
   async function run<T>(

@@ -131,3 +131,12 @@ Deno.test(`a list that may also hold events offers no Delete and says where to d
     })
   }
 })
+
+Deno.test(`a list's settings say they are loading while the lists are not known yet`, async () => {
+  await withApp(async () => {
+    await onPage(settings(), ({ root }) => {
+      expect(root.querySelector(`[role="status"]`)?.textContent).toBe(`Loading list`)
+      return Promise.resolve()
+    })
+  })
+})
