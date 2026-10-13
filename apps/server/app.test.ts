@@ -27,6 +27,22 @@ Deno.test("serves the SPA shell for a deep link the router owns", async () => {
   expect(await response.text()).toContain(`<div id="app">`)
 })
 
+Deno.test("serves the SPA shell for a task whose UID holds @ / ? # or +, encoded", async () => {
+  for (const uid of ["at@example.com", "sl/ash", "que?stion", "ha#sh", "plus+sign", "../../etc"]) {
+    const response = await app.request(`/tasks/${encodeURIComponent(uid)}`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get("content-type")).toContain("text/html")
+    expect(response.headers.get("cache-control")).toBe("no-cache")
+    expect(await response.text()).toContain(`<div id="app">`)
+  }
+})
+
+Deno.test("an encoded slash outside a task's address is still refused", async () => {
+  const response = await app.request("/assets%2Fapp-abc123.js")
+  expect(response.status).toBe(404)
+  await response.body?.cancel()
+})
+
 Deno.test("serves a built asset as immutable and the shell as revalidated", async () => {
   const asset = await app.request("/assets/app-abc123.js")
   expect(asset.status).toBe(200)

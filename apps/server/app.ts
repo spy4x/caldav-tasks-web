@@ -12,6 +12,9 @@ import { securityHeaders } from "@spy4x/server/http/security-headers"
 /** Where the SPA build lands: `apps/web/dist`, next to this file's folder. */
 export const DEFAULT_STATIC_ROOT = fromFileUrl(new URL("../web/dist", import.meta.url))
 
+/** Where the SPA's task pages live: `/tasks/<encoded UID>`, as `taskPath` builds it. */
+const TASK_PAGES = "/tasks/"
+
 /** What `createApp` needs besides the configuration. */
 export interface AppOptions {
   /** The folder with the built SPA. Defaults to `apps/web/dist`. */
@@ -63,7 +66,9 @@ export async function createApp(config: Config, options: AppOptions = {}): Promi
   app.get("*", async (c) => {
     const path = new URL(c.req.url).pathname
     const isAsset = path.startsWith("/assets/")
-    const response = await serveStatic(path, {
+    // A task's address holds its UID, which is data and never names a file: an encoded slash in
+    // it would make the file lookup refuse the whole address. The shell answers every one.
+    const response = await serveStatic(path.startsWith(TASK_PAGES) ? "/index.html" : path, {
       root: staticRoot,
       // A missing built file is a 404, never the shell: a stale hashed URL must not be cached
       // as HTML. Any other missing path is a route the SPA owns.
