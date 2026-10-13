@@ -109,6 +109,56 @@ test("Settings opens the shortcuts list", async ({ page }) => {
   await expect(page.getByRole(`dialog`, { name: `Keyboard shortcuts` })).toBeVisible()
 })
 
+test("with the Keyboard shortcuts switch off the keys do nothing, a reload keeps it off, and turning it on brings them back", async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/settings`)
+  const toggle = page.getByRole(`switch`, { name: `Keyboard shortcuts` })
+  const dialog = page.getByRole(`dialog`, { name: `Keyboard shortcuts` })
+  await expect(toggle).toBeChecked()
+
+  // The switch is turned from the keyboard.
+  await toggle.focus()
+  await page.keyboard.press(`Space`)
+  await expect(toggle).not.toBeChecked()
+  // Nothing on the page offers a list of keys that are off.
+  await expect(page.getByTestId(`show-shortcuts`)).toHaveCount(0)
+  await page.keyboard.press(`?`)
+  await page.keyboard.press(`g`)
+  await page.keyboard.press(`l`)
+  await expect(dialog).toBeHidden()
+  await expect(pageTitle(page)).toHaveText(`Settings`)
+
+  await page.reload()
+  await expect(toggle).not.toBeChecked()
+
+  await page.goto(`/`)
+  await expect(pageTitle(page)).toHaveText(`Today`)
+  const open = page.getByRole(`button`, { name: `Shortcut errand` })
+  await open.focus()
+  for (const name of [`x`, `e`, `j`, `n`, `/`, `?`, `g`, `u`]) await page.keyboard.press(name)
+  await expect(open).toBeFocused()
+  await expect(pageTitle(page)).toHaveText(`Today`)
+  await expect(dialog).toBeHidden()
+  expect(await readTask(list.taskUrl)).not.toContain(`STATUS:COMPLETED`)
+
+  await page.goto(`/settings`)
+  await toggle.focus()
+  await page.keyboard.press(`Enter`)
+  await expect(toggle).toBeChecked()
+  await expect(page.getByTestId(`show-shortcuts`)).toBeVisible()
+  await page.keyboard.press(`?`)
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press(`Escape`)
+  await page.keyboard.press(`g`)
+  await page.keyboard.press(`t`)
+  await expect(pageTitle(page)).toHaveText(`Today`)
+  await open.focus()
+  await page.keyboard.press(`x`)
+  await expect(open).toHaveCount(0)
+  await expect.poll(async () => (await readTask(list.taskUrl)).includes(`STATUS:COMPLETED`))
+    .toBe(true)
+})
+
 test("n on Lists focuses the new-task field in time for the first letter", async ({ page }) => {
   await signIn(page)
   await page.goto(`/lists`)
