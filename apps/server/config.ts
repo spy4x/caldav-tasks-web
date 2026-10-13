@@ -1,4 +1,6 @@
 import { ConfigError, type EnvReader, loadConfig, systemEnv } from "@spy4x/server/config"
+import { isLoopbackRedirect } from "@spy4x/server/mcp-oauth"
+import { isPasswordHash } from "@spy4x/server/sign-in"
 import { isValidTimeZone } from "@spy4x/time/tz"
 import { type } from "arktype"
 
@@ -26,9 +28,50 @@ export const configSchema = type({
 /** The checked configuration. */
 export type Config = typeof configSchema.infer
 
-/** Reads and checks the environment. Throws a `ConfigError` naming every bad variable. */
+const WEB_ADDRESS_REASON =
+  "must be an http:// or https:// address with no username or password in it"
+
+/** What is wrong with `value` as an address the server fetches or is opened at, or `null`. */
+function webAddressProblem(value: string): string | null {
+  const url = new URL(value)
+  if (url.protocol !== "http:" && url.protocol !== "https:") return WEB_ADDRESS_REASON
+  if (url.username !== "" || url.password !== "") return WEB_ADDRESS_REASON
+  return null
+}
+
+/**
+ * What is wrong with `value` as `PUBLIC_URL`, or `null`. The session cookie is always `Secure`, and
+ * a browser keeps such a cookie over plain `http:` on its own machine only, so any other `http:`
+ * address would start a server nobody can sign in to.
+ */
+function publicUrlProblem(value: string): string | null {
+  const problem = webAddressProblem(value)
+  if (problem) return problem
+  const url = new URL(value)
+  if (url.protocol === "https:" || isLoopbackRedirect(url)) return null
+  return "must start with https://, because a browser keeps the sign-in cookie on https only; http:// works on localhost, 127.0.0.1 and [::1]"
+}
+
+/**
+ * Reads and checks the environment. Throws a `ConfigError` naming every bad variable. A reason
+ * never holds the value.
+ */
 export function readConfig(reader: EnvReader = systemEnv): Config {
-  return loadConfig(configSchema, reader)
+  const config = loadConfig(configSchema, reader)
+  const issues = [
+    { name: "CALDAV_URL", reason: webAddressProblem(config.CALDAV_URL) },
+    {
+      name: "OWNER_PASSWORD_HASH",
+      // A `.env` loader or a Compose file that expands `$` cuts the hash short, and every sign-in
+      // would then answer "Wrong password".
+      reason: isPasswordHash(config.OWNER_PASSWORD_HASH)
+        ? null
+        : "must be the whole output of `deno task password:hash`: in a .env file put it in single quotes, in a compose.yml write each $ as $$",
+    },
+    { name: "PUBLIC_URL", reason: publicUrlProblem(config.PUBLIC_URL) },
+  ].flatMap(({ name, reason }) => (reason === null ? [] : [{ name, reason }]))
+  if (issues.length > 0) throw new ConfigError(issues.map((issue) => issue.name), issues)
+  return config
 }
 
 /**
