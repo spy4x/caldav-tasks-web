@@ -42,6 +42,7 @@ function focusWhenThere(selector: string, pressedOn = document.activeElement): v
  * Page-wide keyboard shortcuts for the signed-in app: `n` new task, `/` search, `g t`, `g u` and
  * `g l` to go to Today, Upcoming and Lists, `j` and `k` to move through task rows, `x` to complete
  * and `e` or Enter to edit the focused row, `?` for the list. See `shortcuts.ts` for the table.
+ * A held key acts once, except `j` and `k`, which keep moving.
  *
  * @param navigate Moves the router to an address. The shortcuts that leave the page go through the
  *   leave guard first, so the task editor asks before it drops unsaved changes.
@@ -68,6 +69,9 @@ export function useShortcuts(navigate: (to: string) => void): void {
       // Enter already presses a focused button; it only needs help on a row's check.
       if (event.key === `Enter` && !target?.matches?.(`input[data-task-check]`)) return
       event.preventDefault()
+      // A held key repeats. Only moving through the rows repeats with it: anything else would
+      // complete and reopen a task, or leave the page, once per repeat.
+      if (event.repeat && id !== ShortcutId.NextTask && id !== ShortcutId.PreviousTask) return
       switch (id) {
         case ShortcutId.NewTask:
           if (document.querySelector(QUICK_ADD)) focusWhenThere(QUICK_ADD)

@@ -3,6 +3,7 @@ import type { Type } from "arktype"
 import { createOnlineStatus } from "@spy4x/preact-signals/online"
 import { createOfflineFetch, INVALID_REPLY_CODE } from "@spy4x/platform/api"
 import { ApiErrorCode } from "@api/errors.ts"
+import { expireSession } from "./session.ts"
 
 /** What went wrong with the CalDAV server behind the relay, when the relay itself answered. */
 export enum ServerProblemKind {
@@ -131,6 +132,8 @@ export async function relay<T>(
   const code = error.code as ApiErrorCode
   const kind = CODE_TO_PROBLEM[code]
   serverProblem.value = kind ? { kind, status } : null
+  // The session ended while the app was open: ask for the password over the page as it stands.
+  if (code === ApiErrorCode.Unauthorized) expireSession()
   return { ok: false, status, code, message: error.message, offline: false }
 }
 

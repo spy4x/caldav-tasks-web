@@ -162,8 +162,36 @@ Deno.test("editing the focused row opens that row's task", async () => {
   )
 })
 
+Deno.test("a list in manual order moves through its rows, completes and opens the focused one", async () => {
+  const log: string[] = []
+  await mount(
+    <TaskTree
+      label="Tasks"
+      nodes={flatNodes(THREE)}
+      zone="UTC"
+      now={NOW}
+      onComplete={(task) => log.push(`complete ${task.uid}`)}
+      onOpen={(task) => log.push(`open ${task.uid}`)}
+      onReorder={() => {}}
+    />,
+    async ({ window, act }) => {
+      const doc = window.document as unknown as Document
+      expect(moveRowFocus(doc, 1)).toBe(true)
+      expect(moveRowFocus(doc, 1)).toBe(true)
+      expect(rowOf(window)).toBe(`b`)
+      moveRowFocus(doc, -1)
+      expect(rowOf(window)).toBe(`a`)
+      await act(() => {
+        expect(completeFocusedRow(doc)).toBe(true)
+      })
+      expect(editFocusedRow(doc)).toBe(true)
+      expect(log).toEqual([`complete a`, `open a`])
+    },
+  )
+})
+
 /** The uid of the row that holds the focus, or a word saying none does. */
 function rowOf(window: { document: { activeElement: unknown } }): string {
-  const row = (window.document.activeElement as Element | null)?.closest?.(`li[data-task-uid]`)
+  const row = (window.document.activeElement as Element | null)?.closest?.(`[data-task-uid]`)
   return row?.getAttribute(`data-task-uid`) ?? `no row`
 }
