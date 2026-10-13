@@ -14,7 +14,7 @@ import {
 } from "./outbox.ts"
 import { pendingEntries, type TaskEntry } from "./pending.ts"
 import { refresh } from "./sync.ts"
-import { tasks, WriteKind } from "./tasks.ts"
+import { saveTask, tasks, undoWrite, WriteKind } from "./tasks.ts"
 import { addTask, deleteTask } from "./task-writes.ts"
 import { type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
 
@@ -300,5 +300,26 @@ Deno.test(`deleting a task from a copy read before it moved to a new file name d
     expect(server.objects.get(HREF)).toEqual(other)
     expect(added(server)).toEqual([])
     expect(titles()).toEqual([`Buy milk`])
+  })
+})
+
+Deno.test(`Undo of an edit made before the task moved to a new file name is written to the task, not to the one that holds the name`, async () => {
+  await withApp(async (server) => {
+    const other = await start(server)
+    await addOfflineUnderTakenName()
+    const before = tasks.value.find((task) => task.title === `Pay rent`)!
+    const edited = await saveTask(before, { title: `Pay rent today` }, NOW)
+    if (edited.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${edited.kind}`)
+    await flush()
+    expect(added(server)[0][1]).toContain(`SUMMARY:Pay rent today`)
+
+    // The Undo toast still holds the copy at the taken address.
+    const result = await undoWrite(edited.task, before.ics)
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect(server.objects.get(HREF)).toEqual(other)
+    expect(added(server).length).toBe(1)
+    expect(added(server)[0][1]).toContain(`SUMMARY:Pay rent\r\n`)
+    expect(titles()).toEqual([`Buy milk`, `Pay rent`])
   })
 })
