@@ -74,7 +74,8 @@ Compose reads. Do not commit that file.
 `CALDAV_URL` is the address this app's server uses to reach your CalDAV server. Any address the
 container can reach works: the public `https://` address, or, when both run on one Docker network,
 the container's name. For Stalwart, use the mail host's address, such as `https://mail.example.com`.
-The username and password are sent to that address only, and the browser never sees them.
+The username and password are sent to that address only. The browser never gets the password;
+it is given the address and the username, and Settings shows both.
 
 Plain `http://` sends that password unencrypted, so the server refuses to start with an `http://`
 address that is public. It accepts `http://` where the traffic stays off the internet: a container
@@ -94,12 +95,27 @@ Run the container on a port that only the proxy can reach (the compose file abov
   server refuses to start with an `http://` address. The exceptions are the machine's own names,
   for a browser on the same machine: `localhost`, a name under it such as `tasks.localhost`, an
   address that starts with `127.`, and `[::1]`.
-- **Forward `X-Real-IP`** with the client's address. Wrong sign-in attempts are counted per client
-  address, and the server believes the header only when the proxy connects from a private or
-  loopback address. Traefik sends it by default. Without it, every visitor counts as the proxy's
-  address.
+- **Have the proxy set `X-Real-IP` itself**, to the address of the connection it accepted. Wrong
+  sign-in passwords are counted per client address, and the server takes that address from this
+  header whenever the proxy connects from a private or loopback address. A proxy that only passes
+  the header on lets the visitor write it: every wrong password can then name a new address, the
+  per-address lock below never starts, and only the lock for all addresses is left, which keeps you
+  out as well. nginx and Caddy pass a visitor's header on unless you set it, so add one line:
+
+  ```nginx
+  # nginx, next to proxy_pass
+  proxy_set_header X-Real-IP $remote_addr;
+  ```
+
+  ```
+  # Caddy, inside the reverse_proxy block
+  header_up X-Real-IP {remote_host}
+  ```
+
+  Traefik sets it by default, and drops a visitor's own value unless you told it to trust the
+  sender (`forwardedHeaders`). With no header at all, every visitor counts as the proxy's address.
 - `GET /health` answers `{"status":"ok"}` and needs no sign-in. The image also has a Docker
-  `HEALTHCHECK` that calls it.
+  `HEALTHCHECK`. It does not call `/health`: it only checks that port 8080 accepts a connection.
 
 Wrong sign-in passwords are counted in memory: after 6 wrong passwords an address is locked for 15
 minutes, and each further lock doubles, up to a day. From the 31st wrong password across all

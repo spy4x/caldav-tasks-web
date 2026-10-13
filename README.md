@@ -53,7 +53,8 @@ Keep the `AUTH_PEPPER` value: the server needs the same one. Then start the cont
 matter around the hash, because it contains `$`:
 
 ```bash
-docker run -d --name caldav-tasks-web --restart unless-stopped -p 8080:8080 \
+docker run -d --name caldav-tasks-web --restart unless-stopped \
+  -p 127.0.0.1:8080:8080 \
   -e PUBLIC_URL=https://tasks.example.com \
   -e CALDAV_URL=https://caldav.example.com \
   -e CALDAV_USERNAME='<your CalDAV username>' \
@@ -69,23 +70,24 @@ For a real install, pin a release tag such as `v1.7.0` instead of `latest`.
 Make the random strings with `openssl rand -base64 32`, once, and keep them: changing
 `SESSION_SECRET` signs everyone out.
 
-The image is `linux/amd64`, listens on port 8080 and runs as a non-root user. Put your reverse proxy
-in front of that port; see [docs/self-hosting.md](docs/self-hosting.md). `GET /health` answers
+The image is `linux/amd64`, listens on port 8080 and runs as a non-root user. The command
+publishes the port on `127.0.0.1` only, so it is reachable from this machine alone: run your reverse
+proxy there. [docs/self-hosting.md](docs/self-hosting.md) says what the proxy must do. `GET /health` answers
 `{"status":"ok"}`.
 
 ### Variables
 
 All seven are required; the server refuses to start and names the ones that are missing or wrong.
 
-| Variable              | What it is                                                                   |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `PUBLIC_URL`          | The address you open the app at, such as `https://tasks.example.com`.        |
-| `CALDAV_URL`          | Your CalDAV server's public address. Credentials are sent to this origin.    |
-| `CALDAV_USERNAME`     | The CalDAV account the app uses.                                             |
-| `CALDAV_PASSWORD`     | That account's password (an app password if the server offers them).         |
-| `OWNER_PASSWORD_HASH` | The hash of the password you sign in to this app with.                       |
-| `AUTH_PEPPER`         | At least 32 characters. Used when hashing and checking the sign-in password. |
-| `SESSION_SECRET`      | At least 32 characters. Signs the session cookie.                            |
+| Variable              | What it is                                                                         |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| `PUBLIC_URL`          | The address you open the app at, such as `https://tasks.example.com`.              |
+| `CALDAV_URL`          | The address this app's server reaches your CalDAV server at. Credentials go there. |
+| `CALDAV_USERNAME`     | The CalDAV account the app uses.                                                   |
+| `CALDAV_PASSWORD`     | That account's password (an app password if the server offers them).               |
+| `OWNER_PASSWORD_HASH` | The hash of the password you sign in to this app with.                             |
+| `AUTH_PEPPER`         | At least 32 characters. Used when hashing and checking the sign-in password.       |
+| `SESSION_SECRET`      | At least 32 characters. Signs the session cookie.                                  |
 
 Reminder notifications are an optional group of five more: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
 `VAPID_SUBJECT`, `DATA_DIR` and `REMINDER_TIME_ZONE`. Set all five or none. The guide shows how.
