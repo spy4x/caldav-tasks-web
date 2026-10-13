@@ -1035,3 +1035,22 @@ Deno.test(`a task whose create never arrived and was then deleted is reported go
     expect(titles()).toEqual([`Buy milk`])
   })
 })
+
+Deno.test(`a queued write answered 401 stays queued, and is sent once the session is back`, async () => {
+  await withApp(async (server) => {
+    const before = await start(server)
+    setBrowserOnline(false)
+    await saveTask(before, { title: `Oat milk` }, NOW)
+    setBrowserOnline(true)
+    server.next = error(401, `unauthorized`)
+
+    await getOutbox().flush()
+
+    expect(pendingEntries.value.map((e) => e.status)).toEqual([`pending`])
+    expect(conflicts.value).toEqual([])
+    expect(titles()).toEqual([`Oat milk`])
+    await getOutbox().flush()
+    expect(server.objects.get(HREF)!.ics).toContain(`SUMMARY:Oat milk`)
+    expect(pendingEntries.value).toEqual([])
+  })
+})
