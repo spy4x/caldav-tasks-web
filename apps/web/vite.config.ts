@@ -1,5 +1,5 @@
 /// <reference lib="deno.ns" />
-import { build, defineConfig } from "vite"
+import { build, defineConfig, type Plugin } from "vite"
 import { fromFileUrl } from "@std/path"
 import deno from "@deno/vite-plugin"
 import preact from "@preact/preset-vite"
@@ -12,10 +12,34 @@ import {
   serviceWorker,
 } from "@spy4x/preact-theme/vite"
 
+/**
+ * Gives a module the Deno plugin loads one id per file, whatever specifier imported it.
+ *
+ * The Deno plugin puts the specifier into the module id (`\0deno::<type>::<specifier>::<file>#deno`),
+ * and for a JSR import that specifier is `jsr:…` or the final `https://jsr.io/…` address depending
+ * on whether its loader has met the package yet. That is a matter of timing, so the same sources
+ * gave a bundle with a different number of copies of a module on each build. With the file as the
+ * specifier, every build bundles each file once.
+ */
+function oneModulePerFile(): Plugin {
+  return {
+    name: "one-module-per-file",
+    enforce: "pre",
+    async resolveId(id, importer, options) {
+      const resolved = await this.resolve(id, importer, { ...options, skipSelf: true })
+      if (!resolved?.id.startsWith("\0deno::")) return resolved
+      const [prefix, mediaType, _specifier, ...file] = resolved.id.split("::")
+      const path = file.join("::")
+      return { ...resolved, id: [prefix, mediaType, path.replace(/#deno$/, ""), path].join("::") }
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     npmSpecifiers({ readTextFile: Deno.readTextFile }),
+    oneModulePerFile(),
     deno(),
     preact(),
     preactThemeCss(),
@@ -25,7 +49,7 @@ export default defineConfig({
     serviceWorker({
       entry: fromFileUrl(new URL("./src/sw.ts", import.meta.url)),
       build,
-      plugins: [deno()],
+      plugins: [oneModulePerFile(), deno()],
       readDir: Deno.readDir,
       readFile: Deno.readFile,
     }),
