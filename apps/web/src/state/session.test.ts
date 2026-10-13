@@ -3,6 +3,7 @@ import { expect } from "@std/expect"
 import { AUTH_PATHS } from "@api/auth.ts"
 import {
   caldavAccount,
+  expireSession,
   loadSession,
   SessionStatus,
   sessionStatus,
@@ -209,4 +210,20 @@ Deno.test("signing out forgets the CalDAV account", async () => {
     await signOut()
     expect(caldavAccount.value).toBeNull()
   }, new Map())
+})
+
+Deno.test("only a signed-in session expires, and signing in again ends the expiry", async () => {
+  await withFetch(() => new Response(null, { status: 204 }), async () => {
+    expireSession()
+    expect(sessionStatus.value).toBe(SessionStatus.Unknown)
+    sessionStatus.value = SessionStatus.SignedOut
+    expireSession()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedOut)
+
+    sessionStatus.value = SessionStatus.SignedIn
+    expireSession()
+    expect(sessionStatus.value).toBe(SessionStatus.Expired)
+    expect(await signIn("secret")).toBeNull()
+    expect(sessionStatus.value).toBe(SessionStatus.SignedIn)
+  })
 })

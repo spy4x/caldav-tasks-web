@@ -30,6 +30,10 @@ Deno.test(`nothing moves before the server has answered`, () => {
   expect(gateRedirect(SessionStatus.Unknown, `/lists`, ``)).toBeNull()
 })
 
+Deno.test(`an expired session stays on its page, so the editor there keeps its text`, () => {
+  expect(gateRedirect(SessionStatus.Expired, `/tasks/abc`, ``)).toBeNull()
+})
+
 Deno.test(`signing in sends the person back to where they were going`, () => {
   const away = signInPath(`/tasks/abc?x=1`)
   const search = away.slice(away.indexOf(`?`))
