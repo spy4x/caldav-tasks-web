@@ -5,6 +5,7 @@ import { Button } from "@spy4x/preact-ui/button"
 import { ConfirmDialog } from "@spy4x/preact-ui/confirm-dialog"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { ThemeToggle, type ThemeToggleStore } from "@spy4x/preact-ui/theme-toggle"
+import { ToggleSwitch } from "@spy4x/preact-ui/toggle-switch"
 import { ScreenLayout } from "./task-screen.tsx"
 
 /** Props of {@link SettingsScreen}. */
@@ -31,6 +32,13 @@ export interface SettingsScreenProps {
    * Left out, Settings has no Notifications block.
    */
   push?: PushSettingsProps
+  /**
+   * Whether the single-key shortcuts are on. Off, "Show shortcuts" is not offered: the list would
+   * name keys that do nothing.
+   */
+  shortcutsEnabled: boolean
+  /** The "Keyboard shortcuts" switch was turned; `on` is what it was turned to. */
+  onToggleShortcuts: (on: boolean) => void
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
   /** "Sign out" was pressed. */
@@ -57,8 +65,8 @@ const UNKNOWN = `Not known yet. It loads when the server answers.`
 /**
  * Settings: the theme, the CalDAV server and account in use, the time zone, the version and
  * "Sign out", with one sentence on how to sign out everywhere, and reminder notifications for this
- * device. Nothing else here is edited except the theme: the server and account come from the
- * install's environment.
+ * device. Nothing else here is edited except the theme and the "Keyboard shortcuts" switch: the
+ * server and account come from the install's environment.
  */
 export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
   const question = props.unsentQuestion
@@ -86,10 +94,20 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
                 : <span>Tap Share, then Add to Home Screen.</span>}
             </Row>
           )}
-          <Row term="Keyboard shortcuts" e2e="settings-shortcuts">
-            <Button variant="outline" onClick={props.onShowShortcuts} data-e2e="show-shortcuts">
-              Show shortcuts
-            </Button>
+          <Row term="Keyboard shortcuts" termId={SHORTCUTS_TERM} e2e="settings-shortcuts">
+            <div class="flex flex-wrap items-center justify-end gap-3">
+              {props.shortcutsEnabled && (
+                <Button variant="outline" onClick={props.onShowShortcuts} data-e2e="show-shortcuts">
+                  Show shortcuts
+                </Button>
+              )}
+              <ToggleSwitch
+                id="settings-shortcuts-switch"
+                value={props.shortcutsEnabled}
+                onToggle={props.onToggleShortcuts}
+                aria-labelledby={SHORTCUTS_TERM}
+              />
+            </div>
           </Row>
           <Row term="Time zone" e2e="settings-zone">{props.timeZone}</Row>
           <Row term="Version" e2e="settings-version">{props.version}</Row>
@@ -144,15 +162,24 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
   )
 }
 
+/** The id of the "Keyboard shortcuts" term, which names its switch. */
+const SHORTCUTS_TERM = `settings-shortcuts-term`
+
 function Row(
-  { term, e2e, children }: { term: string; e2e: string; children: ComponentChildren },
+  { term, termId, e2e, children }: {
+    term: string
+    /** An id for the term, when a control in the row takes its name from it. */
+    termId?: string
+    e2e: string
+    children: ComponentChildren
+  },
 ): JSX.Element {
   return (
     <div
       class="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-subtle py-2"
       data-e2e={e2e}
     >
-      <dt class="text-muted">{term}</dt>
+      <dt id={termId} class="text-muted">{term}</dt>
       <dd class="min-w-0">{children}</dd>
     </div>
   )

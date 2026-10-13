@@ -7,7 +7,7 @@ import { focused, mount, must } from "@ui/mount.test.tsx"
 import { Dropdown, DropdownItem } from "@spy4x/preact-ui/dropdown"
 import { UnsavedGuard } from "@spy4x/preact-ui/unsaved-guard"
 import { leaveGuard } from "../leave-guard.ts"
-import { shortcutsOpen } from "../shortcuts.ts"
+import { shortcutsEnabled, shortcutsOpen } from "../shortcuts.ts"
 import { useShortcuts } from "./use-shortcuts.ts"
 
 const NOW = new Date(`2026-10-08T09:00:00Z`)
@@ -213,6 +213,59 @@ Deno.test("? opens the shortcuts list", async () => {
     expect(shortcutsOpen.value).toBe(true)
   })
   shortcutsOpen.value = false
+})
+
+Deno.test("with the switch off, n, j, x, e, /, g t and ? do nothing and the keys reach the browser", async () => {
+  const log: string[] = []
+  shortcutsOpen.value = false
+  shortcutsEnabled.value = false
+  try {
+    await mount(<Page log={log} quickAdd />, async ({ root, window }) => {
+      const check = must<HTMLInputElement>(root, `input[data-task-check="a"]`)
+      check.focus()
+      for (const name of [`n`, `j`, `x`, `e`, `/`, `g`, `t`, `?`]) {
+        expect(await key(window as never, active(window), name)).toBe(true)
+      }
+      expect(log).toEqual([])
+      expect(active(window)).toBe(check)
+      expect(shortcutsOpen.value).toBe(false)
+    })
+  } finally {
+    shortcutsEnabled.value = true
+  }
+})
+
+Deno.test("turning the switch back on makes the shortcuts work again on the same page", async () => {
+  const log: string[] = []
+  shortcutsEnabled.value = false
+  try {
+    await mount(<Page log={log} />, async ({ root, window }) => {
+      const check = must<HTMLInputElement>(root, `input[data-task-check="a"]`)
+      check.focus()
+      await key(window as never, check, `x`)
+      expect(log).toEqual([])
+      shortcutsEnabled.value = true
+      await key(window as never, check, `x`)
+      expect(log).toEqual([`complete a`])
+    })
+  } finally {
+    shortcutsEnabled.value = true
+  }
+})
+
+Deno.test("with the switch off, Enter on a row's check still opens the task", async () => {
+  const log: string[] = []
+  shortcutsEnabled.value = false
+  try {
+    await mount(<Page log={log} />, async ({ root, window }) => {
+      const check = must<HTMLInputElement>(root, `input[data-task-check="a"]`)
+      check.focus()
+      await key(window as never, check, `Enter`)
+      expect(log).toEqual([`open a`])
+    })
+  } finally {
+    shortcutsEnabled.value = true
+  }
 })
 
 Deno.test("Enter on a row's check opens the task, and on a button leaves the button to act", async () => {

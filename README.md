@@ -24,13 +24,14 @@ form Tasks.org wrote them, so nothing the phone stored is lost when you edit in 
   and tags, across all lists.
 - Add, edit, complete, delete and undo. A quick-add line understands a tag, a time and a priority.
 - Subtasks, tags, priority, due and start dates, notes and manual order by drag or keyboard.
+  Deleting a task deletes its subtasks too, as Tasks.org does, and the question says how many.
 - Repeating tasks: daily, weekly, monthly or yearly, every N, on chosen weekdays, ending never, on
   a date or after a number of times.
 - Create, rename, recolour and delete lists (while connected).
 - Works offline: the last copy is cached, edits made offline are queued and sent when the network
   returns, and an edit that clashes with a change made elsewhere asks you to keep yours or use theirs.
 - Installs as an app (a web app manifest and a service worker).
-- Keyboard shortcuts; press `?` to see them.
+- Keyboard shortcuts; press `?` to see them. A switch in Settings turns them off on that device.
 - Reminder notifications by Web Push, for the reminders Tasks.org stores on a task. Off until you
   set it up: see [docs/self-hosting.md](docs/self-hosting.md#reminder-notifications).
 
