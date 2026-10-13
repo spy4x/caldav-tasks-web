@@ -3,9 +3,9 @@
 ## Context
 
 caldav-tasks-web is a single-user, self-hosted web companion to Tasks.org. One install serves one
-person and talks to one CalDAV server (Stalwart, Radicale or Nextcloud) whose address and
-credentials come from the environment. The v1 rewrite is in progress; the README claims only what
-is built. Public repo: https://github.com/spy4x/caldav-tasks-web
+person and talks to one CalDAV server (Radicale or Stalwart; `docs/compatibility.md` says what was
+tested) whose address and credentials come from the environment. It is released as `v1.x.y` images
+on Docker Hub (`antonshubin/caldav-tasks-web`); the README claims only what is built. Public repo: https://github.com/spy4x/caldav-tasks-web
 
 ## Architecture
 
@@ -18,8 +18,10 @@ is built. Public repo: https://github.com/spy4x/caldav-tasks-web
 - No server-side database. Sign-in is one owner password and a signed, expiring session cookie.
 - Reminder notifications are optional (`apps/server/push/`). When configured, a runner in the
   server reads the tasks every minute, only to find reminders that came due, and pushes each to
-  the owner's subscribed browsers. It never writes a task. The one file the server writes is
-  `push.json` in `DATA_DIR`: the push subscriptions and which reminders were sent (task id and time), no task text.
+  the owner's subscribed browsers. It never writes a task. The one file the server keeps is
+  `push.json` in `DATA_DIR`: the push subscriptions and which reminders were sent (task id and
+  time), no task text. It needs the whole folder writable: a change goes to a temporary file that
+  is renamed over `push.json`, and at start the server writes and removes `.write-check` there.
   A data folder or file that cannot be used turns notifications off with one log line; it never
   stops the server.
 - "Tasks.org semantics": a list is a CalDAV calendar, a tag is a `CATEGORIES` value, a subtask
@@ -42,7 +44,8 @@ e2e/                  Playwright; fixtures seed Radicale; server.ts starts the s
                       throwaway push keys
 tests/                guard tests: ui-boundary and spacing
 infra/compose.dev.yml Radicale for development and e2e
-.woodpecker/ci.yml    check, build, e2e on pull requests, main and tags
+.woodpecker/ci.yml    check, build, e2e on pull requests, main and tags; on pull requests also
+                      image: the container build, with nothing pushed
 .woodpecker/release.yml  on a v* tag on main, after ci: kaniko builds the image with no secret,
                       then crane alone pushes it to Docker Hub. The repo is untrusted: no
                       volumes, no privileged steps, no Docker socket.
@@ -62,8 +65,13 @@ Use the names in `deno.jsonc`; never guess one.
 | `deno task start`                         | runs the server the way the container does                    |
 | `deno task radicale:up` / `radicale:down` | Radicale at :5232                                             |
 | `deno task e2e`                           | Playwright against the built app and Radicale                 |
-| `deno task env:decrypt` / `env:encrypt`   | age64 `.env` handling                                         |
+| `deno task env:decrypt` / `env:encrypt`   | age64 `.env` handling; no `.env.age` is tracked               |
+| `deno task password:hash`                 | prints `OWNER_PASSWORD_HASH` for a typed or piped password    |
 | `deno task vapid:keys <contact>`          | writes new push keys into `.env`                              |
+
+Under a process cap, `deno task build` passes at `TasksMax=4000`
+(`systemd-run --user --scope -p TasksMax=4000 -p MemoryMax=8G deno task build`).
+[#93](https://github.com/spy4x/caldav-tasks-web/issues/93) reports that it fails at 500.
 
 ## Rules
 
