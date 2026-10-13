@@ -43,6 +43,8 @@ export class FakeServer {
   next: Response | undefined
   /** Runs just before a PUT is checked, so a test can change the task "from the phone". */
   beforePut: ((href: string) => void) | undefined
+  /** The same for a DELETE: a change that lands between the read of a task and its delete. */
+  beforeDelete: ((href: string) => void) | undefined
   private version = 1
 
   nextEtag(): string {
@@ -157,6 +159,7 @@ export class FakeServer {
     }
     if (url.pathname === CALDAV_PATHS.object && request.method === `DELETE`) {
       return request.json().then((body: { href: string; etag: string }) => {
+        this.beforeDelete?.(body.href)
         if (!body.etag || !isPath(body.href)) return error(400, `bad_request`)
         const found = this.objects.get(body.href)
         if (!found) return error(404, `not_found`)

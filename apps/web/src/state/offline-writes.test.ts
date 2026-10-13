@@ -980,24 +980,79 @@ Deno.test(`every write, conflict read and delete names its task and list by path
   })
 })
 
-Deno.test(`a task added on a lost answer and then deleted waits for a choice instead of blocking the queue, and Keep mine deletes it on the server`, async () => {
+/** Adds "Pay rent" offline and sends it once, with the answer lost on the way back. */
+async function addRentOnLostAnswer(server: FakeServer): Promise<string> {
+  const rent = `${LIST_HREF}rent.ics`
+  setBrowserOnline(false)
+  await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+  setBrowserOnline(true)
+  server.loseNextAnswer = true
+  await getOutbox().flush()
+  expect(server.objects.has(rent)).toBe(true)
+  server.sent.length = 0
+  return rent
+}
+
+const methods = (server: FakeServer) => server.sent.map((s) => s.method)
+
+Deno.test(`a task added on a lost answer and then deleted is deleted on the server with no choice to make`, async () => {
   await withApp(async (server) => {
-    const milk = await start(server)
-    const rent = `${LIST_HREF}rent.ics`
-    setBrowserOnline(false)
-    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
-    setBrowserOnline(true)
-    server.loseNextAnswer = true
-    await getOutbox().flush()
-    expect(server.objects.has(rent)).toBe(true)
+    await start(server)
+    const rent = await addRentOnLostAnswer(server)
 
     const result = await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
     expect(result.kind).toBe(WriteKind.Saved)
     await getOutbox().flush()
 
-    // The server's copy is read at the task's address, so the delete is no longer retried in vain.
-    expect(server.sent.filter((s) => s.method === `GET`).map((s) => s.search.get(`href`)))
-      .toEqual([rent])
+    // The server's copy is read at the task's address and deleted with the etag just read.
+    expect(methods(server)).toEqual([`GET`, `DELETE`])
+    expect(server.sent[0].search.get(`href`)).toBe(rent)
+    expect(server.objects.has(rent)).toBe(false)
+    expect(conflicts.value).toEqual([])
+    expect(pendingEntries.value).toEqual([])
+    expect((await getStorage().listTasks()).map((t) => t.href)).toEqual([HREF])
+    expect(titles()).toEqual([`Buy milk`])
+  })
+})
+
+Deno.test(`a task added on a lost answer, edited and then deleted is still deleted with no choice to make`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `rent`)
+    // The edit joins the waiting create, so the text that is sent is the edited one.
+    await saveTask(tasks.value.find((t) => t.uid === `rent`)!, { title: `Pay the rent` }, NOW)
+    setBrowserOnline(true)
+    server.loseNextAnswer = true
+    await getOutbox().flush()
+    const rent = `${LIST_HREF}rent.ics`
+    expect(server.objects.get(rent)!.ics).toContain(`SUMMARY:Pay the rent`)
+
+    await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
+    await getOutbox().flush()
+
+    expect(server.objects.has(rent)).toBe(false)
+    expect(conflicts.value).toEqual([])
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`a task added on a lost answer, changed on another device and then deleted waits for a choice, and nothing is deleted`, async () => {
+  await withApp(async (server) => {
+    const milk = await start(server)
+    const rent = await addRentOnLostAnswer(server)
+    const stored = server.objects.get(rent)!
+    server.objects.set(rent, {
+      ...stored,
+      etag: server.nextEtag(),
+      ics: stored.ics.replace(`SUMMARY:Pay rent`, `SUMMARY:Pay rent today`),
+    })
+
+    await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
+    await getOutbox().flush()
+
+    expect(methods(server)).not.toContain(`DELETE`)
+    expect(server.objects.get(rent)!.ics).toContain(`SUMMARY:Pay rent today`)
     expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Pay rent`, `version`]])
 
     // A later offline edit is not held up behind it.
@@ -1010,12 +1065,33 @@ Deno.test(`a task added on a lost answer and then deleted waits for a choice ins
 
     expect(server.objects.has(rent)).toBe(false)
     expect(pendingEntries.value).toEqual([])
-    expect((await getStorage().listTasks()).map((t) => t.href)).toEqual([HREF])
     expect(titles()).toEqual([`Oat milk`])
   })
 })
 
-Deno.test(`a task whose create never arrived and was then deleted is reported gone, and discarding it empties the queue`, async () => {
+Deno.test(`a change that lands between the read and the delete of such a task is not deleted: the delete waits for a choice`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    const rent = await addRentOnLostAnswer(server)
+    server.beforeDelete = (href) => {
+      server.beforeDelete = undefined
+      const stored = server.objects.get(href)!
+      server.objects.set(href, {
+        ...stored,
+        etag: server.nextEtag(),
+        ics: stored.ics.replace(`SUMMARY:Pay rent`, `SUMMARY:Pay rent today`),
+      })
+    }
+
+    await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
+    await getOutbox().flush()
+
+    expect(server.objects.get(rent)!.ics).toContain(`SUMMARY:Pay rent today`)
+    expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Pay rent`, `version`]])
+  })
+})
+
+Deno.test(`a task whose create never arrived and was then deleted leaves the queue with nothing sent that changes the server`, async () => {
   await withApp(async (server) => {
     await start(server)
     setBrowserOnline(false)
@@ -1025,11 +1101,13 @@ Deno.test(`a task whose create never arrived and was then deleted is reported go
     await getOutbox().flush()
     await deleteTask(tasks.value.find((t) => t.uid === `rent`)!)
     server.down = false
+    server.sent.length = 0
 
     await getOutbox().flush()
 
-    expect(conflicts.value.map((c) => [c.label, c.reason])).toEqual([[`Pay rent`, `gone`]])
-    await useTheirsOf(conflicts.value[0].id)
+    // One read finds no task at the address: the create never arrived, so the delete is done.
+    expect(methods(server)).toEqual([`GET`])
+    expect(conflicts.value).toEqual([])
     expect(pendingEntries.value).toEqual([])
     expect(server.objects.has(`${LIST_HREF}rent.ics`)).toBe(false)
     expect(titles()).toEqual([`Buy milk`])
