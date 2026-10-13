@@ -44,6 +44,25 @@ are made-up tasks in Tasks.org's form, and the tests that use them are in `apps/
 | List colour                       | the calendar's colour, `#RRGGBBAA`                                  | Read (the picker shows `#rrggbb` and drops the alpha); a list made here gets a colour Tasks.org reads (`e2e/lists.e2e.ts`)                                |
 | Properties this app does not know | any other line                                                      | Kept as they are (`e2e/tasks.e2e.ts`: `X-E2E-KEEP`)                                                                                                       |
 
+## Repeat from the due date or from completion
+
+A repeating task's editor asks what the next date is counted from: the due date (the default) or
+the day the task is completed. "Water the plants, every week", due on the 11th and completed on the
+14th, is next due on the 18th with the first choice and on the 21st with the second. A repeating
+task needs a due date either way; the editor asks for one.
+
+Tasks.org has the same choice, but it keeps it in the phone's own database and writes nothing about
+it into the task. So the two apps cannot see each other's setting:
+
+- This app keeps its choice in the task itself, as the line `X-REPEAT-FROM:COMPLETION`. The name is
+  this project's own. Tasks.org does not read it, and setting it here changes nothing on the phone.
+- Set the choice once in each app, per task. If they are set differently, the app you complete the
+  task in decides the next date.
+- Tasks.org's source keeps lines it does not know when it saves a task, so the line should survive
+  an edit on the phone. This has not been checked on a phone yet.
+
+Completing such a task here is covered by `e2e/repeat.e2e.ts` against Radicale.
+
 Not covered: a start date in the fixtures, locations, attachments and any other field Tasks.org may
 add. The browser keeps such lines when you edit a task, but only the fields in the table are shown.
 

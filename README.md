@@ -27,6 +27,10 @@ form Tasks.org wrote them, so nothing the phone stored is lost when you edit in 
   Deleting a task deletes its subtasks too, as Tasks.org does, and the question says how many.
 - Repeating tasks: daily, weekly, monthly or yearly, every N, on chosen weekdays, ending never, on
   a date or after a number of times.
+  A repeating task counts its next date from its due date or, if you choose so in the editor, from
+  the day you complete it. Tasks.org has the same choice but keeps it on the phone only, so set it
+  in both; [the compatibility guide](docs/compatibility.md#repeat-from-the-due-date-or-from-completion)
+  says what happens when they differ.
 - Create, rename, recolour and delete lists (while connected).
 - Works offline: the last copy is cached, edits made offline are queued and sent when the network
   returns, and an edit that clashes with a change made elsewhere asks you to keep yours or use theirs.
