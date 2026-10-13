@@ -2,8 +2,8 @@
 import { expect } from "@std/expect"
 import { useEffect, useRef } from "preact/hooks"
 import { focused } from "@ui/mount.test.tsx"
-import { onPage } from "./on-page.test.tsx"
-import { usePageAnnouncer } from "./use-page-announcer.ts"
+import { useRouteAnnouncer } from "@spy4x/preact-system/route-announcer"
+import { onPage } from "./views/on-page.test.tsx"
 
 /** A page whose search field takes the focus as it opens, the way `/` opens Search. */
 function SearchPage() {
@@ -17,8 +17,9 @@ function SearchPage() {
   )
 }
 
+/** The library's announcer, called the way the signed-in app calls it. */
 function Site({ path }: { path: string }) {
-  usePageAnnouncer({ path, title: `${path} · Tasks` })
+  useRouteAnnouncer({ path, title: `${path} · Tasks`, keepPageFocus: true })
   return (
     <>
       <a href="/lists" data-e2e="nav">Lists</a>

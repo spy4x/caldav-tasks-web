@@ -3,6 +3,7 @@ import { useCallback, useEffect } from "preact/hooks"
 import { Redirect, Route, Switch, useLocation, useSearch } from "wouter-preact"
 import { Notice } from "@spy4x/preact-ui/notice"
 import { Toastr } from "@spy4x/preact-ui/toastr"
+import { useRouteAnnouncer } from "@spy4x/preact-system/route-announcer"
 import { AppFrame } from "@ui/frame.tsx"
 import { pageTitle } from "./page-title.ts"
 import { gateRedirect, ROUTES } from "./routes.ts"
@@ -11,7 +12,6 @@ import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
 import { ShortcutsDialog } from "@spy4x/preact-ui/shortcuts-dialog"
 import { leaveGuard } from "./leave-guard.ts"
 import { useShortcuts } from "./views/use-shortcuts.ts"
-import { usePageAnnouncer } from "./views/use-page-announcer.ts"
 import { calendarsLoaded } from "./state/calendars.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
@@ -68,8 +68,11 @@ function SignedInApp() {
   useEffect(() => startPush(), [])
   const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
   useShortcuts(navigate)
-  usePageAnnouncer({
+  useRouteAnnouncer({
     path: location,
+    // `/` opens Search with the cursor in its field and `n` opens Today with it in the quick add:
+    // a page that focused its own control keeps it.
+    keepPageFocus: true,
     // The address as the browser holds it: the router's own is half decoded, which loses a task
     // whose UID holds `@`, `/`, `?`, `#` or `+`.
     title: pageTitle(globalThis.location.pathname, {
