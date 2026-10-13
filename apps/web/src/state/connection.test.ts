@@ -11,6 +11,7 @@ import {
   ServerProblemKind,
 } from "./connection.ts"
 import { ApiErrorCode } from "@api/errors.ts"
+import { SessionStatus, sessionStatus } from "./session.ts"
 import { error, setBrowserOnline, withApp } from "./testing.ts"
 
 Deno.test(`a request that gets no answer shows the offline notice until one succeeds`, async () => {
@@ -159,5 +160,26 @@ Deno.test(`a request is sent with the same-origin cookie policy`, async () => {
       globalThis.fetch = own
     }
     expect(credentials).toBe(`same-origin`)
+  })
+})
+
+Deno.test(`an answer of "no valid session" marks a signed-in app's session as expired`, async () => {
+  await withApp(async (server) => {
+    sessionStatus.value = SessionStatus.SignedIn
+    try {
+      // A proxy's own 401 page says nothing about the app's session.
+      server.next = new Response(`<html>`, { status: 401 })
+      await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+      expect(sessionStatus.value).toBe(SessionStatus.SignedIn)
+
+      server.next = error(401, `unauthorized`, `Sign in first`)
+      const refused = await relay(CALDAV_PATHS.calendars, {}, calendarListSchema)
+      expect(!refused.ok && refused.message).toBe(`Sign in first`)
+      expect(sessionStatus.value).toBe(SessionStatus.Expired)
+      // The server's state is unknown, not broken: no CalDAV notice.
+      expect(notice.value).toBeNull()
+    } finally {
+      sessionStatus.value = SessionStatus.Unknown
+    }
   })
 })
