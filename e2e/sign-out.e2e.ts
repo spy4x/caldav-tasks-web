@@ -71,7 +71,7 @@ test(`signing out with a change that was not sent asks first, and a yes removes 
   await page.goto(`/settings`)
   const signOut = page.getByRole(`button`, { name: `Sign out`, exact: true })
   await signOut.click()
-  const question = page.getByRole(`dialog`, { name: `Sign out with unsent changes?` })
+  const question = page.getByRole(`alertdialog`, { name: `Sign out with unsent changes?` })
   await expect(question).toContainText(`1 change made on this device has not been sent`)
 
   await question.getByRole(`button`, { name: `Stay signed in` }).last().click()
