@@ -71,6 +71,12 @@ export interface TaskEditorScreenProps {
   /** Where a subtask opens, to make its title a link. */
   subtaskHref?: (subtask: Task) => string
   /**
+   * How many tasks a delete takes with this one: its subtasks and theirs, however deep, the
+   * completed ones included. The delete question says the number. Left out or 0, it asks about
+   * the task alone.
+   */
+  subtaskCount?: number
+  /**
    * Called with the whole form when it is valid and Save is pressed. Never while `saving`. `base`
    * is the version the form started from, which is older than `task` when the stored task changed
    * while the form held something typed: the save must be made against `base`, so the change made
@@ -97,6 +103,11 @@ export interface TaskEditorScreenProps {
   onAddSubtask?: (title: string) => void
   /** Called after the delete is confirmed. Without it there is no "Delete" in the menu. */
   onDelete?: () => void
+  /**
+   * "Delete task" was chosen and the question is opening: the moment to look up subtasks the page
+   * does not have yet, so {@link TaskEditorScreenProps.subtaskCount} is right.
+   */
+  onDeleteAsked?: () => void
   /** A delete is running. */
   deleting?: boolean
   /** Moves the app's router to an address: Back, Cancel, subtasks, and leaving past the guard. */
@@ -338,7 +349,10 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
           <DropdownItem
             danger
             disabled={props.deleting}
-            onClick={() => setAsking(true)}
+            onClick={() => {
+              setAsking(true)
+              props.onDeleteAsked?.()
+            }}
             dataE2E="task-delete"
           >
             Delete task
@@ -478,8 +492,10 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
       />
       {asking && (
         <ConfirmDialog
-          title="Delete this task?"
-          message={`"${task.title}" will be deleted.`}
+          title={deleteQuestion(props.subtaskCount ?? 0)}
+          message={(props.subtaskCount ?? 0) > 0
+            ? `"${task.title}" will be deleted with every subtask under it, completed ones too.`
+            : `"${task.title}" will be deleted.`}
           confirmLabel="Delete"
           cancelLabel="Keep it"
           tone="danger"
@@ -543,6 +559,12 @@ function DateRow(
       </Field>
     </div>
   )
+}
+
+/** The delete question for a task that takes `subtasks` tasks with it. */
+function deleteQuestion(subtasks: number): string {
+  if (subtasks <= 0) return `Delete this task?`
+  return `Delete this task and its ${subtasks} ${subtasks === 1 ? `subtask` : `subtasks`}?`
 }
 
 /** The task's subtasks, and a small form of its own (outside the editor's) to add one. */

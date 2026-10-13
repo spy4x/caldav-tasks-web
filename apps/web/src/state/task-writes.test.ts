@@ -8,7 +8,9 @@ import { LIST_HREF, task as fixture } from "@tasks/fixtures/tasksorg.ts"
 import { getStorage } from "./db.ts"
 import { refresh } from "./sync.ts"
 import { saveTask, setTaskDone, tasks, undoWrite, WriteKind } from "./tasks.ts"
-import { addTask, deleteTask, restoreTask } from "./task-writes.ts"
+import { getOutbox } from "./outbox.ts"
+import { pendingEntries } from "./pending.ts"
+import { addTask, deleteTask, deleteTaskTree, restoreTask, subtasksOf } from "./task-writes.ts"
 import { setBrowserOnline, withApp } from "./testing.ts"
 import type { FakeServer } from "./testing.ts"
 
@@ -177,3 +179,204 @@ Deno.test(`an undo is refused when the task changed elsewhere since`, async () =
 })
 
 const puts = (server: FakeServer) => server.count(`PUT`, CALDAV_PATHS.object)
+
+const href = (uid: string): string => `${LIST_HREF}${uid}.ics`
+
+/**
+ * A parent, two subtasks and a subtask of the first subtask, as the server holds them. `Done` is
+ * completed, so the server lists it only when asked for completed tasks.
+ */
+async function startTree(server: FakeServer) {
+  server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+  server.seed(href(`p`), LIST_HREF, fixture(`p`, `Parent`))
+  server.seed(href(`a`), LIST_HREF, fixture(`a`, `Alpha`, [`RELATED-TO:p`]))
+  server.seed(href(`b`), LIST_HREF, fixture(`b`, `Bravo`, [`RELATED-TO:p`]))
+  server.seed(href(`a1`), LIST_HREF, fixture(`a1`, `Alpha one`, [`RELATED-TO:a`]))
+  server.seed(href(`other`), LIST_HREF, fixture(`other`, `Unrelated`))
+  await refresh()
+  server.sent.length = 0
+  return tasks.value.find((task) => task.uid === `p`)!
+}
+
+const titles = (): string[] => tasks.value.map((task) => task.title).sort()
+const deletesSent = (server: FakeServer): number => server.count(`DELETE`, CALDAV_PATHS.object)
+
+Deno.test(`the subtasks of a task are found however deep, each before its own parent`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    expect(subtasksOf(parent, tasks.value).map((task) => task.uid)).toEqual([`a1`, `a`, `b`])
+    const alpha = tasks.value.find((task) => task.uid === `a`)!
+    expect(subtasksOf(alpha, tasks.value).map((task) => task.uid)).toEqual([`a1`])
+  })
+})
+
+Deno.test(`two tasks that name each other as parent are each found once`, async () => {
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(href(`x`), LIST_HREF, fixture(`x`, `X`, [`RELATED-TO:y`]))
+    server.seed(href(`y`), LIST_HREF, fixture(`y`, `Y`, [`RELATED-TO:x`]))
+    await refresh()
+    const x = tasks.value.find((task) => task.uid === `x`)!
+    expect(subtasksOf(x, tasks.value).map((task) => task.uid)).toEqual([`y`])
+  })
+})
+
+Deno.test(`deleting a task deletes its subtasks and theirs on the server and leaves the rest`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    const { result, deleted } = await deleteTaskTree(parent)
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect([...server.objects.keys()]).toEqual([href(`other`)])
+    expect(titles()).toEqual([`Unrelated`])
+    expect((await getStorage().listTasks()).map((task) => task.href)).toEqual([href(`other`)])
+    expect(deleted.map((task) => task.uid)).toEqual([`p`, `b`, `a`, `a1`])
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`the deletes of a task and its subtasks are sent subtasks first, deepest first`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    const order: string[] = []
+    const handle = server.handle.bind(server)
+    server.handle = (request) => {
+      if (request.method !== `DELETE`) return handle(request)
+      return request.clone().json().then((body: { href: string }) => {
+        order.push(body.href)
+        return handle(request)
+      })
+    }
+    await deleteTaskTree(parent)
+    expect(order).toEqual([href(`a1`), href(`a`), href(`b`), href(`p`)])
+  })
+})
+
+Deno.test(`every delete of a task with subtasks is in the queue before the first is sent`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    let queuedAtFirstSend: string[] | undefined
+    const handle = server.handle.bind(server)
+    server.handle = (request) => {
+      if (request.method === `DELETE`) {
+        queuedAtFirstSend ??= pendingEntries.value
+          .filter((entry) => entry.kind === `delete`)
+          .map((entry) => entry.payload.href)
+      }
+      return handle(request)
+    }
+    await deleteTaskTree(parent)
+    expect(queuedAtFirstSend).toEqual([href(`a1`), href(`a`), href(`b`), href(`p`)])
+  })
+})
+
+Deno.test(`deleting a task with subtasks offline hides them all and sends every delete later`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    setBrowserOnline(false)
+    const { result } = await deleteTaskTree(parent)
+    if (result.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${result.kind}`)
+    expect(result.queued).toBe(true)
+    expect(titles()).toEqual([`Unrelated`])
+    expect(deletesSent(server)).toBe(0)
+    expect(server.objects.size).toBe(5)
+
+    setBrowserOnline(true)
+    await getOutbox().flush()
+
+    expect([...server.objects.keys()]).toEqual([href(`other`)])
+    expect(pendingEntries.value).toEqual([])
+  })
+})
+
+Deno.test(`a connection that drops between the deletes leaves the parent with the subtasks not yet deleted, and the rest go later`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    const handle = server.handle.bind(server)
+    let sent = 0
+    server.handle = (request) => {
+      if (request.method === `DELETE` && ++sent === 2) server.down = true
+      return handle(request)
+    }
+    const { result } = await deleteTaskTree(parent)
+    expect(result.kind).toBe(WriteKind.Saved)
+    // The server holds a whole tree: the parent and the subtasks whose delete did not arrive.
+    expect([...server.objects.keys()].sort()).toEqual([
+      href(`a`),
+      href(`b`),
+      href(`other`),
+      href(`p`),
+    ])
+    expect(titles()).toEqual([`Unrelated`])
+
+    server.handle = handle
+    server.down = false
+    await getOutbox().flush()
+
+    expect([...server.objects.keys()]).toEqual([href(`other`)])
+  })
+})
+
+Deno.test(`a completed subtask in the cache is deleted with its parent`, async () => {
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(href(`p`), LIST_HREF, fixture(`p`, `Parent`))
+    server.seed(
+      href(`d`),
+      LIST_HREF,
+      fixture(`d`, `Done`, [`RELATED-TO:p`, `STATUS:COMPLETED`, `COMPLETED:20261001T100000Z`]),
+    )
+    await refresh()
+    const parent = tasks.value.find((task) => task.uid === `p`)!
+    await deleteTaskTree(parent)
+    expect(server.objects.size).toBe(0)
+  })
+})
+
+Deno.test(`a subtask created offline and never sent is dropped with its parent`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    setBrowserOnline(false)
+    await addTask({ title: `New` }, { listHref: LIST_HREF, parent }, NOW, `new`)
+    expect(titles()).toContain(`New`)
+    await deleteTaskTree(parent)
+    expect(titles()).toEqual([`Unrelated`])
+
+    setBrowserOnline(true)
+    await getOutbox().flush()
+
+    expect([...server.objects.keys()]).toEqual([href(`other`)])
+    expect(server.count(`POST`, CALDAV_PATHS.objects)).toBe(0)
+  })
+})
+
+Deno.test(`a subtask changed elsewhere is kept, the others are deleted and the result says so`, async () => {
+  await withApp(async (server) => {
+    const parent = await startTree(server)
+    const bravo = server.objects.get(href(`b`))!
+    server.objects.set(href(`b`), { ...bravo, etag: server.nextEtag() })
+    const { result, deleted } = await deleteTaskTree(parent)
+    expect(result).toEqual({
+      kind: WriteKind.Failed,
+      message: `1 of 4 tasks were not deleted. Message for conflict`,
+    })
+    expect([...server.objects.keys()].sort()).toEqual([href(`b`), href(`other`)])
+    expect(deleted.map((task) => task.uid)).toEqual([`p`, `a`, `a1`])
+    expect(titles()).toEqual([`Bravo`, `Unrelated`])
+  })
+})
+
+Deno.test(`a task without subtasks is deleted directly, with nothing queued`, async () => {
+  await withApp(async (server) => {
+    await startTree(server)
+    const other = tasks.value.find((task) => task.uid === `other`)!
+    let queued = 0
+    const stop = getOutbox().subscribe((entries) => queued += entries.length)
+    const { result, deleted } = await deleteTaskTree(other)
+    stop()
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect(deleted).toEqual([other])
+    expect(queued).toBe(0)
+    expect(server.objects.has(href(`other`))).toBe(false)
+    expect(server.objects.size).toBe(4)
+  })
+})

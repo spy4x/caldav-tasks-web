@@ -14,12 +14,12 @@ import {
   WriteKind,
 } from "../state/tasks.ts"
 import type { WriteResult } from "../state/tasks.ts"
-import { addTask } from "../state/task-writes.ts"
+import { addTask, subtasksOf } from "../state/task-writes.ts"
 import { toasts } from "../state/toasts.ts"
 import { listPath, taskPath, taskUid } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
-import { deleteWithUndo } from "./task-actions.ts"
+import { deleteWithUndo, loadHiddenSubtasks } from "./task-actions.ts"
 import { draftToEdit } from "./task-edit.ts"
 
 const SAVED_BEHIND_CONFLICT =
@@ -81,6 +81,8 @@ export function TaskEditorView() {
       tagSuggestions={allTags.value}
       subtasks={tasks.value.filter((candidate) => candidate.parentUid === task.uid)}
       subtaskHref={taskPath}
+      subtaskCount={subtasksOf(task, tasks.value).length}
+      onDeleteAsked={() => void loadHiddenSubtasks(task)}
       // `base` is the version the form started from: saving against it lets a change made
       // elsewhere since then be merged, or reported as a conflict.
       onSave={(draft, base) => void run(() => saveTask(base, draftToEdit(base, draft)))}

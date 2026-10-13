@@ -322,6 +322,49 @@ Deno.test("Delete is in More actions, asks first, and only the confirmed Delete 
   }, props({ onDelete: () => deleted++ }))
 })
 
+/** Opens the delete question and returns its heading and its text. */
+async function askDelete(root: Element, window: Window) {
+  await press(root.querySelector(`[data-e2e="task-menu"]`) as HTMLElement)
+  await press(e2e(root, "task-delete"))
+  const dialog = window.document.querySelector(`[data-e2e="task-delete-dialog"]`)!
+  return { heading: dialog.querySelector("h2")?.textContent, text: dialog.textContent ?? "" }
+}
+
+Deno.test("the delete question of a task with subtasks says how many go with it", async () => {
+  await mount(async (root, window) => {
+    const { heading, text } = await askDelete(root, window)
+    expect(heading).toBe("Delete this task and its 3 subtasks?")
+    expect(text).toContain(`"Water the plants" will be deleted with every subtask under it`)
+  }, props({ onDelete: () => {}, subtaskCount: 3 }))
+})
+
+Deno.test("the delete question of a task with one subtask says 1 subtask", async () => {
+  await mount(async (root, window) => {
+    const { heading } = await askDelete(root, window)
+    expect(heading).toBe("Delete this task and its 1 subtask?")
+  }, props({ onDelete: () => {}, subtaskCount: 1 }))
+})
+
+Deno.test("the delete question of a task without subtasks names only the task", async () => {
+  await mount(async (root, window) => {
+    const { heading, text } = await askDelete(root, window)
+    expect(heading).toBe("Delete this task?")
+    expect(text).not.toContain("subtask")
+  }, props({ onDelete: () => {}, subtaskCount: 0 }))
+})
+
+Deno.test("an open delete question follows the count when more subtasks are found", async () => {
+  const asked: string[] = []
+  const base = props({ onDelete: () => {}, subtaskCount: 1, onDeleteAsked: () => asked.push("x") })
+  await mount(async (root, window, rerender) => {
+    await askDelete(root, window)
+    expect(asked).toEqual(["x"])
+    await rerender({ ...base, subtaskCount: 2 })
+    const dialog = window.document.querySelector(`[data-e2e="task-delete-dialog"]`)!
+    expect(dialog.querySelector("h2")?.textContent).toBe("Delete this task and its 2 subtasks?")
+  }, base)
+})
+
 Deno.test("without onDelete there is no More actions menu", () => {
   const html = renderToString(<TaskEditorScreen {...props()} />)
   expect(html).not.toContain(`data-e2e="task-menu"`)

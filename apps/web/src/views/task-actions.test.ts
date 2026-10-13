@@ -118,6 +118,100 @@ Deno.test(`deleting a task shows a toast whose Undo creates it again with its un
   })
 })
 
+const href = (uid: string): string => `${LIST_HREF}${uid}.ics`
+
+/** A parent with an open subtask and a completed one the server lists only when asked. */
+async function startFamily(server: FakeServer) {
+  toasts.clear()
+  server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+  server.seed(href(`p`), LIST_HREF, fixture(`p`, `Parent`))
+  server.seed(href(`a`), LIST_HREF, fixture(`a`, `Alpha`, [`RELATED-TO:p`]))
+  server.seed(
+    href(`d`),
+    LIST_HREF,
+    fixture(`d`, `Done`, [`RELATED-TO:p`, `STATUS:COMPLETED`, `COMPLETED:20261001T100000Z`]),
+    true,
+  )
+  await refresh()
+  return tasks.value.find((task) => task.uid === `p`)!
+}
+
+Deno.test(`deleting a task with subtasks says how many went, and Undo puts every one back`, async () => {
+  await withApp(async (server) => {
+    const parent = await startFamily(server)
+    const before = new Map([...server.objects].map(([at, object]) => [at, object.ics]))
+
+    expect(await deleteWithUndo(parent)).toBe(true)
+
+    expect(server.objects.size).toBe(0)
+    expect(tasks.value).toEqual([])
+    const toast = lastToast()
+    expect(toast.body).toBe(`Deleted "Parent" and its 2 subtasks`)
+
+    await toast.action!.onAction()
+
+    expect(lastToast().body).toBe(`Restored`)
+    expect(new Map([...server.objects].map(([at, object]) => [at, object.ics]))).toEqual(before)
+  })
+})
+
+Deno.test(`a completed subtask the device never loaded is fetched and deleted with its parent`, async () => {
+  await withApp(async (server) => {
+    const parent = await startFamily(server)
+    expect(tasks.value.some((task) => task.title === `Done`)).toBe(false)
+
+    expect(await deleteWithUndo(parent)).toBe(true)
+
+    expect(server.objects.has(href(`d`))).toBe(false)
+  })
+})
+
+Deno.test(`deleting a task with one subtask offline hides both, and Undo brings both back without the server hearing of it`, async () => {
+  await withApp(async (server) => {
+    const parent = await startFamily(server)
+    setBrowserOnline(false)
+    server.down = true
+    expect(await deleteWithUndo(parent)).toBe(true)
+    expect(tasks.value).toEqual([])
+    expect(lastToast().body).toBe(`Deleted "Parent" and its subtask`)
+
+    await lastToast().action!.onAction()
+
+    expect(tasks.value.map((t) => t.title).sort()).toEqual([`Alpha`, `Parent`])
+    server.down = false
+    setBrowserOnline(true)
+    await getOutbox().flush()
+    expect(server.count(`DELETE`, CALDAV_PATHS.object)).toBe(0)
+    expect(server.objects.size).toBe(3)
+  })
+})
+
+Deno.test(`a subtask the server refuses to delete stays, with the reason, and the page is left`, async () => {
+  await withApp(async (server) => {
+    const parent = await startFamily(server)
+    // Alpha changes on the server after this device last read it: just before its delete arrives.
+    const handle = server.handle.bind(server)
+    let changed = false
+    server.handle = (request) => {
+      if (request.method === `DELETE` && !changed) {
+        changed = true
+        server.objects.set(href(`a`), {
+          ...server.objects.get(href(`a`))!,
+          etag: server.nextEtag(),
+        })
+      }
+      return handle(request)
+    }
+
+    expect(await deleteWithUndo(parent)).toBe(true)
+
+    const shown = toasts.list.value.map((toast) => toast.body)
+    expect(shown).toContain(`1 of 3 tasks were not deleted. Message for conflict`)
+    expect(shown).toContain(`Deleted "Parent" and its subtask`)
+    expect([...server.objects.keys()]).toEqual([href(`a`)])
+  })
+})
+
 Deno.test(`a delete the server refuses shows the reason and no Undo`, async () => {
   await withApp(async (server) => {
     const task = await start(server)

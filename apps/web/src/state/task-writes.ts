@@ -17,7 +17,7 @@ import {
   settle,
   withdrawQueued,
 } from "./outbox.ts"
-import { forget, remember } from "./task-store.ts"
+import { forget, remember, tasks } from "./task-store.ts"
 import { fromOutcome, WriteKind, type WriteResult } from "./tasks.ts"
 
 const CHANGED_ON_SERVER = `The task changed on the server. Reload it and try again.`
@@ -117,8 +117,8 @@ async function queuedDelete(task: Task): Promise<WriteResult> {
  * Deletes a task on the server, then drops it from the cache. Offline it is queued. Refused when
  * the server's copy changed since it was read, so a delete never removes an edit it has not seen.
  * A task whose create still waits under a file name a different task holds is only dropped from
- * the queue. Subtasks are not touched. Resolves with the deleted task, so Undo can
- * {@link restoreTask} it.
+ * the queue. Subtasks are not touched: {@link deleteTaskTree} is what the screens call. Resolves
+ * with the deleted task, so Undo can {@link restoreTask} it.
  */
 export async function deleteTask(given: Task): Promise<WriteResult> {
   const task = await settle(given)
@@ -146,4 +146,109 @@ export async function deleteTask(given: Task): Promise<WriteResult> {
   }
   await forget(task.href)
   return { kind: WriteKind.Saved, task }
+}
+
+/**
+ * Every task under `task`, however deep: its subtasks, their subtasks and so on, found by parent
+ * UID among `all`, in any list and whether open or completed, as Tasks.org finds them. Deepest
+ * first, so a subtask always comes before its parent. A loop of parents ends where it began.
+ */
+export function subtasksOf(task: Task, all: readonly Task[]): Task[] {
+  const byParent = new Map<string, Task[]>()
+  for (const each of all) {
+    if (each.parentUid === undefined) continue
+    byParent.set(each.parentUid, [...byParent.get(each.parentUid) ?? [], each])
+  }
+  const seen = new Set([task.uid])
+  const found: Task[] = []
+  const walk = (uid: string): void => {
+    for (const child of byParent.get(uid) ?? []) {
+      if (seen.has(child.uid)) continue
+      seen.add(child.uid)
+      walk(child.uid)
+      found.push(child)
+    }
+  }
+  walk(task.uid)
+  return found
+}
+
+/** How {@link deleteTaskTree} went. */
+export interface TreeDelete {
+  /** `Saved` with the task when it and every subtask were deleted, else why some were not. */
+  result: WriteResult
+  /**
+   * The tasks that were deleted, each before its own subtasks, so Undo can {@link restoreTask} them
+   * in this order.
+   */
+  deleted: readonly Task[]
+}
+
+/**
+ * Deletes a task and every task under it ({@link subtasksOf}), as Tasks.org does. A task with no
+ * subtasks is deleted as {@link deleteTask} deletes it.
+ *
+ * With subtasks, every delete goes through the queue, online too, and all of them are written to
+ * the queue before the first is sent: a reload or a dropped connection in the middle loses none,
+ * and the whole tree leaves the screens at once. They are queued subtasks first, deepest first,
+ * and the task last. The queue sends in that order and stops at the first write that cannot reach
+ * the server, so what the server holds in between is the task with fewer subtasks, never a subtask
+ * whose parent is gone.
+ *
+ * Nothing is queued when one of them cannot be deleted from this device. A delete the server
+ * refuses, because that task changed elsewhere, leaves that task in place; the others still go.
+ */
+export async function deleteTaskTree(given: Task): Promise<TreeDelete> {
+  const subtasks = subtasksOf(given, tasks.value)
+  if (subtasks.length === 0) {
+    const result = await deleteTask(given)
+    return { result, deleted: result.kind === WriteKind.Saved ? [given] : [] }
+  }
+  const nothing = (message: string): TreeDelete => ({
+    result: { kind: WriteKind.Failed, message },
+    deleted: [],
+  })
+  const toQueue: Task[] = []
+  const toDrop: { task: Task; entry: NonNullable<ReturnType<typeof createOnTakenName>> }[] = []
+  let parent = given
+  for (const each of [...subtasks, given]) {
+    const task = await settle(each)
+    if (task === null) {
+      // A subtask that left this device meanwhile needs no delete; the task itself must be here.
+      if (each === given) return nothing(CHANGED_ON_SERVER)
+      continue
+    }
+    if (each === given) parent = task
+    // Its address belongs to a different task (see `deleteTask`): only its create is dropped.
+    const entry = createOnTakenName(task)
+    if (entry) toDrop.push({ task, entry })
+    else if (!task.etag && !queuedFor(task)) return nothing(CHANGED_ON_SERVER)
+    else toQueue.push(task)
+  }
+  const deleted: Task[] = []
+  const failures: string[] = []
+  for (const { task, entry } of toDrop) {
+    if (await dropCreate(entry)) deleted.push(task)
+    else failures.push(CHANGED_ON_SERVER)
+  }
+  // Every `queueDelete` is called before the first is awaited: the queue takes its writes one at a
+  // time in the order asked, so all of them are stored before any is sent.
+  const results = await Promise.all(
+    toQueue.map(async (task) => fromOutcome(await queueDelete(task), task)),
+  )
+  results.forEach((result, index) => {
+    if (result.kind === WriteKind.Failed) failures.push(result.message)
+    else deleted.push(toQueue[index])
+  })
+  const total = toDrop.length + toQueue.length
+  // `toQueue` ends with the task itself; Undo wants it first.
+  deleted.reverse()
+  if (failures.length === 0) {
+    const own = toQueue.at(-1) === parent ? results.at(-1) : undefined
+    return { result: own ?? { kind: WriteKind.Saved, task: parent }, deleted }
+  }
+  const message = failures.length === total
+    ? failures[0]
+    : `${failures.length} of ${total} tasks were not deleted. ${failures[0]}`
+  return { result: { kind: WriteKind.Failed, message }, deleted }
 }
