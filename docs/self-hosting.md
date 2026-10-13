@@ -125,6 +125,8 @@ A sign-in lasts 30 days on that device. What ends sessions:
   sessions in memory, so after a restart a copied cookie works again until its 30 days run out.
 - **Changing `SESSION_SECRET`** and restarting the container ends every session on every device,
   for good.
+- **Changing the password** (a new `OWNER_PASSWORD_HASH`, then a restart) ends every session too,
+  because sessions are tied to the hash.
 
 ### A lost phone
 
