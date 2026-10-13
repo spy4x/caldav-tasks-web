@@ -14,7 +14,7 @@ test("answers /health with 200", async ({ request }) => {
 test("opens on Today and moves between the five destinations without a reload", async ({ page }) => {
   await page.goto(`/`)
   const nav = page.getByRole(`navigation`, { name: `Main navigation` })
-  await expect(nav.getByRole(`button`)).toHaveText([
+  await expect(nav.getByRole(`link`)).toHaveText([
     `Today`,
     `Upcoming`,
     `Lists`,
@@ -25,7 +25,7 @@ test("opens on Today and moves between the five destinations without a reload", 
 
   // The page object survives a client-side move; a full load would replace it.
   await page.evaluate(() => (globalThis as { __kept?: boolean }).__kept = true)
-  await nav.getByRole(`button`, { name: `Upcoming` }).click()
+  await nav.getByRole(`link`, { name: `Upcoming` }).click()
   await expect(page).toHaveURL(/\/upcoming$/)
   await expect(pageTitle(page)).toHaveText(`Upcoming`)
   expect(await page.evaluate(() => (globalThis as { __kept?: boolean }).__kept)).toBe(true)
