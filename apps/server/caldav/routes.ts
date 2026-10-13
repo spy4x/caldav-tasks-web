@@ -16,7 +16,7 @@ import {
   updateObjectRequestSchema,
   type WriteResult,
 } from "@api/caldav.ts"
-import type { Config } from "../config.ts"
+import { type Config, isPrivateHost } from "../config.ts"
 import { CALDAV_FAILURES, type CalDavFailure, UNEXPECTED_FAILURE } from "./errors.ts"
 import { failed, outside, readRequest, refuse } from "./http.ts"
 import { canonicalPath, hrefOf, parentCalendar } from "./scope.ts"
@@ -55,6 +55,9 @@ export type Outcome<T> = { ok: true; value: T } | { ok: false; failure: CalDavFa
 export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOptions = {}): Hono {
   const client = options.client ?? createCalDavClient({
     serverUrl: config.CALDAV_URL,
+    // The client refuses `http:` unless told otherwise; the configuration allows it off the
+    // internet only.
+    allowHttp: isPrivateHost(new URL(config.CALDAV_URL).hostname),
     auth: { username: config.CALDAV_USERNAME, password: config.CALDAV_PASSWORD },
   })
   const origin = new URL(config.CALDAV_URL).origin

@@ -1,4 +1,5 @@
-import { isLoopbackHost } from "@spy4x/net/ip"
+import { isLoopbackHost, parseIp } from "@spy4x/net/ip"
+import { isLocalHostname, isPublicAddress } from "@spy4x/net/url-policy"
 import { ConfigError, type EnvReader, loadConfig, systemEnv } from "@spy4x/server/config"
 import { isPasswordHash } from "@spy4x/server/sign-in"
 import { isValidTimeZone } from "@spy4x/time/tz"
@@ -13,7 +14,10 @@ import { type } from "arktype"
 export const configSchema = type({
   /** The address people open the app at, e.g. `https://todos.example.com`. */
   PUBLIC_URL: "string.url",
-  /** The CalDAV server's public address. Credentials are sent to this origin only. */
+  /**
+   * The CalDAV server's address. Credentials are sent to this origin only, so it is `https:`, or
+   * `http:` at a host that is not public: see {@link isPrivateHost}.
+   */
   CALDAV_URL: "string.url",
   CALDAV_USERNAME: "string > 0",
   CALDAV_PASSWORD: "string > 0",
@@ -53,6 +57,33 @@ function publicUrlProblem(value: string): string | null {
 }
 
 /**
+ * True when `hostname`, as a `URL` gives it, is not a public address: this machine, a name with no
+ * dot in it (a container on the same Docker network), a name under `.local` or `.internal`, or an
+ * IP address that is not routable on the internet. Nothing is looked up: a name with a public
+ * ending counts as public, wherever it points.
+ */
+export function isPrivateHost(hostname: string): boolean {
+  if (isLoopbackHost(hostname) || isLocalHostname(hostname)) return true
+  const address = hostname.replace(/^\[|\]$/g, "")
+  if (parseIp(address) !== null) return !isPublicAddress(address)
+  const name = hostname.replace(/\.$/, "").toLowerCase()
+  return !name.includes(".") || name.endsWith(".internal")
+}
+
+/**
+ * What is wrong with `value` as `CALDAV_URL`, or `null`. Every request carries the CalDAV password,
+ * and plain `http:` sends it unencrypted, so `http:` is accepted only where the traffic stays on
+ * this machine or a private network.
+ */
+function caldavUrlProblem(value: string): string | null {
+  const problem = webAddressProblem(value)
+  if (problem) return problem
+  const url = new URL(value)
+  if (url.protocol === "https:" || isPrivateHost(url.hostname)) return null
+  return "must start with https://, because http:// would send the CalDAV password unencrypted over the internet; http:// works only for an address that is not public: a container name, this machine, or a private network address such as 192.168.1.10"
+}
+
+/**
  * What is wrong with `value` as `OWNER_PASSWORD_HASH`, or `null`. A `.env` loader or a Compose file
  * that expands `$` cuts the hash short, and a loader that does not read quotes (`docker run
  * --env-file`) leaves them in the value. Either way every sign-in would answer "Wrong password".
@@ -72,7 +103,7 @@ function ownerPasswordHashProblem(value: string): string | null {
 export function readConfig(reader: EnvReader = systemEnv): Config {
   const config = loadConfig(configSchema, reader)
   const issues = [
-    { name: "CALDAV_URL", reason: webAddressProblem(config.CALDAV_URL) },
+    { name: "CALDAV_URL", reason: caldavUrlProblem(config.CALDAV_URL) },
     { name: "OWNER_PASSWORD_HASH", reason: ownerPasswordHashProblem(config.OWNER_PASSWORD_HASH) },
     { name: "PUBLIC_URL", reason: publicUrlProblem(config.PUBLIC_URL) },
   ].flatMap(({ name, reason }) => (reason === null ? [] : [{ name, reason }]))
