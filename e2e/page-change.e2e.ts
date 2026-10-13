@@ -39,8 +39,13 @@ test("a middle click on a sidebar entry opens its page in a new tab", async ({ p
   const opened = context.waitForEvent(`page`)
   await nav.getByRole(`link`, { name: `Upcoming` }).click({ button: `middle` })
   const tab = await opened
-  await expect(tab).toHaveURL(/\/upcoming$/)
-  await expect(pageTitle(tab)).toHaveText(`Upcoming`)
+  // Asked of the tab's own document. Chromium can start loading a tab opened this way before
+  // Playwright listens to it; Playwright then reports `about:blank` for good and its locators wait
+  // for a navigation it never sees end.
+  await expect.poll(() =>
+    tab.evaluate(() => `${location.pathname} ${document.querySelector(`main h1`)?.textContent}`)
+      .catch(() => ``)
+  ).toBe(`/upcoming Upcoming`)
   // The first tab stayed where it was.
   await expect(pageTitle(page)).toHaveText(`Today`)
 })
