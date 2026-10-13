@@ -60,6 +60,41 @@ Deno.test("Sign out is a button that calls back once and waits while it runs", a
   )
 })
 
+Deno.test("Sign out with unsent changes asks first, and signs out only after a yes", async () => {
+  const calls: string[] = []
+  await mount(
+    <SettingsScreen {...props({ unsentChanges: 2, onSignOut: () => calls.push(`out`) })} />,
+    async ({ root, act }) => {
+      const page = root.ownerDocument
+      const signOut = must<HTMLButtonElement>(root, `[data-e2e="sign-out"]`)
+      await act(() => signOut.click())
+      expect(calls).toEqual([])
+      const dialog = must<HTMLElement>(page, `[data-e2e="sign-out-dialog"]`)
+      expect(dialog.textContent).toContain(`2 changes made on this device have not been sent`)
+
+      await act(() => must<HTMLButtonElement>(page, `[data-e2e="sign-out-dialog-cancel"]`).click())
+      expect(calls).toEqual([])
+      expect(page.querySelector(`[data-e2e="sign-out-dialog"]`)).toBeNull()
+
+      await act(() => signOut.click())
+      await act(() => must<HTMLButtonElement>(page, `[data-e2e="sign-out-dialog-confirm"]`).click())
+      expect(calls).toEqual([`out`])
+      expect(page.querySelector(`[data-e2e="sign-out-dialog"]`)).toBeNull()
+    },
+  )
+})
+
+Deno.test('the question about one unsent change says "1 change"', async () => {
+  await mount(
+    <SettingsScreen {...props({ unsentChanges: 1 })} />,
+    async ({ root, act }) => {
+      await act(() => must<HTMLButtonElement>(root, `[data-e2e="sign-out"]`).click())
+      expect(must<HTMLElement>(root.ownerDocument, `[data-e2e="sign-out-dialog"]`).textContent)
+        .toContain(`1 change made on this device has not been sent`)
+    },
+  )
+})
+
 Deno.test("a failed sign-out shows its message in an alert", () => {
   const html = renderToString(<SettingsScreen {...props({ error: `Sign-out failed (500).` })} />)
   expect(html).toMatch(/role="alert"[^>]*>Sign-out failed \(500\)\./)

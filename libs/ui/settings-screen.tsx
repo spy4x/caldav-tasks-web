@@ -1,7 +1,9 @@
 import type { ComponentChildren, JSX } from "preact"
+import { useState } from "preact/hooks"
 import type { InstallPromptProps } from "@spy4x/preact-system/install-prompt"
 import { PushSettings, type PushSettingsProps } from "@spy4x/preact-system/push-settings"
 import { Button } from "@spy4x/preact-ui/button"
+import { ConfirmDialog } from "@spy4x/preact-ui/confirm-dialog"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { ThemeToggle, type ThemeToggleStore } from "@spy4x/preact-ui/theme-toggle"
 import { ScreenLayout } from "./task-screen.tsx"
@@ -32,7 +34,16 @@ export interface SettingsScreenProps {
   push?: PushSettingsProps
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
+  /**
+   * Signs out. With {@link SettingsScreenProps.unsentChanges} above zero it is called only after
+   * the person agreed to lose them.
+   */
   onSignOut: () => void
+  /**
+   * How many changes made on this device have not reached the server. Signing out deletes them, so
+   * "Sign out" asks first when there are any.
+   */
+  unsentChanges?: number
   /** Sign-out is running: the button waits. */
   signingOut?: boolean
   /** Why the last sign-out failed. */
@@ -48,6 +59,8 @@ const UNKNOWN = `Not known yet. It loads when the server answers.`
  * install's environment.
  */
 export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
+  const [asking, setAsking] = useState(false)
+  const unsent = props.unsentChanges ?? 0
   return (
     <ScreenLayout header={<PageHeader title="Settings" />}>
       <div class="flex flex-col gap-6">
@@ -92,7 +105,7 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
             <Button
               variant="outline"
               disabled={props.signingOut}
-              onClick={props.onSignOut}
+              onClick={() => unsent > 0 ? setAsking(true) : props.onSignOut()}
               data-e2e="sign-out"
             >
               {props.signingOut ? `Signing out...` : `Sign out`}
@@ -108,6 +121,27 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
           </p>
         </section>
       </div>
+      {asking && (
+        <ConfirmDialog
+          title="Sign out with unsent changes?"
+          message={`${
+            unsent === 1
+              ? `1 change made on this device has`
+              : `${unsent} changes made on this device have`
+          } not been sent to the server. Signing out deletes everything kept on this device, unsent changes included.`}
+          confirmLabel="Sign out and lose unsent changes"
+          cancelLabel="Stay signed in"
+          tone="danger"
+          dataE2E="sign-out-dialog"
+          confirmDataE2E="sign-out-dialog-confirm"
+          cancelDataE2E="sign-out-dialog-cancel"
+          onConfirm={() => {
+            setAsking(false)
+            props.onSignOut()
+          }}
+          onCancel={() => setAsking(false)}
+        />
+      )}
     </ScreenLayout>
   )
 }
