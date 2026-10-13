@@ -41,8 +41,8 @@ interface Way {
 for (
   const way of <Way[]> [
     {
-      name: `a sidebar button`,
-      go: (page) => page.getByRole(`button`, { name: `Lists`, exact: true }).click(),
+      name: `a sidebar link`,
+      go: (page) => page.getByRole(`link`, { name: `Lists`, exact: true }).click(),
       title: `Lists`,
     },
     {
@@ -138,7 +138,7 @@ test(`a shortcut pressed while the question is open does not change where Leave 
   await openEditor(page)
   await editTitle(page, `Changed but not saved`)
 
-  await page.getByRole(`button`, { name: `Lists`, exact: true }).click()
+  await page.getByRole(`link`, { name: `Lists`, exact: true }).click()
   await expect(question(page)).toBeVisible()
   await page.keyboard.press(`g`)
   await page.keyboard.press(`u`)
@@ -175,7 +175,7 @@ test(`the browser's Back asks before leaving the editor with unsaved changes: St
  */
 async function editWithListsAhead(page: Page) {
   await openEditor(page)
-  await page.getByRole(`button`, { name: `Lists`, exact: true }).click()
+  await page.getByRole(`link`, { name: `Lists`, exact: true }).click()
   await expect(pageTitle(page)).toHaveText(`Lists`)
   await page.goBack()
   await expect(page).toHaveURL(/\/tasks\//)

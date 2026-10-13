@@ -44,12 +44,10 @@ export function navKey(path: string | undefined): string | undefined {
 }
 
 /**
- * The app's frame: the rail from `md` up and the phone tab bar below, around the page. The
- * entries carry no `href`, so the shell draws them as buttons and reports a choice through
- * `navigate`, which the router handles; moving between pages never reloads the app.
- *
- * TODO(spy4x/preact-components#596): once link clicks go through a port, give the entries real
- * `href`s again, so they are links without JavaScript, open in a new tab and show their address.
+ * The app's frame: the rail from `md` up and the phone tab bar below, around the page. Every entry
+ * is a link to its page, so it opens in a new tab and shows its address. A plain click goes
+ * through `navigate`, which the router handles, so moving between pages never reloads the app;
+ * without `navigate` the links load their pages.
  */
 export function AppFrame(
   { currentPath, navigate, children }: {
@@ -58,19 +56,17 @@ export function AppFrame(
     children: ComponentChildren
   },
 ): JSX.Element {
-  const items: readonly RailShellItem[] = NAV_ITEMS.map(({ key, label, Icon }) => ({
+  const items: readonly RailShellItem[] = NAV_ITEMS.map(({ key, label, Icon, path }) => ({
     key,
     label,
     Icon,
+    href: path,
   }))
   return (
     <RailShell
       items={items}
       currentKey={navKey(currentPath)}
-      navigate={(key) => {
-        const item = NAV_ITEMS.find((candidate) => candidate.key === key)
-        if (item) navigate?.(item.path)
-      }}
+      navigateLink={navigate && ((_key, href) => navigate(href))}
     >
       {children}
     </RailShell>

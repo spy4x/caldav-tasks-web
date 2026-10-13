@@ -45,10 +45,12 @@ Deno.test("maps a path to its destination, a sub-path to its parent and a strang
   expect(navKey(undefined)).toBeUndefined()
 })
 
-Deno.test("choosing a destination hands its path to navigate and renders no link", async () => {
+Deno.test("every destination is a link to its page; a plain click goes to navigate, a Ctrl click is the browser's", async () => {
   const window = new Window({ url: "http://app.localhost/" })
   const own = globalThis.document
+  const ownLocation = Object.getOwnPropertyDescriptor(globalThis, "location")
   Object.assign(globalThis, { document: window.document })
+  Object.defineProperty(globalThis, "location", { value: window.location, configurable: true })
   const root = window.document.createElement("div")
   window.document.body.append(root)
   const opened: string[] = []
@@ -63,15 +65,31 @@ Deno.test("choosing a destination hands its path to navigate and renders no link
     )
     const rail = root.querySelector(`[data-e2e="rail-shell-rail"]`)!
     const entries = [...rail.querySelectorAll(`[data-e2e="rail-shell-entry"]`)]
+    expect(entries.map((entry) => `${entry.tagName} ${entry.getAttribute("href")}`)).toEqual(
+      NAV_ITEMS.map((item) => `A ${item.path}`),
+    )
     const lists = entries.find((entry) => entry.textContent?.includes("Lists"))!
+    const inNewTab = new window.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+    })
     await act(() => {
-      lists.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
+      lists.dispatchEvent(inNewTab)
+    })
+    expect(opened).toEqual([])
+    expect(inNewTab.defaultPrevented).toBe(false)
+    const plain = new window.MouseEvent("click", { bubbles: true, cancelable: true })
+    await act(() => {
+      lists.dispatchEvent(plain)
     })
     expect(opened).toEqual([PATHS.lists])
-    expect(rail.querySelectorAll(`a[href]`)).toHaveLength(0)
+    expect(plain.defaultPrevented).toBe(true)
   } finally {
     await act(() => render(null, root as unknown as HTMLElement))
     Object.assign(globalThis, { document: own })
+    if (ownLocation) Object.defineProperty(globalThis, "location", ownLocation)
+    else Reflect.deleteProperty(globalThis, "location")
     await window.happyDOM.close()
   }
 })
