@@ -119,12 +119,35 @@ your monitoring, or check it on the container's own port.
 
 A sign-in lasts 30 days on that device. What ends sessions:
 
-- **Sign out** in Settings ends the session on that device only. The server remembers signed-out
+- **Sign out** in Settings ends the session on that device only. It also deletes what the browser
+  kept there: the cached tasks, any changes not sent yet (it asks first when there are some), and
+  that device's notification subscription, on the server too. The server remembers signed-out
   sessions in memory, so after a restart a copied cookie works again until its 30 days run out.
 - **Changing `SESSION_SECRET`** and restarting the container ends every session on every device,
-  for good. Use this if a phone is lost.
+  for good.
 - **Changing the password** (a new `OWNER_PASSWORD_HASH`, then a restart) ends every session too,
   because sessions are tied to the hash.
+
+### A lost phone
+
+A new `SESSION_SECRET` ends the phone's session, and that is all it does. The phone would still get
+reminders with task titles, because the server pushes to every saved subscription whether or not
+that device is signed in. To cut the phone off:
+
+1. Stop the container.
+2. Delete `push.json` from the data folder (`DATA_DIR`, the `/data` volume). That forgets every
+   device's notification subscription; the server cannot tell which one is the phone's. Without
+   notifications set up there is no such file, and this step is not needed.
+   New push keys (`deno task vapid:keys`) do the same job: a subscription made for the old keys
+   gets nothing from the new ones.
+3. Change `SESSION_SECRET` and start the container.
+4. On each device you still use, sign in again. If Settings there shows notifications as off, turn
+   them on again.
+
+The phone can no longer read or change tasks on the server, and gets no more reminders. What the
+server cannot do is delete the copy already on the phone: the tasks its browser cached, and the
+reminders it has already shown, stay readable to whoever can unlock it. Use the phone's own remote
+erase for that.
 
 ## Reminder notifications
 

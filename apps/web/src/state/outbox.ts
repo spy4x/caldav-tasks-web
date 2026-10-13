@@ -240,6 +240,7 @@ type TaskOutbox = Outbox<TaskPayload, TaskSnapshot>
 let current: TaskOutbox | undefined
 let storeOverride: OutboxStore<TaskPayload, TaskSnapshot> | undefined
 let stopListening: (() => void) | undefined
+let currentStore: OutboxStore<TaskPayload, TaskSnapshot> | undefined
 
 /**
  * What `@spy4x/caldav/write` answers when a create finds its file name held by a different task.
@@ -407,11 +408,13 @@ export async function dropCreate(entry: TaskEntry): Promise<boolean> {
 /** The app's outbox, opened on first use. */
 export function getOutbox(): TaskOutbox {
   if (current) return current
+  const store = storeOverride ??
+    createIndexedDbOutboxStore<TaskPayload, TaskSnapshot>({ name: `caldav-tasks-outbox` })
+  currentStore = store
   /** The file ids of creates that must not be sent yet: see {@link createMover}. */
   const held = new Set<string>()
   const outbox = createOutbox<TaskPayload, TaskSnapshot>({
-    store: storeOverride ??
-      createIndexedDbOutboxStore<TaskPayload, TaskSnapshot>({ name: `caldav-tasks-outbox` }),
+    store,
     send: trackedSend,
     fetchServer: transport.fetchServer,
     classify: transport.classify,
@@ -454,9 +457,24 @@ export function useOutboxStore(store: OutboxStore<TaskPayload, TaskSnapshot> | u
   stopListening?.()
   stopListening = undefined
   current = undefined
+  currentStore = undefined
   moved = undefined
   storeOverride = store
   pendingEntries.value = []
+}
+
+/**
+ * Deletes every queued write from its store, sent or not, and from the screens. For sign-out: the
+ * writes hold the text of the owner's tasks.
+ */
+export async function clearOutbox(): Promise<void> {
+  const outbox = getOutbox()
+  const store = currentStore
+  if (!store) return
+  for (const entry of await store.readOutbox()) {
+    if (entry.seq !== undefined) await store.removeEntry(entry.seq)
+  }
+  await outbox.reload()
 }
 
 /** A store in memory, for tests. */

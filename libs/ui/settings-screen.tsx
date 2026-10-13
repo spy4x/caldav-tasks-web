@@ -2,6 +2,7 @@ import type { ComponentChildren, JSX } from "preact"
 import type { InstallPromptProps } from "@spy4x/preact-system/install-prompt"
 import { PushSettings, type PushSettingsProps } from "@spy4x/preact-system/push-settings"
 import { Button } from "@spy4x/preact-ui/button"
+import { ConfirmDialog } from "@spy4x/preact-ui/confirm-dialog"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
 import { ThemeToggle, type ThemeToggleStore } from "@spy4x/preact-ui/theme-toggle"
 import { ScreenLayout } from "./task-screen.tsx"
@@ -32,7 +33,19 @@ export interface SettingsScreenProps {
   push?: PushSettingsProps
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
+  /** "Sign out" was pressed. */
   onSignOut: () => void
+  /**
+   * Set while sign-out waits for an answer: signing out deletes the changes made on this device
+   * that have not reached the server, so the person is asked first.
+   */
+  unsentQuestion?: {
+    /** How many changes would be lost. */
+    unsent: number
+    /** The person agreed to lose them. */
+    onConfirm: () => void
+    onCancel: () => void
+  }
   /** Sign-out is running: the button waits. */
   signingOut?: boolean
   /** Why the last sign-out failed. */
@@ -48,6 +61,7 @@ const UNKNOWN = `Not known yet. It loads when the server answers.`
  * install's environment.
  */
 export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
+  const question = props.unsentQuestion
   return (
     <ScreenLayout header={<PageHeader title="Settings" />}>
       <div class="flex flex-col gap-6">
@@ -108,6 +122,24 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
           </p>
         </section>
       </div>
+      {question && (
+        <ConfirmDialog
+          title="Sign out with unsent changes?"
+          message={`${
+            question.unsent === 1
+              ? `1 change made on this device has`
+              : `${question.unsent} changes made on this device have`
+          } not been sent to the server. Signing out deletes everything kept on this device, unsent changes included.`}
+          confirmLabel="Sign out and lose unsent changes"
+          cancelLabel="Stay signed in"
+          tone="danger"
+          dataE2E="sign-out-dialog"
+          confirmDataE2E="sign-out-dialog-confirm"
+          cancelDataE2E="sign-out-dialog-cancel"
+          onConfirm={question.onConfirm}
+          onCancel={question.onCancel}
+        />
+      )}
     </ScreenLayout>
   )
 }
