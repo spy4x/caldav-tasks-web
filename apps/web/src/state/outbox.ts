@@ -397,9 +397,11 @@ export function createOnTakenName(task: Task): TaskEntry | undefined {
  */
 export async function dropCreate(entry: TaskEntry): Promise<boolean> {
   const outbox = getOutbox()
+  const queued = async () => (await outbox.reload()).some((left) => left.seq === entry.seq)
   if (entry.status === `conflict`) await outbox.useTheirs(entry)
-  else await outbox.withdraw(entry.entityId)
-  return !(await outbox.reload()).some((left) => left.seq === entry.seq)
+  // One call takes back only the latest edit merged into the create: repeat until the create goes.
+  else while (await outbox.withdraw(entry.entityId) && await queued());
+  return !(await queued())
 }
 
 /** The app's outbox, opened on first use. */

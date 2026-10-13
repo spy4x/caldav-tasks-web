@@ -284,6 +284,28 @@ Deno.test(`deleting a new task while its create waits refused under a taken file
   })
 })
 
+Deno.test(`deleting a new task that was edited before its create under a taken file name was sent drops it, and nothing is sent`, async () => {
+  await withApp(async (server) => {
+    const other = await start(server)
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, NOW, `one`)
+    const mine = tasks.value.find((task) => task.title === `Pay rent`)!
+    const edited = await saveTask(mine, { title: `Pay rent today` }, NOW)
+    if (edited.kind !== WriteKind.Saved) throw new Error(`expected saved, got ${edited.kind}`)
+
+    const result = await deleteTask(edited.task)
+    setBrowserOnline(true)
+    await flush()
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect(server.sent).toEqual([])
+    expect(server.objects.get(HREF)).toEqual(other)
+    expect(added(server)).toEqual([])
+    expect(pendingEntries.value).toEqual([])
+    expect(titles()).toEqual([`Buy milk`])
+  })
+})
+
 Deno.test(`deleting a task from a copy read before it moved to a new file name deletes that task and leaves the task that holds the name`, async () => {
   await withApp(async (server) => {
     const other = await start(server)
