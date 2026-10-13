@@ -52,6 +52,8 @@ test(`signing out in Settings leaves no task in the browser's storage`, async ({
   await page.getByRole(`button`, { name: `Sign out`, exact: true }).click()
 
   await expect(page.getByRole(`heading`, { name: `Sign in` })).toBeVisible()
+  // The tab no longer names the page the person signed out from.
+  await expect(page).toHaveTitle(`Tasks`)
   await expect.poll(() => stored(page)).not.toContain(`Seeded errand`)
   expect(await page.evaluate(() => localStorage.getItem(`session:signed-in`))).toBeNull()
 })

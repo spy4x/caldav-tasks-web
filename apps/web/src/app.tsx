@@ -5,7 +5,7 @@ import { Notice } from "@spy4x/preact-ui/notice"
 import { Toastr } from "@spy4x/preact-ui/toastr"
 import { useRouteAnnouncer } from "@spy4x/preact-system/route-announcer"
 import { AppFrame } from "@ui/frame.tsx"
-import { pageTitle } from "./page-title.ts"
+import { APP_TITLE, pageTitle } from "./page-title.ts"
 import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
 import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
@@ -66,6 +66,8 @@ function SignedInApp() {
   useEffect(() => startSync(), [])
   // Here and not in Settings, so every page load saves this device's subscription again.
   useEffect(() => startPush(), [])
+  // The sign-in page that follows a sign-out does not keep the name of the last page.
+  useEffect(() => () => void (document.title = APP_TITLE), [])
   const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
   useShortcuts(navigate)
   useRouteAnnouncer({
