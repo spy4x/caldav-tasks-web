@@ -42,6 +42,21 @@ export function taskPath(task: Pick<Task, `uid`>): string {
   return taskPathOf(task.uid)
 }
 
+/**
+ * The UID a task address names. `path` is the address as the browser holds it, still
+ * percent-encoded, never the router's parameter: the router decodes the address with `decodeURI`,
+ * which leaves `%40`, `%2F`, `%3F`, `%23` and `%2B` as they are and turns `%25` into `%`, so the
+ * UID cannot be told from its parameter. An escape that cannot be decoded is kept as typed.
+ */
+export function taskUid(path: string): string {
+  const encoded = path.slice(path.lastIndexOf(`/`) + 1)
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return encoded
+  }
+}
+
 /** The list a `/lists/:slug` address names, or `undefined`. */
 export function findListBySlug<T extends { href: string }>(
   lists: readonly T[],

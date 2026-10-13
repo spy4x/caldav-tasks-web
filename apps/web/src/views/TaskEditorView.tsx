@@ -1,5 +1,5 @@
 import { useSignal } from "@preact/signals"
-import { useLocation, useParams } from "wouter-preact"
+import { useLocation, useRouter } from "wouter-preact"
 import { LoadingBody } from "@ui/task-screen.tsx"
 import { type TaskDraft, type TaskEditorErrors, TaskEditorScreen } from "@ui/task-editor-screen.tsx"
 import { leaveGuard } from "../leave-guard.ts"
@@ -16,7 +16,7 @@ import {
 import type { WriteResult } from "../state/tasks.ts"
 import { addTask } from "../state/task-writes.ts"
 import { toasts } from "../state/toasts.ts"
-import { listPath, taskPath } from "../routes.ts"
+import { listPath, taskPath, taskUid } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
 import { deleteWithUndo } from "./task-actions.ts"
@@ -30,7 +30,10 @@ const SAVED_BEHIND_CONFLICT =
  * "Keep mine" writes the form as it stands then, not the one that collided.
  */
 export function TaskEditorView() {
-  const { uid = `` } = useParams<{ uid: string }>()
+  // The router's own hook gives the address as the browser holds it; `useParams` gives it half
+  // decoded, which loses a UID with `@`, `/`, `?`, `#` or `+` in it.
+  const router = useRouter()
+  const uid = taskUid(router.hook(router)[0])
   const [, navigate] = useLocation()
   const saving = useSignal(false)
   const deleting = useSignal(false)

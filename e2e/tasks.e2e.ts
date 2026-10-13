@@ -135,6 +135,22 @@ test("a weekly repeat and a reminder survive a reload, and removing them removes
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(0)
 })
 
+test("a task whose UID holds @ / ? # or + opens from the list and after a reload", async ({ page }) => {
+  const uids = [`at@example.com`, `sl/ash`, `que?stion`, `ha#sh`, `plus+sign`]
+  for (const uid of uids) await addSeededTask(list, `Task ${uid}`, [], uid)
+  await signIn(page)
+  const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
+  for (const uid of uids) {
+    await page.goto(`/lists/${encodeURIComponent(slug)}`)
+    await page.getByRole(`button`, { name: `Task ${uid}`, exact: true }).click()
+    await expect(page).toHaveURL(`/tasks/${encodeURIComponent(uid)}`)
+    await expect(page.getByTestId(`task-title`)).toHaveValue(`Task ${uid}`)
+
+    await page.reload()
+    await expect(page.getByTestId(`task-title`)).toHaveValue(`Task ${uid}`)
+  }
+})
+
 test("the sort and the tag filter of a list survive a reload", async ({ page }) => {
   await addSeededTask(list, `Zebra`, [`CATEGORIES:home`, `PRIORITY:1`])
   await addSeededTask(list, `Apple`, [`CATEGORIES:work`, `PRIORITY:9`])
