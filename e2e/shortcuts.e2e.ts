@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test"
-import { deleteList, readTask, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
+import {
+  addSeededTask,
+  deleteList,
+  readTask,
+  type SeededList,
+  seedTaskList,
+} from "./fixtures/radicale.ts"
 import { pageTitle, signIn } from "./sign-in.ts"
 
 let list: SeededList
@@ -37,6 +43,47 @@ test("keys move through the tasks, complete one, open one and go to other pages"
   await expect(open).toHaveCount(0)
   await expect.poll(async () => (await readTask(list.taskUrl)).includes(`STATUS:COMPLETED`))
     .toBe(true)
+})
+
+test("on a list in manual order the keys move through the rows, open one and complete one, and do nothing in an open menu", async ({ page }) => {
+  // The seeded task has no position, so it sits after these two.
+  const firstUrl = await addSeededTask(list, `First`, [`X-APPLE-SORT-ORDER:100`])
+  const secondUrl = await addSeededTask(list, `Second`, [`X-APPLE-SORT-ORDER:200`])
+  await signIn(page)
+  const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
+  await page.goto(`/lists/${encodeURIComponent(slug)}`)
+  const first = page.getByRole(`button`, { name: `First`, exact: true })
+  const second = page.getByRole(`button`, { name: `Second`, exact: true })
+  await expect(first).toBeVisible()
+  await expect(page.getByTestId(`sort`).locator(`option:checked`)).toHaveText(`Manual order`)
+
+  await page.keyboard.press(`j`)
+  await expect(first).toBeFocused()
+  await page.keyboard.press(`j`)
+  await expect(second).toBeFocused()
+  await page.keyboard.press(`k`)
+  await expect(first).toBeFocused()
+
+  await page.keyboard.press(`e`)
+  await expect(page).toHaveURL(/\/tasks\//)
+  await page.goBack()
+  await expect(first).toBeVisible()
+
+  // An open menu keeps the keyboard: the letters neither move the focus nor complete a task.
+  await page.getByRole(`button`, { name: `More actions` }).click()
+  const rename = page.getByRole(`menuitem`, { name: `Rename list` })
+  await expect(rename).toBeFocused()
+  for (const name of [`n`, `j`, `x`]) await page.keyboard.press(name)
+  await expect(rename).toBeFocused()
+  await page.keyboard.press(`Escape`)
+  await expect(rename).toBeHidden()
+
+  await first.focus()
+  await page.keyboard.press(`x`)
+  await expect(first).toHaveCount(0)
+  await expect.poll(async () => (await readTask(firstUrl)).includes(`STATUS:COMPLETED`)).toBe(true)
+  await expect(second).toBeVisible()
+  expect(await readTask(secondUrl)).not.toContain(`STATUS:COMPLETED`)
 })
 
 test("? lists the shortcuts and Escape closes the list, and typing in a field fires none", async ({ page }) => {

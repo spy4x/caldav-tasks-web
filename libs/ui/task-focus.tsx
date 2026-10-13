@@ -80,7 +80,8 @@ export function FocusKeeper({ children, label, class: className }: FocusKeeperPr
   )
 }
 
-const ROW = `li[data-task-uid]`
+/** A task row. A list in manual order draws its rows as `div`s, so the tag is not part of it. */
+const ROW = `[data-task-uid]`
 const OPEN = `[data-e2e="task-open"]`
 
 /** The row the keyboard is on: the one that holds the focused element, if any. */

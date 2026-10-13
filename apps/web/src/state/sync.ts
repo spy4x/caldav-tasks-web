@@ -12,7 +12,7 @@ import {
   type SyncRunnerTarget,
 } from "@spy4x/realtime/sync-runner"
 import { CALDAV_PATHS, type Calendar, calendarListSchema, objectListSchema } from "@api/caldav.ts"
-import { connection, relay } from "./connection.ts"
+import { connection, offline, relay } from "./connection.ts"
 import { calendars, calendarsLoaded } from "./calendars.ts"
 import { cacheUnavailable, getStorage } from "./db.ts"
 import { getOutbox, loadOutbox } from "./outbox.ts"
@@ -141,8 +141,10 @@ export function startSync(
     pollIntervalMs: POLL_INTERVAL_MS,
     flush: async () => {
       const result = await sendQueue()
-      // A server that could not be reached for the queue cannot answer a refresh either.
-      if (result !== `unreachable`) await refresh()
+      // The queue also answers "unreachable" for a write the server answered and did not take (a
+      // session that ended, a read-only list), and reads must go on while that write waits. Only a
+      // request that got no answer at all means a refresh would get none either.
+      if (result !== `unreachable` || !offline.value) await refresh()
       return result
     },
   })

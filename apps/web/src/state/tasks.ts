@@ -164,13 +164,8 @@ export async function undoWrite(current: Task, ics: string): Promise<WriteResult
     if (back) return { kind: WriteKind.Saved, task: back, queued: true }
   }
   return commit(current, {
-    first: () => {
-      const parsed = parseTask({
-        href: current.href,
-        etag: current.etag,
-        listHref: current.listHref,
-        ics,
-      })
+    first: (base) => {
+      const parsed = parseTask({ href: base.href, etag: base.etag, listHref: base.listHref, ics })
       return parsed.success ? { ok: true, task: parsed.output, ics } : {
         ok: false,
         message: parsed.error,
@@ -251,6 +246,7 @@ async function queueFirst(base: Task, plan: Plan, edit?: TaskEdit): Promise<Writ
 
 async function commit(sent: Task, plan: Plan, edit?: TaskEdit): Promise<WriteResult> {
   const base = await settle(sent)
+  if (base === null) return failed(CHANGED_ON_SERVER)
   // Offline, or behind a write that still waits: this one joins the queue, in order.
   if (offline.value || queuedFor(base)) return await queueFirst(base, plan, edit)
   // A task with no etag cannot be written until it is read again with one. The cached copy stays

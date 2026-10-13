@@ -27,6 +27,7 @@ import { ListSettingsView } from "./views/ListSettingsView.tsx"
 import { NotFoundView } from "./views/NotFoundView.tsx"
 import { SearchView } from "./views/SearchView.tsx"
 import { SettingsView } from "./views/SettingsView.tsx"
+import { SignInAgainView } from "./views/SignInAgainView.tsx"
 import { SignInView } from "./views/SignInView.tsx"
 import { TaskEditorView } from "./views/TaskEditorView.tsx"
 import { TodayView } from "./views/TodayView.tsx"
@@ -103,6 +104,7 @@ function SignedInApp() {
         onClose={() => shortcutsOpen.value = false}
         shortcuts={SHORTCUT_ROWS}
       />
+      <SignInAgainView />
     </AppFrame>
   )
 }

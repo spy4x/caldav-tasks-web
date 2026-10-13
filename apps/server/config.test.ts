@@ -134,9 +134,46 @@ Deno.test("refuses a PUBLIC_URL on plain http, except on the machine itself", ()
   }
 })
 
-Deno.test("accepts a CALDAV_URL on plain http, on any host", () => {
+Deno.test("refuses a CALDAV_URL on plain http at a public address, and says the password would travel unencrypted", () => {
   for (
-    const value of ["http://radicale:5232", "http://192.168.1.10/dav", "https://dav.example.com"]
+    const value of [
+      "http://dav.example.com",
+      "http://dav.example.com:5232/dav/",
+      "http://8.8.8.8/dav",
+      "http://[2606:4700:4700::1111]/dav",
+      // Names that only look private.
+      "http://radicale.example.com",
+      "http://internal.example.com",
+      "http://192.168.1.10.example.com",
+    ]
+  ) {
+    const error = configError({ CALDAV_URL: value })
+    expect([value, error.variables]).toEqual([value, ["CALDAV_URL"]])
+    const message = describeConfigError(error)
+    expect(message).toContain("CALDAV_URL must start with https://")
+    expect(message).toContain("unencrypted")
+    expect(message).not.toContain(value)
+  }
+})
+
+Deno.test("accepts a CALDAV_URL on https, and on plain http at a container name, this machine or a private network address", () => {
+  for (
+    const value of [
+      "https://dav.example.com",
+      "https://dav.example.com/dav/cal/",
+      "http://radicale:5232",
+      "http://radicale.:5232",
+      "http://host.docker.internal:5232",
+      "http://nas.local/dav",
+      "http://localhost:5232",
+      "http://127.0.0.1:5232",
+      "http://[::1]:5232",
+      "http://192.168.1.10/dav",
+      "http://10.0.0.5:5232",
+      "http://172.18.0.3:5232",
+      "http://100.64.0.7:5232",
+      "http://[fd12:3456:789a::1]:5232",
+    ]
   ) {
     const env = { ...TEST_CONFIG, CALDAV_URL: value }
     expect(readConfig(createEnvReader(env))).toEqual(env)

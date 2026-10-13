@@ -9,8 +9,9 @@ import { must } from "@ui/mount.test.tsx"
 import { onPage } from "./on-page.test.tsx"
 import { refresh } from "../state/sync.ts"
 import { conflicts } from "../state/conflicts.ts"
-import { getOutbox } from "../state/outbox.ts"
+import { getOutbox, movesDone } from "../state/outbox.ts"
 import { saveTask, tasks } from "../state/tasks.ts"
+import { addTask } from "../state/task-writes.ts"
 import { setBrowserOnline, withApp } from "../state/testing.ts"
 import { toasts } from "../state/toasts.ts"
 import type { FakeServer } from "../state/testing.ts"
@@ -255,5 +256,31 @@ Deno.test(`a save made while an earlier change of the task waits for a choice sa
       ],
     ])
     expect(server.objects.get(HREF)!.ics).not.toContain(`Buy oat milk`)
+  })
+})
+
+Deno.test(`Save from an editor that was open while its task moved to a new file name leaves the task that held the name as it was`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    const other = { ...server.objects.get(HREF)! }
+    // A task added offline whose file name, `one.ics`, the server's "Buy milk" already holds.
+    setBrowserOnline(false)
+    await addTask({ title: `Pay rent` }, { listHref: LIST_HREF }, new Date(), `one`)
+    await onPage(editor(`one`), async ({ root }) => {
+      await type(root, `task-title`, `Pay rent today`)
+      // The network returns: the create is refused and the task is saved under a new file name.
+      setBrowserOnline(true)
+      await getOutbox().flush()
+      await movesDone()
+      await settled()
+
+      await press(root, `task-save`)
+
+      expect(server.objects.get(HREF)).toEqual(other)
+      const mine = [...server.objects].filter(([href]) => href !== HREF)
+      expect(mine.map(([, object]) => object.ics.match(/SUMMARY:.*/)?.[0].trim())).toEqual([
+        `SUMMARY:Pay rent today`,
+      ])
+    })
   })
 })

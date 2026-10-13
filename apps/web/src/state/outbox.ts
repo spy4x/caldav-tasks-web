@@ -4,7 +4,12 @@ import {
   type CalDavObject,
   type CalDavResult,
 } from "@spy4x/caldav"
-import { type CalDavWriter, createCalDavWriteTransport, isSafeEntityId } from "@spy4x/caldav/write"
+import {
+  CalDavWriteError,
+  type CalDavWriter,
+  createCalDavWriteTransport,
+  isSafeEntityId,
+} from "@spy4x/caldav/write"
 import {
   createMemoryOutboxStore,
   createOutbox,
@@ -135,13 +140,13 @@ const writer: CalDavWriter = {
 
 /**
  * The address of an entity. A task that exists has its address for an id; one created on this
- * device is named by a plain file id until the server has it.
+ * device is named by a plain file id for as long as the queue holds a write of it. Every queued
+ * write carries the task's address, whatever its kind: a create that was sent and then deleted is
+ * a queued delete under the same file id.
  */
 function entityHref(entityId: string): string {
-  const created = pendingEntries.value.find((entry) =>
-    entry.entityId === entityId && entry.kind === `create`
-  )
-  if (created) return created.payload.href
+  const queued = pendingEntries.value.find((entry) => entry.entityId === entityId)
+  if (queued) return queued.payload.href
   if (entityId.includes(`/`)) return entityId
   return serverTasks.value.find((task) => task.href.endsWith(`/${entityId}.ics`))?.href ?? entityId
 }
@@ -191,15 +196,25 @@ const trackedSend: typeof transport.send = async (command, key) => {
 }
 
 /**
- * The copy of `task` to build a new write on. While a send for the task is under way its etag is
- * about to change (a created task has none yet), so this waits for that send to settle and returns
- * the copy the person sees: the server's copy with any writes still queued on top. Otherwise
- * returns `task` itself.
+ * The copy of `task` to build a new write on, or `null` when the task is no longer on this device.
+ *
+ * While a send for the task is under way its etag is about to change (a created task has none
+ * yet), so this waits for that send to settle and returns the copy the person sees: the server's
+ * copy with any writes still queued on top.
+ *
+ * A copy read while its create waited under a file name a different task holds carries that task's
+ * address and etag, and the task has since moved to a file name of its own. A write built on such
+ * a copy would land on the other task, so this answers with the task as it is now, found by UID.
  */
-export async function settle(task: Task): Promise<Task> {
-  if (!inFlight.has(entityIdOf(task))) return task
-  await getOutbox().flush()
-  return tasks.value.find((other) => other.href === task.href) ?? task
+export async function settle(task: Task): Promise<Task | null> {
+  const sending = inFlight.has(entityIdOf(task))
+  if (sending) await getOutbox().flush()
+  const there = tasks.value.find((other) => other.href === task.href)
+  if (there === undefined || there.uid === task.uid) return sending ? there ?? task : task
+  const moved = tasks.value.find((other) =>
+    other.uid === task.uid && other.listHref === task.listHref
+  )
+  return moved ?? null
 }
 
 /** Reads a server snapshot as a task, or `null` when its text cannot be read. */
@@ -225,13 +240,181 @@ type TaskOutbox = Outbox<TaskPayload, TaskSnapshot>
 let current: TaskOutbox | undefined
 let storeOverride: OutboxStore<TaskPayload, TaskSnapshot> | undefined
 let stopListening: (() => void) | undefined
+let currentStore: OutboxStore<TaskPayload, TaskSnapshot> | undefined
+
+/**
+ * What `@spy4x/caldav/write` answers when a create finds its file name held by a different task.
+ * Compared as text because the queue keeps only the message of a refusal. `name-taken.test.ts`
+ * goes through the library, so it fails if the library words this differently.
+ */
+const NAME_TAKEN = `This task cannot be saved: its file name is already used by a different task.`
+
+/** Whether a failed send was a create refused because a different task holds its file name. */
+export function isNameTaken(error: unknown): boolean {
+  return error instanceof CalDavWriteError && error.caused.message === NAME_TAKEN
+}
+
+/** Whether a queued write is a create the server refused because its file name is taken. */
+function nameTaken(entry: TaskEntry): boolean {
+  return entry.kind === `create` && entry.status === `conflict` &&
+    entry.conflict?.reason === `rejected` && entry.conflict.message === NAME_TAKEN
+}
+
+/** The UID of the task a queued write holds, or `null` when its text cannot be read. */
+function uidOf({ href, listHref, ics }: TaskPayload): string | null {
+  return taskOf({ version: 0, href, listHref, etag: ``, ics })?.uid ?? null
+}
+
+/**
+ * How many times in a row one refused create is moved. After that its card stays until the queue
+ * is next read or changed, which starts the move again.
+ */
+const MOVE_TRIES = 3
+
+/**
+ * Moves every create that was refused because a different task holds its file name to a file name
+ * of its own, so the task is saved without the person doing anything. The move sends nothing to
+ * the task that holds the name: the refused create is only dropped from the queue.
+ *
+ * The task must not end up on the server twice, so the steps are ordered and each is checked:
+ *
+ * 1. The copy under the new id is queued, and held back from sending (`held`).
+ * 2. The refused create is dropped. Only then may the copy be sent. If the refused create is still
+ *    there (an edit in another tab gave it a new text), the copy is taken back and the move starts
+ *    again from that text.
+ * 3. A page that closed between 1 and 2 finds both in the queue when it opens again: a copy with
+ *    the same text means step 2 is all that is left. A copy with another text, or the task already
+ *    on the server under another name, is left for the person, with nothing sent.
+ *
+ * Two tabs can see the same refusal: the copy queued first is the one that stays, and a tab whose
+ * copy came second takes its own back.
+ */
+function createMover(outbox: TaskOutbox, held: Set<string>) {
+  /** The refused creates being moved, by `seq`, so one refusal starts one move. */
+  const moving = new Set<number>()
+  const running = new Set<Promise<void>>()
+
+  /** The other queued writes of the same task in the same list. */
+  function copiesOf(refused: TaskEntry, uid: string, entries: readonly TaskEntry[]): TaskEntry[] {
+    return entries.filter((entry) =>
+      entry.seq !== refused.seq && entry.payload.listHref === refused.payload.listHref &&
+      uidOf(entry.payload) === uid
+    )
+  }
+
+  /** One try. Resolves `false` when the copy was taken back and the move must start again. */
+  async function moveOnce(refused: TaskEntry, entries: readonly TaskEntry[]): Promise<boolean> {
+    const { listHref, ics } = refused.payload
+    const uid = uidOf(refused.payload)
+    if (uid === null) return true
+    /** Whether the cache holds the task under another address: it was saved under another name. */
+    const saved = () =>
+      serverTasks.value.some((task) =>
+        task.uid === uid && task.listHref === listHref && task.href !== refused.payload.href
+      )
+    const copies = copiesOf(refused, uid, entries)
+    if (copies.length > 0 || saved()) {
+      const same = copies.some((copy) => copy.kind === `create` && copy.payload.ics === ics)
+      if (same) await outbox.useTheirs(refused)
+      return true
+    }
+    const fileId = uuidV7()
+    held.add(fileId)
+    try {
+      const outcome = await outbox.submit({
+        kind: `create`,
+        entityId: fileId,
+        payload: { href: createdHref(listHref, fileId), listHref, ics, baseEtag: `` },
+      })
+      if (outcome.kind !== `queued`) return true
+      const queued = await outbox.reload()
+      const mine = queued.find((entry) => entry.entityId === fileId)
+      if (mine === undefined) {
+        // Another tab, which does not hold the copy back, has sent it: the task is saved.
+        await outbox.useTheirs(refused)
+        return true
+      }
+      const first = !saved() &&
+        copiesOf(refused, uid, queued).every((copy) => copy.seq! >= mine.seq!)
+      if (first) {
+        await outbox.useTheirs(refused)
+        const left = await outbox.reload()
+        if (!left.some((entry) => entry.seq === refused.seq)) return true
+      }
+      await outbox.withdraw(fileId)
+      return false
+    } finally {
+      held.delete(fileId)
+    }
+  }
+
+  async function move(seq: number): Promise<void> {
+    for (let tries = 0; tries < MOVE_TRIES; tries++) {
+      const entries = await outbox.reload()
+      const refused = entries.find((entry) => entry.seq === seq)
+      if (!refused || !nameTaken(refused)) break
+      if (await moveOnce(refused, entries)) break
+    }
+    await outbox.flush()
+  }
+
+  return {
+    /** Starts a move for every refused create in `entries` that is not being moved yet. */
+    watch(entries: readonly TaskEntry[]): void {
+      for (const entry of entries) {
+        const seq = entry.seq
+        if (seq === undefined || moving.has(seq) || !nameTaken(entry)) continue
+        moving.add(seq)
+        // A move that fails (IndexedDB refused a step) leaves the card, as before this existed.
+        const run: Promise<void> = move(seq).catch(() => {}).finally(() => {
+          moving.delete(seq)
+          running.delete(run)
+        })
+        running.add(run)
+      }
+    },
+    /** Resolves when no move is under way. */
+    async idle(): Promise<void> {
+      while (running.size > 0) await Promise.all(running)
+    },
+  }
+}
+
+/**
+ * The queued create of `task` when a different task holds its file name: the server refused it for
+ * that, or the cache shows another task at its address. The address and the etag such a task is
+ * shown with are the other task's, so nothing built on them may be sent.
+ */
+export function createOnTakenName(task: Task): TaskEntry | undefined {
+  const entry = queuedFor(task)
+  if (entry?.kind !== `create`) return undefined
+  const holder = serverTasks.value.find((other) => other.href === task.href)
+  return nameTaken(entry) || (holder !== undefined && holder.uid !== task.uid) ? entry : undefined
+}
+
+/**
+ * Drops a queued create without sending anything. Resolves `false` when the queue still holds it:
+ * a create that was sent and whose answer is not known yet cannot be taken back.
+ */
+export async function dropCreate(entry: TaskEntry): Promise<boolean> {
+  const outbox = getOutbox()
+  const queued = async () => (await outbox.reload()).some((left) => left.seq === entry.seq)
+  if (entry.status === `conflict`) await outbox.useTheirs(entry)
+  // One call takes back only the latest edit merged into the create: repeat until the create goes.
+  else while (await outbox.withdraw(entry.entityId) && await queued());
+  return !(await queued())
+}
 
 /** The app's outbox, opened on first use. */
 export function getOutbox(): TaskOutbox {
   if (current) return current
+  const store = storeOverride ??
+    createIndexedDbOutboxStore<TaskPayload, TaskSnapshot>({ name: `caldav-tasks-outbox` })
+  currentStore = store
+  /** The file ids of creates that must not be sent yet: see {@link createMover}. */
+  const held = new Set<string>()
   const outbox = createOutbox<TaskPayload, TaskSnapshot>({
-    store: storeOverride ??
-      createIndexedDbOutboxStore<TaskPayload, TaskSnapshot>({ name: `caldav-tasks-outbox` }),
+    store,
     send: trackedSend,
     fetchServer: transport.fetchServer,
     classify: transport.classify,
@@ -239,6 +422,7 @@ export function getOutbox(): TaskOutbox {
     // The browser's own word: a failed request must not stop the next try, which is how the app
     // finds out the server is back.
     canSend: () => connection.online.value,
+    ready: (entry) => !held.has(entry.entityId),
     cache: {
       async put(snapshot) {
         const task = taskOf(snapshot)
@@ -247,12 +431,23 @@ export function getOutbox(): TaskOutbox {
       remove: (entityId) => forget(entityHref(entityId)),
     },
   })
+  const mover = createMover(outbox, held)
   stopListening = outbox.subscribe((entries) => {
     pendingEntries.value = entries
+    mover.watch(entries)
   })
+  moved = mover.idle
   current = outbox
   return outbox
 }
+
+let moved: (() => Promise<void>) | undefined
+
+/**
+ * Resolves when no refused create is being moved to a new file name, which happens after the
+ * flush that met the refusal. For a test that needs the move finished.
+ */
+export const movesDone = (): Promise<void> => moved?.() ?? Promise.resolve()
 
 /**
  * Swaps where the queue is kept, for a test. A fresh outbox is built on next use. `undefined`
@@ -262,8 +457,24 @@ export function useOutboxStore(store: OutboxStore<TaskPayload, TaskSnapshot> | u
   stopListening?.()
   stopListening = undefined
   current = undefined
+  currentStore = undefined
+  moved = undefined
   storeOverride = store
   pendingEntries.value = []
+}
+
+/**
+ * Deletes every queued write from its store, sent or not, and from the screens. For sign-out: the
+ * writes hold the text of the owner's tasks.
+ */
+export async function clearOutbox(): Promise<void> {
+  const outbox = getOutbox()
+  const store = currentStore
+  if (!store) return
+  for (const entry of await store.readOutbox()) {
+    if (entry.seq !== undefined) await store.removeEntry(entry.seq)
+  }
+  await outbox.reload()
 }
 
 /** A store in memory, for tests. */

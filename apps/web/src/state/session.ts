@@ -10,6 +10,11 @@ export enum SessionStatus {
   Unknown = 1,
   SignedIn = 2,
   SignedOut = 3,
+  /**
+   * Was signed in, then the server answered a request with "no valid session". The app stays on
+   * screen, so nothing typed is lost, and asks for the password over it.
+   */
+  Expired = 4,
 }
 
 /** The session as the app knows it. The cookie itself is HttpOnly and never read here. */
@@ -22,7 +27,8 @@ export const sessionStatus = signal(SessionStatus.Unknown)
  */
 export const caldavAccount = signal<{ url: string; username: string } | null>(null)
 
-const UNREACHABLE = "Cannot reach the server. Check the connection and try again."
+/** Shown when a request got no answer from the server. */
+export const UNREACHABLE = "Cannot reach the server. Check the connection and try again."
 
 /**
  * localStorage key of the "signed in on this device" hint. It lets the installed app open offline
@@ -68,6 +74,14 @@ export async function loadSession(): Promise<void> {
   else if (signedIn) signedInHint.remember(1)
   else signedInHint.forget()
   sessionStatus.value = signedIn ? SessionStatus.SignedIn : SessionStatus.SignedOut
+}
+
+/**
+ * Called when the server refuses a request for want of a session. A signed-in app becomes
+ * {@link SessionStatus.Expired}; before the first answer, or signed out, nothing changes.
+ */
+export function expireSession(): void {
+  if (sessionStatus.value === SessionStatus.SignedIn) sessionStatus.value = SessionStatus.Expired
 }
 
 /**

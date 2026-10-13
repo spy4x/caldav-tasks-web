@@ -1,6 +1,6 @@
 # Contributing
 
-Bug reports and pull requests are welcome. For security findings, follow
+Issues are welcome; talk before a pull request. For security findings, follow
 [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ## Development

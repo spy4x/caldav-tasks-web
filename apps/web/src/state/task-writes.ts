@@ -7,7 +7,10 @@ import { parseTask, type Task } from "@spy4x/time/ical-tasks-model"
 import { offline, relay } from "./connection.ts"
 import {
   createdHref,
+  createOnTakenName,
+  dropCreate,
   fileIdFor,
+  isNameTaken,
   queueCreate,
   queueDelete,
   queuedFor,
@@ -58,9 +61,16 @@ export async function restoreTask(task: Task): Promise<WriteResult> {
 }
 
 /** Queues a create and answers with the task as it will be once the server has it. */
-async function queued(listHref: string, ics: string, fileId: string): Promise<WriteResult> {
+async function queued(
+  listHref: string,
+  ics: string,
+  fileId: string,
+  renamed = false,
+): Promise<WriteResult> {
   const outcome = await queueCreate(listHref, fileId, ics)
   if (outcome.kind === `failed`) {
+    // A different task holds the file name: nothing was written, so the task goes under a new one.
+    if (!renamed && isNameTaken(outcome.error)) return await queued(listHref, ics, uuidV7(), true)
     const message = outcome.error instanceof Error ? outcome.error.message : CHANGED_ON_SERVER
     return { kind: WriteKind.Failed, message }
   }
@@ -106,10 +116,21 @@ async function queuedDelete(task: Task): Promise<WriteResult> {
 /**
  * Deletes a task on the server, then drops it from the cache. Offline it is queued. Refused when
  * the server's copy changed since it was read, so a delete never removes an edit it has not seen.
- * Subtasks are not touched. Resolves with the deleted task, so Undo can {@link restoreTask} it.
+ * A task whose create still waits under a file name a different task holds is only dropped from
+ * the queue. Subtasks are not touched. Resolves with the deleted task, so Undo can
+ * {@link restoreTask} it.
  */
 export async function deleteTask(given: Task): Promise<WriteResult> {
   const task = await settle(given)
+  if (task === null) return { kind: WriteKind.Failed, message: CHANGED_ON_SERVER }
+  // The address this task is shown at belongs to a different task: a delete sent there would
+  // remove that one. The server never stored this task, so dropping its create deletes it.
+  const refused = createOnTakenName(task)
+  if (refused) {
+    return await dropCreate(refused)
+      ? { kind: WriteKind.Saved, task }
+      : { kind: WriteKind.Failed, message: CHANGED_ON_SERVER }
+  }
   if (offline.value || queuedFor(task)) return await queuedDelete(task)
   if (!task.etag) return { kind: WriteKind.Failed, message: CHANGED_ON_SERVER }
   const result = await relay(CALDAV_PATHS.object, {

@@ -62,8 +62,11 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
 /** Whether the shortcuts dialog is open. The `?` key and the Settings button set it. */
 export const shortcutsOpen = signal(false)
 
-/** Elements that count as a dialog: no shortcut fires inside one. */
-const DIALOG = `dialog, [role='dialog'], [role='alertdialog']`
+/**
+ * Elements that take the keyboard for themselves: a dialog, an open menu and a listbox. No shortcut
+ * fires inside one.
+ */
+const MODAL = `dialog, [role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']`
 
 /** A key press as the matcher reads it. A `KeyboardEvent` is one. */
 export type ShortcutPress = HotkeySequenceEvent
@@ -71,7 +74,7 @@ export type ShortcutPress = HotkeySequenceEvent
 /**
  * The matcher for the table: call it with each key press and it returns the shortcut the press
  * completes, or `undefined`. It is `createHotkeyMatcher` over `SHORTCUTS`, with presses inside a
- * dialog ignored.
+ * dialog, a menu or a listbox ignored.
  */
 export function createShortcutMatcher(): (press: ShortcutPress) => ShortcutId | undefined {
   const bindings: HotkeyBinding<ShortcutId>[] = SHORTCUTS.flatMap((def) =>
@@ -79,7 +82,7 @@ export function createShortcutMatcher(): (press: ShortcutPress) => ShortcutId | 
   )
   return createHotkeyMatcher(bindings, {
     timeoutMs: SEQUENCE_TIMEOUT_MS,
-    ignore: (press) => (press.target as Element | null)?.closest?.(DIALOG) != null,
+    ignore: (press) => (press.target as Element | null)?.closest?.(MODAL) != null,
   })
 }
 

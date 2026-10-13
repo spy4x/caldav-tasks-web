@@ -8,7 +8,7 @@ import {
 import { denoFileSystem } from "@spy4x/platform/server/deno-fs"
 import type { FileSystemPort } from "@spy4x/platform/server/ports"
 import type { ReminderRunner } from "@spy4x/platform/server/reminder-runner"
-import type { Config, PushConfig } from "../config.ts"
+import { type Config, isPrivateHost, type PushConfig } from "../config.ts"
 import { vapidKeysFromText } from "./keys.ts"
 import { createReminders, nameOf, OWNER } from "./reminders.ts"
 
@@ -101,6 +101,7 @@ export async function createPush(config: Config, pushConfig: PushConfig): Promis
   })
   const client = createCalDavClient({
     serverUrl: config.CALDAV_URL,
+    allowHttp: isPrivateHost(new URL(config.CALDAV_URL).hostname),
     auth: { username: config.CALDAV_USERNAME, password: config.CALDAV_PASSWORD },
   })
   const runner = createReminders({
