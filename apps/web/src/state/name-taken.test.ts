@@ -15,7 +15,7 @@ import {
 import { pendingEntries, type TaskEntry } from "./pending.ts"
 import { refresh } from "./sync.ts"
 import { tasks, WriteKind } from "./tasks.ts"
-import { addTask } from "./task-writes.ts"
+import { addTask, deleteTask } from "./task-writes.ts"
 import { type FakeServer, setBrowserOnline, withApp } from "./testing.ts"
 
 // A task created on this device is stored as `<its UID>.ics`. Here the new task's UID is `one`, and
@@ -221,5 +221,84 @@ Deno.test(`a task added on a dropped connection under a file name another task h
     expect(result.task.href).toBe(`${LIST_HREF}${fileId}.ics`)
     expect(pendingEntries.value).toEqual([])
     expect(titles()).toEqual([`Buy milk`, `Pay rent`])
+  })
+})
+
+Deno.test(`a refused create whose new copy another tab has already sent is dropped, and the task is on the server once`, async () => {
+  await withApp(async (server) => {
+    const other = await start(server)
+    const inner = createTestOutboxStore()
+    let sent = false
+    const store: Store = {
+      ...inner,
+      // Another tab, which does not hold the copy back, sends it as soon as it is stored.
+      async putEntry(entry) {
+        const stored = await inner.putEntry(entry)
+        if (!sent && isNewCopy(entry)) {
+          sent = true
+          const copy = (await inner.readOutbox()).find((one) => one.entityId === entry.entityId)!
+          server.seed(copy.payload.href, LIST_HREF, copy.payload.ics)
+          await inner.removeEntry(copy.seq!)
+        }
+        return stored
+      },
+    }
+    useOutboxStore(store)
+    await addOfflineUnderTakenName()
+
+    await flush()
+
+    expect(sent).toBe(true)
+    expect(pendingEntries.value).toEqual([])
+    expect(conflicts.value).toEqual([])
+    expect(added(server).length).toBe(1)
+    expect(server.objects.get(HREF)).toEqual(other)
+  })
+})
+
+Deno.test(`deleting a new task while its create waits refused under a taken file name drops the create and leaves the task that holds the name`, async () => {
+  await withApp(async (server) => {
+    const other = await start(server)
+    const inner = createTestOutboxStore()
+    const store: Store = {
+      ...inner,
+      // The move to a new file name cannot start, so the refused create stays as a card.
+      putEntry: (entry) =>
+        isNewCopy(entry) ? Promise.reject(new Error(`no room`)) : inner.putEntry(entry),
+    }
+    useOutboxStore(store)
+    await addOfflineUnderTakenName()
+    await flush()
+    expect(conflicts.value.length).toBe(1)
+    const mine = tasks.value.find((task) => task.title === `Pay rent`)!
+
+    const result = await deleteTask(mine)
+    await flush()
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect(server.count(`DELETE`, CALDAV_PATHS.object)).toBe(0)
+    expect(server.objects.get(HREF)).toEqual(other)
+    expect(added(server)).toEqual([])
+    expect(pendingEntries.value).toEqual([])
+    expect(titles()).toEqual([`Buy milk`])
+  })
+})
+
+Deno.test(`deleting a task from a copy read before it moved to a new file name deletes that task and leaves the task that holds the name`, async () => {
+  await withApp(async (server) => {
+    const other = await start(server)
+    await addOfflineUnderTakenName()
+    // What an open screen still holds: the task at the taken address.
+    const stale = tasks.value.find((task) => task.title === `Pay rent`)!
+    expect(stale.href).toBe(HREF)
+    await flush()
+    expect(added(server).length).toBe(1)
+
+    const result = await deleteTask(stale)
+
+    expect(result.kind).toBe(WriteKind.Saved)
+    expect(server.objects.get(HREF)).toEqual(other)
+    expect(added(server)).toEqual([])
+    expect(titles()).toEqual([`Buy milk`])
   })
 })

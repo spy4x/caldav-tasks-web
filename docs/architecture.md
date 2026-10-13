@@ -72,7 +72,10 @@ screen shows the change at once. When the network returns, the queue is sent bef
   becomes a conflict. The queue survives a reload (`state/offline-writes.test.ts`).
 - A new task whose file name a different task already holds is refused by the server. The app
   queues it again under a new file name and drops the refused write, so it is saved without a
-  choice and the other task is not touched (`state/name-taken.test.ts`).
+  choice. Until then the screens show the new task at the other task's address. A save or a delete
+  that starts from such a copy after the move goes to the task's own new address, found by UID
+  (`settle` in `state/outbox.ts`), and a delete made while the refused write still waits only
+  drops that write (`state/name-taken.test.ts`, `views/TaskEditorView.test.tsx`).
 
 A service worker caches the app's page and files so the app opens offline. It never caches `/api`
 or `/health`.

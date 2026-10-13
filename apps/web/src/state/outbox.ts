@@ -196,15 +196,25 @@ const trackedSend: typeof transport.send = async (command, key) => {
 }
 
 /**
- * The copy of `task` to build a new write on. While a send for the task is under way its etag is
- * about to change (a created task has none yet), so this waits for that send to settle and returns
- * the copy the person sees: the server's copy with any writes still queued on top. Otherwise
- * returns `task` itself.
+ * The copy of `task` to build a new write on, or `null` when the task is no longer on this device.
+ *
+ * While a send for the task is under way its etag is about to change (a created task has none
+ * yet), so this waits for that send to settle and returns the copy the person sees: the server's
+ * copy with any writes still queued on top.
+ *
+ * A copy read while its create waited under a file name a different task holds carries that task's
+ * address and etag, and the task has since moved to a file name of its own. A write built on such
+ * a copy would land on the other task, so this answers with the task as it is now, found by UID.
  */
-export async function settle(task: Task): Promise<Task> {
-  if (!inFlight.has(entityIdOf(task))) return task
-  await getOutbox().flush()
-  return tasks.value.find((other) => other.href === task.href) ?? task
+export async function settle(task: Task): Promise<Task | null> {
+  const sending = inFlight.has(entityIdOf(task))
+  if (sending) await getOutbox().flush()
+  const there = tasks.value.find((other) => other.href === task.href)
+  if (there === undefined || there.uid === task.uid) return sending ? there ?? task : task
+  const moved = tasks.value.find((other) =>
+    other.uid === task.uid && other.listHref === task.listHref
+  )
+  return moved ?? null
 }
 
 /** Reads a server snapshot as a task, or `null` when its text cannot be read. */
@@ -254,13 +264,16 @@ function uidOf({ href, listHref, ics }: TaskPayload): string | null {
   return taskOf({ version: 0, href, listHref, etag: ``, ics })?.uid ?? null
 }
 
-/** How many times one refused create is moved before its card is left for the person. */
+/**
+ * How many times in a row one refused create is moved. After that its card stays until the queue
+ * is next read or changed, which starts the move again.
+ */
 const MOVE_TRIES = 3
 
 /**
  * Moves every create that was refused because a different task holds its file name to a file name
- * of its own, so the task is saved without the person doing anything. The task that holds the name
- * is never written or deleted: the refused create is only dropped from the queue.
+ * of its own, so the task is saved without the person doing anything. The move sends nothing to
+ * the task that holds the name: the refused create is only dropped from the queue.
  *
  * The task must not end up on the server twice, so the steps are ordered and each is checked:
  *
@@ -364,6 +377,29 @@ function createMover(outbox: TaskOutbox, held: Set<string>) {
       while (running.size > 0) await Promise.all(running)
     },
   }
+}
+
+/**
+ * The queued create of `task` when a different task holds its file name: the server refused it for
+ * that, or the cache shows another task at its address. The address and the etag such a task is
+ * shown with are the other task's, so nothing built on them may be sent.
+ */
+export function createOnTakenName(task: Task): TaskEntry | undefined {
+  const entry = queuedFor(task)
+  if (entry?.kind !== `create`) return undefined
+  const holder = serverTasks.value.find((other) => other.href === task.href)
+  return nameTaken(entry) || (holder !== undefined && holder.uid !== task.uid) ? entry : undefined
+}
+
+/**
+ * Drops a queued create without sending anything. Resolves `false` when the queue still holds it:
+ * a create that was sent and whose answer is not known yet cannot be taken back.
+ */
+export async function dropCreate(entry: TaskEntry): Promise<boolean> {
+  const outbox = getOutbox()
+  if (entry.status === `conflict`) await outbox.useTheirs(entry)
+  else await outbox.withdraw(entry.entityId)
+  return !(await outbox.reload()).some((left) => left.seq === entry.seq)
 }
 
 /** The app's outbox, opened on first use. */
