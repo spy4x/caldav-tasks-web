@@ -4,15 +4,20 @@ import { Redirect, Route, Switch, useLocation, useSearch } from "wouter-preact"
 import { Notice } from "@spy4x/preact-ui/notice"
 import { Toastr } from "@spy4x/preact-ui/toastr"
 import { AppFrame } from "@ui/frame.tsx"
+import { pageTitle } from "./page-title.ts"
 import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
 import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
 import { ShortcutsDialog } from "@spy4x/preact-ui/shortcuts-dialog"
 import { leaveGuard } from "./leave-guard.ts"
 import { useShortcuts } from "./views/use-shortcuts.ts"
+import { usePageAnnouncer } from "./views/use-page-announcer.ts"
+import { calendarsLoaded } from "./state/calendars.ts"
 import { notice } from "./state/connection.ts"
 import { startSync } from "./state/sync.ts"
 import { startPush } from "./state/push.ts"
+import { taskLists } from "./state/task-lists.ts"
+import { tasks } from "./state/tasks.ts"
 import { toasts } from "./state/toasts.ts"
 import { InstallOffer } from "./views/InstallOffer.tsx"
 import { SyncBar } from "./views/SyncBar.tsx"
@@ -62,6 +67,16 @@ function SignedInApp() {
   useEffect(() => startPush(), [])
   const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
   useShortcuts(navigate)
+  usePageAnnouncer({
+    path: location,
+    // The address as the browser holds it: the router's own is half decoded, which loses a task
+    // whose UID holds `@`, `/`, `?`, `#` or `+`.
+    title: pageTitle(globalThis.location.pathname, {
+      lists: taskLists.value,
+      tasks: tasks.value,
+      loaded: calendarsLoaded.value,
+    }),
+  })
   return (
     <AppFrame currentPath={location} navigate={guarded}>
       {notice.value && (
