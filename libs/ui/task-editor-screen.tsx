@@ -17,6 +17,7 @@ import { type AlarmInput } from "@spy4x/time/ical-tasks"
 import { floatingDue } from "./due-label.ts"
 import {
   PriorityBand,
+  RepeatFrom,
   type Task,
   type TaskDate,
   type TaskList,
@@ -41,6 +42,12 @@ export interface TaskDraft {
   tags: string[]
   /** The `RRULE` value (no prefix), or `null` for no repeat. Unchanged, it is the task's own text. */
   repeatRule: string | null
+  /**
+   * What a repeating task counts its next date from when it is completed: its due date, or the day
+   * it was completed. `RepeatFrom.DueDate` when the task does not repeat. The screen always hands
+   * it over; left out, the task keeps the choice it has.
+   */
+  repeatFrom?: RepeatFrom
   /** The reminders the task has afterwards. Unchanged, they are the ones it was read with. */
   reminders: AlarmInput[]
 }
@@ -135,8 +142,14 @@ interface Fields {
   listHref: string
   tags: string[]
   repeatRule: string | null
+  repeatFrom: RepeatFrom
   reminders: AlarmInput[]
 }
+
+const REPEAT_FROM_OPTIONS = [
+  { value: String(RepeatFrom.DueDate), label: "From the due date" },
+  { value: String(RepeatFrom.Completion), label: "From the day it is completed" },
+]
 
 const PRIORITY_NUMBER: Record<PriorityBand, number> = {
   [PriorityBand.None]: 0,
@@ -189,6 +202,7 @@ function fieldsOf(task: Task, zone: string): Fields {
     listHref: task.listHref,
     tags: [...task.tags],
     repeatRule: task.repeatRule ?? null,
+    repeatFrom: task.repeatFrom ?? RepeatFrom.DueDate,
     reminders: task.reminders.map((reminder) => ({ trigger: reminder.alarm })),
   }
 }
@@ -233,26 +247,25 @@ function dateOf(
   }
 }
 
+const REPEAT_NEEDS_DUE = "Pick a due date. A repeating task counts its next date from it."
+
 /** What is wrong with the form itself, before anything is sent. */
 function check(fields: Fields, baseline: Fields): TaskEditorErrors {
   const errors: TaskEditorErrors = {}
   if (!fields.title.trim()) errors.title = "Enter a title."
   if (!fields.dueDate && fields.dueTime) errors.due = "Pick a due date for this time."
   if (!fields.startDate && fields.startTime) errors.start = "Pick a start date for this time."
-  // Like the library: a rule the task already has is not refused, only a new or changed one.
-  if (
-    fields.repeatRule && fields.repeatRule !== baseline.repeatRule && !fields.dueDate &&
-    !fields.startDate
-  ) {
-    errors.repeat = "A task needs a start or due date to repeat from."
-  }
+  // Like the library: a repeating task that arrived without a due date can still be saved, but a
+  // new or changed rule needs one, and a repeating task cannot lose the one it has.
+  const leftAsItCame = fields.repeatRule === baseline.repeatRule && !baseline.dueDate
+  if (fields.repeatRule && !fields.dueDate && !leftAsItCame) errors.due ??= REPEAT_NEEDS_DUE
   return errors
 }
 
 /**
  * The task editor: a page with title, notes, due and start (native date and optional time),
- * priority, list, tags, the repeat rule ({@link RepeatField}) and reminders
- * ({@link RemindersField}).
+ * priority, list, tags, the repeat rule ({@link RepeatField}), what a repeating task counts its
+ * next date from, and reminders ({@link RemindersField}).
  *
  * The screen holds the form's values itself and hands the whole form to `onSave`. Leaving with
  * changes asks first (`UnsavedGuard`). A refused save focuses the first field in error. Delete lives
@@ -317,6 +330,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
     listHref: fields.listHref,
     tags: fields.tags,
     repeatRule: fields.repeatRule,
+    repeatFrom: fields.repeatRule ? fields.repeatFrom : RepeatFrom.DueDate,
     reminders: fields.reminders,
   })
 
@@ -448,6 +462,18 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
               zone,
             )}
           />
+          {fields.repeatRule && (
+            <RadioGroup
+              id="task-repeat-from"
+              legend="Count the next date"
+              name="repeat-from"
+              class="flex flex-wrap gap-4"
+              options={REPEAT_FROM_OPTIONS}
+              value={String(fields.repeatFrom)}
+              onChange={(value) => set({ repeatFrom: Number(value) as RepeatFrom })}
+              data-e2e="task-repeat-from"
+            />
+          )}
           <RemindersField
             id="task-reminders"
             value={fields.reminders}
