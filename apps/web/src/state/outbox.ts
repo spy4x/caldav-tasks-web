@@ -225,13 +225,16 @@ type TaskOutbox = Outbox<TaskPayload, TaskSnapshot>
 let current: TaskOutbox | undefined
 let storeOverride: OutboxStore<TaskPayload, TaskSnapshot> | undefined
 let stopListening: (() => void) | undefined
+let currentStore: OutboxStore<TaskPayload, TaskSnapshot> | undefined
 
 /** The app's outbox, opened on first use. */
 export function getOutbox(): TaskOutbox {
   if (current) return current
+  const store = storeOverride ??
+    createIndexedDbOutboxStore<TaskPayload, TaskSnapshot>({ name: `caldav-tasks-outbox` })
+  currentStore = store
   const outbox = createOutbox<TaskPayload, TaskSnapshot>({
-    store: storeOverride ??
-      createIndexedDbOutboxStore<TaskPayload, TaskSnapshot>({ name: `caldav-tasks-outbox` }),
+    store,
     send: trackedSend,
     fetchServer: transport.fetchServer,
     classify: transport.classify,
@@ -262,8 +265,23 @@ export function useOutboxStore(store: OutboxStore<TaskPayload, TaskSnapshot> | u
   stopListening?.()
   stopListening = undefined
   current = undefined
+  currentStore = undefined
   storeOverride = store
   pendingEntries.value = []
+}
+
+/**
+ * Deletes every queued write from its store, sent or not, and from the screens. For sign-out: the
+ * writes hold the text of the owner's tasks.
+ */
+export async function clearOutbox(): Promise<void> {
+  const outbox = getOutbox()
+  const store = currentStore
+  if (!store) return
+  for (const entry of await store.readOutbox()) {
+    if (entry.seq !== undefined) await store.removeEntry(entry.seq)
+  }
+  await outbox.reload()
 }
 
 /** A store in memory, for tests. */

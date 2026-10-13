@@ -22,7 +22,8 @@ export const sessionStatus = signal(SessionStatus.Unknown)
  */
 export const caldavAccount = signal<{ url: string; username: string } | null>(null)
 
-const UNREACHABLE = "Cannot reach the server. Check the connection and try again."
+/** Shown when a request got no answer from the server. */
+export const UNREACHABLE = "Cannot reach the server. Check the connection and try again."
 
 /**
  * localStorage key of the "signed in on this device" hint. It lets the installed app open offline
