@@ -123,7 +123,10 @@ export const pushConfigSchema = type({
   VAPID_PRIVATE_KEY: "string > 0",
   /** How a push service can reach the owner: a `mailto:` or `https:` address. */
   VAPID_SUBJECT: /^(mailto:\S+@\S+|https:\/\/\S+)$/,
-  /** The folder of the one file the server writes: the push subscriptions and what was sent. */
+  /**
+   * The folder of the one file the server keeps: the push subscriptions and what was sent. The
+   * server creates other files in it too: a temporary one per write, and `.write-check` at start.
+   */
   DATA_DIR: "string > 0",
   /**
    * The IANA zone a reminder is read in when its task has a date with no time, or a time with no
