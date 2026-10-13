@@ -2,7 +2,7 @@
 import { expect } from "@std/expect"
 import { CalDavErrorCode } from "@spy4x/caldav"
 import { CALDAV_MAX_REQUEST_BYTES, CALDAV_PATHS } from "@api/caldav.ts"
-import { REQUEST_TOO_LARGE } from "./routes.ts"
+import { createCaldavRoutes, REQUEST_TOO_LARGE } from "./routes.ts"
 import { TEST_CONFIG } from "../test-config.ts"
 import {
   CODES,
@@ -423,4 +423,12 @@ Deno.test("no response body and no log line contains CALDAV_PASSWORD", async () 
   expect(lines.length).toBeGreaterThanOrEqual(CODES.length)
   for (const text of [...bodies, ...lines]) expect(text).not.toContain(password)
   expect(lines.some((line) => line.includes("getObject threw Error"))).toBe(true)
+})
+
+Deno.test("builds its own client for an http: address that is not public, and refuses to build one for a public http: address", () => {
+  for (const CALDAV_URL of ["http://localhost:5232", "http://radicale:5232"]) {
+    createCaldavRoutes({ ...TEST_CONFIG, CALDAV_URL })
+  }
+  expect(() => createCaldavRoutes({ ...TEST_CONFIG, CALDAV_URL: "http://dav.example.com" }))
+    .toThrow("serverUrl is an http: address")
 })

@@ -76,6 +76,11 @@ container can reach works: the public `https://` address, or, when both run on o
 the container's name. For Stalwart, use the mail host's address, such as `https://mail.example.com`.
 The username and password are sent to that address only, and the browser never sees them.
 
+Plain `http://` sends that password unencrypted, so the server refuses to start with an `http://`
+address that is public. It accepts `http://` where the traffic stays off the internet: a container
+name (`http://radicale:5232`), this machine, a name under `.local` or `.internal`, or a private
+network address such as `192.168.1.10`.
+
 ## Behind a reverse proxy
 
 Run the container on a port that only the proxy can reach (the compose file above binds it to
