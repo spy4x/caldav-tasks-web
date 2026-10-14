@@ -61,6 +61,8 @@ export class FakeCalDav implements CalDavClient {
   failWith: CalDavError | null = null
   /** Reading the objects of a calendar at one of these addresses fails with its error. */
   failLists = new Map<string, CalDavError>()
+  /** What the account may do, by address; an address not named here has no privilege list. */
+  privileges = new Map<string, string[]>()
   /** When set, discovery fails with this. */
   discoverFails: CalDavError | null = null
   private version = 0
@@ -177,6 +179,9 @@ export class FakeCalDav implements CalDavClient {
       return ok(null)
     })
   }
+  // A property, as the tests replace it with the real client's method over a made-up server.
+  getPrivileges: NonNullable<CalDavClient["getPrivileges"]> = (url) =>
+    this.record(["getPrivileges", String(url)], () => ok(this.privileges.get(String(url)) ?? null))
 
   /** The calls that touch a calendar's contents, as opposed to discovery and listing calendars. */
   objectCalls(): Call[] {

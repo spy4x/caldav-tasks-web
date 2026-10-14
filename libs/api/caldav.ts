@@ -14,16 +14,66 @@ import { type } from "arktype"
  * | Status | Code                 | When                                                        |
  * | ------ | -------------------- | ----------------------------------------------------------- |
  * | 400    | `bad_request`        | A malformed request, or an href outside the listed calendars |
+ * | 403    | `caldav_forbidden`   | A write the CalDAV server answered with 403, giving no reason |
+ * | 403    | `caldav_precondition` | A write it answered with 403 and a reason, in `condition`  |
  * | 404    | `not_found`          | The calendar or task no longer exists                       |
  * | 409    | `already_exists`     | A new task's address was taken; sending it again may work   |
  * | 409    | `uid_conflict`       | Another task has the same UID, or the edit changes the UID  |
  * | 412    | `conflict`           | The etag is stale: read the task again, re-apply, retry     |
  * | 413    | `too_large`          | The request or the CalDAV server's reply is too large       |
- * | 502    | `caldav_refused`     | The CalDAV server refused the configured account            |
+ * | 502    | `caldav_refused`     | The CalDAV server refused the configured account, or a read |
  * | 502    | `caldav_failed`      | The CalDAV server answered with something unusable          |
  * | 503    | `caldav_unreachable` | The CalDAV server cannot be reached                         |
  * | 504    | `caldav_unreachable` | The CalDAV server took too long                             |
+ *
+ * Only the three writes of a task (`POST /objects`, `PUT /object`, `DELETE /object`) answer 403: a
+ * 403 from the CalDAV server on any other route is a 502 `caldav_refused`, as is a 401 on every
+ * route. `condition` is one of {@link CALDAV_CONDITIONS}, or `other` for a name not in that list:
+ * the CalDAV server's own text never reaches the browser.
  */
+
+/**
+ * The `DAV:error` conditions a refused write is reported with by name (RFC 4918, RFC 3744,
+ * RFC 4791). Any other name the CalDAV server gives is reported as {@link OTHER_CONDITION}.
+ */
+export const CALDAV_CONDITIONS: readonly string[] = [
+  "need-privileges",
+  "cannot-modify-protected-property",
+  "lock-token-submitted",
+  "no-conflicting-lock",
+  "quota-not-exceeded",
+  "sufficient-disk-space",
+  "supported-calendar-data",
+  "supported-calendar-component",
+  "valid-calendar-data",
+  "valid-calendar-object-resource",
+  "max-resource-size",
+  "min-date-time",
+  "max-date-time",
+  "max-instances",
+  "max-attendees-per-instance",
+]
+
+/** What `condition` holds for a condition that is not one of {@link CALDAV_CONDITIONS}. */
+export const OTHER_CONDITION = "other"
+
+/**
+ * The `DAV:` privileges `GET /api/caldav/privileges` reports by name (RFC 3744 section 3). A name
+ * the CalDAV server lists that is not one of these is left out.
+ */
+export const DAV_PRIVILEGES: readonly string[] = [
+  "read",
+  "write",
+  "write-properties",
+  "write-content",
+  "unlock",
+  "read-acl",
+  "read-current-user-privilege-set",
+  "write-acl",
+  "bind",
+  "unbind",
+  "all",
+]
 
 /** Where each CalDAV route lives. Every one needs the owner's session. */
 export const CALDAV_PATHS = {
@@ -58,6 +108,12 @@ export const CALDAV_PATHS = {
    * is stale.
    */
   object: "/api/caldav/object",
+  /**
+   * `GET ?href=<href>` of a listed calendar or a task in one; answers 200 with a
+   * {@link PrivilegeList}: what the configured account may do there, as the CalDAV server says.
+   * Any answer of the CalDAV server but a readable 207 is an error, never an empty list.
+   */
+  privileges: "/api/caldav/privileges",
 } as const
 
 /** Largest request body the CalDAV routes accept, in bytes: 1 MiB. */
@@ -156,6 +212,17 @@ export const writeResultSchema = type({
 
 /** What a create or update answers. */
 export type WriteResult = typeof writeResultSchema.infer
+
+/**
+ * What the configured account may do at an address. `privileges` holds the names of the `DAV:`
+ * privileges the CalDAV server lists there (of {@link DAV_PRIVILEGES}); a list without `write`,
+ * `write-content`, `bind`, `unbind` and `all` means the account may only read. `null` when the
+ * server gives no such list, which says nothing about what the account may do.
+ */
+export const privilegeListSchema = type({ privileges: "string[] | null" })
+
+/** What `GET /api/caldav/privileges` answers. */
+export type PrivilegeList = typeof privilegeListSchema.infer
 
 /** A list's name: not blank, at most 255 characters. */
 const listNameSchema = type("string <= 255").and(/\S/)

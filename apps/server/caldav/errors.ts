@@ -1,8 +1,9 @@
-import { CalDavErrorCode } from "@spy4x/caldav"
+import { type CalDavError, CalDavErrorCode } from "@spy4x/caldav"
+import { CALDAV_CONDITIONS, OTHER_CONDITION } from "@api/caldav.ts"
 import { ApiErrorCode } from "@api/errors.ts"
 
 /** The statuses a CalDAV failure answers with. */
-export type CalDavFailureStatus = 400 | 404 | 409 | 412 | 413 | 502 | 503 | 504
+export type CalDavFailureStatus = 400 | 403 | 404 | 409 | 412 | 413 | 502 | 503 | 504
 
 /** How one CalDAV failure reaches the browser. */
 export interface CalDavFailure {
@@ -10,6 +11,8 @@ export interface CalDavFailure {
   code: ApiErrorCode
   /** A fixed message: the CalDAV server's own text never reaches the browser. */
   message: string
+  /** The condition the CalDAV server named for a refused write; see {@link writeRefusal}. */
+  condition?: string
 }
 
 /**
@@ -18,6 +21,7 @@ export interface CalDavFailure {
  *
  * The CalDAV server refusing the account is a 502, not a 401: a 401 from this server means the
  * owner's session ended, and the browser would sign the owner out for a server-side problem. A
+ * 403 is a 502 here too; only a write passes it on, through {@link writeRefusal}. A
  * stale etag is the only failure that answers `conflict`, so the browser can rebase and retry.
  */
 export const CALDAV_FAILURES: Readonly<Record<CalDavErrorCode, CalDavFailure>> = {
@@ -103,4 +107,31 @@ export const UNEXPECTED_FAILURE: CalDavFailure = {
   status: 502,
   code: ApiErrorCode.CalDavFailed,
   message: "The CalDAV server failed",
+}
+
+/**
+ * How a write the CalDAV server answered with 403 reaches the browser, or `null` for any other
+ * failure. The browser's queue must tell this refusal from an outage: a write that is refused for
+ * good becomes a choice for the person and the writes behind it go out, while an outage keeps
+ * everything queued. So the status and the `DAV:error` condition are passed on, and nothing else of
+ * the answer: the condition is a name from {@link CALDAV_CONDITIONS} or {@link OTHER_CONDITION},
+ * never the server's own text.
+ */
+export function writeRefusal(error: CalDavError): CalDavFailure | null {
+  const forbidden = error.code === CalDavErrorCode.Forbidden ||
+    (error.code === CalDavErrorCode.Server && error.status === 403)
+  if (!forbidden) return null
+  if (error.condition === undefined) {
+    return {
+      status: 403,
+      code: ApiErrorCode.CalDavForbidden,
+      message: "The CalDAV server refused this change",
+    }
+  }
+  return {
+    status: 403,
+    code: ApiErrorCode.CalDavPrecondition,
+    message: "The CalDAV server does not accept this change",
+    condition: CALDAV_CONDITIONS.includes(error.condition) ? error.condition : OTHER_CONDITION,
+  }
 }

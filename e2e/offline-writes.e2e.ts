@@ -277,3 +277,64 @@ test("a task with subtasks deleted offline takes them all, a reload keeps every 
   expect(await readList(list)).toContain(`SUMMARY:Seeded errand`)
   await expect(page.getByText(/waiting/)).toHaveCount(0)
 })
+
+for (
+  const [name, arrives] of [
+    [`its answer was lost`, true],
+    [`the request never reached the server`, false],
+  ] as const
+) {
+  test(`a task added when ${name} and then deleted is gone from the server and the queue after reconnect, with no choice to make`, async ({ page, context }) => {
+    await openList(page)
+    await context.setOffline(true)
+    await page.getByTestId(`quick-add-input`).fill(`Short lived`)
+    await page.getByTestId(`quick-add-submit`).click()
+    await expect(page.getByRole(`button`, { name: `Short lived`, exact: true })).toBeVisible()
+    await expect(waiting(page, 1)).toBeVisible()
+
+    // The network comes back badly: the create is sent, and either the server stores the task and
+    // the answer is lost, or the request is lost. Nothing else gets through.
+    let creates = 0
+    await page.route(`**/api/caldav/**`, async (route) => {
+      if (route.request().method() === `POST` && creates++ === 0 && arrives) {
+        // Playwright's own fetch leaves out the header the server's same-origin check reads.
+        await route.fetch({
+          headers: { ...await route.request().allHeaders(), "sec-fetch-site": `same-origin` },
+        })
+      }
+      await route.abort()
+    })
+    await context.setOffline(false)
+    await expect.poll(() => creates).toBeGreaterThan(0)
+    if (arrives) await expect.poll(async () => await readList(list)).toContain(`Short lived`)
+
+    await page.getByRole(`button`, { name: `Short lived`, exact: true }).click()
+    await page.getByRole(`button`, { name: `More actions` }).click()
+    await page.getByRole(`menuitem`, { name: `Delete` }).click()
+    await page.getByRole(`button`, { name: `Delete` }).last().click()
+    await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
+    await expect(page.getByRole(`button`, { name: `Short lived`, exact: true })).toHaveCount(0)
+    await expect(waiting(page, 1)).toBeVisible()
+    expect((await readList(list)).includes(`Short lived`)).toBe(arrives)
+
+    // The network is back for good.
+    const deletes: string[] = []
+    page.on(`request`, (request) => {
+      if (request.method() === `DELETE`) deletes.push(new URL(request.url()).pathname)
+    })
+    await page.unroute(`**/api/caldav/**`)
+    await context.setOffline(true)
+    await context.setOffline(false)
+
+    await expect(page.getByText(/waiting/)).toHaveCount(0)
+    await expect(page.getByText(`Offline: showing your last copy`)).toHaveCount(0)
+    await expect(page.getByRole(`heading`, { name: /needs? your choice/ })).toHaveCount(0)
+    await expect(page.getByRole(`button`, { name: `Short lived`, exact: true })).toHaveCount(0)
+    await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
+    const stored = await readList(list)
+    expect(stored).not.toContain(`Short lived`)
+    expect(stored).toContain(`SUMMARY:Seeded errand`)
+    // A task the server never stored is not deleted there; one it stored is deleted once.
+    expect(deletes).toEqual(arrives ? [`/api/caldav/object`] : [])
+  })
+}

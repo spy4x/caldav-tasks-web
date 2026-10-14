@@ -16,6 +16,13 @@ What was tested, and what was not. A row says "tested" only when a test in this 
 If you try another server, an issue with the server, its version and what happened helps the next
 person.
 
+A list the account may only read (one shared read-only) is handled, but against no real server:
+a change made offline in such a list becomes a conflict to settle, and the changes behind it are
+sent. The tests run against a made-up server that answers the way the `@spy4x/caldav` notes say
+Stalwart 0.16 does, a `403` with no reason (`apps/web/src/state/offline-writes.test.ts`,
+`apps/server/caldav/routes.test.ts`). The Radicale used for the browser tests lets every account
+write everywhere, so it cannot refuse a write.
+
 ## CalDAV clients that share the lists
 
 | Client                 | Status                                          | Evidence                                                                                                                                                                                                                      |

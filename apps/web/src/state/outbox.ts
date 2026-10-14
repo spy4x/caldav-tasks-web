@@ -27,6 +27,7 @@ import { parseTask, type Task } from "@spy4x/time/ical-tasks-model"
 import {
   CALDAV_PATHS,
   createObjectRequestSchema,
+  privilegeListSchema,
   taskObjectSchema,
   writeResultSchema,
 } from "@api/caldav.ts"
@@ -54,12 +55,21 @@ export function createdHref(listHref: string, fileId: string): string {
   return `${withSlash(listHref)}${fileId}.ics`
 }
 
+/**
+ * What the transport is told for a 403 that named a `DAV:error` condition. The relay sends the name
+ * in the error body, but the app's `fetch` wrapper reads only `code` and `message` from one, so the
+ * code says that a condition was named and this stands in for which. The transport asks only
+ * whether there is one.
+ */
+const NAMED_CONDITION = `named-by-server`
+
 /** A relay failure told the way the CalDAV client tells it, so the transport can classify it. */
 function failure(result: Extract<RelayResult<unknown>, { ok: false }>): CalDavResult<never> {
   const error: CalDavError = {
     code: codeOf(result),
     message: result.message,
     ...(result.status > 0 ? { status: result.status } : {}),
+    ...(result.code === ApiErrorCode.CalDavPrecondition ? { condition: NAMED_CONDITION } : {}),
   }
   return { success: false, output: null, error }
 }
@@ -79,14 +89,21 @@ function codeOf(result: Extract<RelayResult<unknown>, { ok: false }>): CalDavErr
       return CalDavErrorCode.InvalidArgument
     case ApiErrorCode.TooLarge:
       return CalDavErrorCode.TooLarge
+    // The CalDAV server's own 403 to a write. Without a condition the transport asks
+    // `getPrivileges` before it gives the write up.
+    case ApiErrorCode.CalDavForbidden:
+    case ApiErrorCode.CalDavPrecondition:
+      return CalDavErrorCode.Forbidden
     // Everything else, a refused session or account and an unreachable CalDAV server included,
-    // the transport classifies by the status it carries.
+    // the transport classifies by the status it carries. A 403 without a code of the contract (a
+    // proxy in front of the app whose session ended) is one of these: the transport asks
+    // `getPrivileges`, which the proxy refuses too, and the write stays queued.
     default:
       return CalDavErrorCode.Server
   }
 }
 
-/** The four object calls of the CalDAV client, answered by the relay. */
+/** The object calls of the CalDAV client and its privilege question, answered by the relay. */
 const writer: CalDavWriter = {
   async getObject(url) {
     const result = await relay(
@@ -135,6 +152,20 @@ const writer: CalDavWriter = {
       body: { href: String(url), etag },
     })
     return result.ok ? { success: true, output: null, error: null } : failure(result)
+  },
+  /**
+   * What the account may do at `url`. Only the relay's own 200 with a list (or `null`) is an
+   * answer; an ended session, a proxy's page or a failing CalDAV server is a failure, so the
+   * transport never reads one of them as "may not write".
+   */
+  async getPrivileges(url) {
+    const result = await relay(
+      `${CALDAV_PATHS.privileges}?href=${encodeURIComponent(String(url))}`,
+      {},
+      privilegeListSchema,
+    )
+    if (!result.ok) return failure(result)
+    return { success: true, output: result.data.privileges, error: null }
   },
 }
 
