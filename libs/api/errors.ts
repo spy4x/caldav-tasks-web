@@ -19,8 +19,18 @@ export enum ApiErrorCode {
   Conflict = "conflict",
   /** The CalDAV server cannot be reached. */
   CalDavUnreachable = "caldav_unreachable",
-  /** The CalDAV server refused the configured credentials, or forbids the request. */
+  /** The CalDAV server refused the configured credentials, or forbids a read. */
   CalDavRefused = "caldav_refused",
+  /**
+   * The CalDAV server answered a write with 403 and named no reason. It may be final (a list shared
+   * read-only) or not (a sign-in in front of the server ended): `GET /api/caldav/privileges` tells.
+   */
+  CalDavForbidden = "caldav_forbidden",
+  /**
+   * The CalDAV server answered a write with 403 and named the reason (a `DAV:error` condition, in
+   * the body's `condition`). Sending the same write again fails the same way.
+   */
+  CalDavPrecondition = "caldav_precondition",
   /** The CalDAV server answered in a way the relay cannot use: a 5xx, a malformed reply. */
   CalDavFailed = "caldav_failed",
   /** A new task's address is already taken on the CalDAV server. Sending it again may work. */
@@ -39,6 +49,8 @@ export enum ApiErrorCode {
 export const apiErrorSchema = type({
   code: type.enumerated(...Object.values(ApiErrorCode)),
   message: "string",
+  /** With `caldav_precondition` only: the name of the condition the CalDAV server gave. */
+  "condition?": "string",
 })
 
 /** The body of every error response. */

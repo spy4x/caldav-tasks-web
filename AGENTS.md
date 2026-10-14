@@ -69,9 +69,9 @@ Use the names in `deno.jsonc`; never guess one.
 | `deno task password:hash`                 | prints `OWNER_PASSWORD_HASH` for a typed or piped password    |
 | `deno task vapid:keys <contact>`          | writes new push keys into `.env`                              |
 
-Under a process cap, `deno task build` passes at `TasksMax=4000`
-(`systemd-run --user --scope -p TasksMax=4000 -p MemoryMax=8G deno task build`).
-[#93](https://github.com/spy4x/caldav-tasks-web/issues/93) reports that it fails at 500.
+Under a process cap, `deno task build` passes at `TasksMax=500`
+(`systemd-run --user --scope -p TasksMax=500 -p MemoryMax=8G deno task build`), since
+[#140](https://github.com/spy4x/caldav-tasks-web/pull/140).
 
 ## Rules
 

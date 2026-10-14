@@ -10,14 +10,16 @@ import {
   type Calendar,
   type CalendarList,
   createObjectRequestSchema,
+  DAV_PRIVILEGES,
   deleteObjectRequestSchema,
   type ObjectList,
+  type PrivilegeList,
   type TaskObject,
   updateObjectRequestSchema,
   type WriteResult,
 } from "@api/caldav.ts"
 import { type Config, isPrivateHost } from "../config.ts"
-import { CALDAV_FAILURES, type CalDavFailure, UNEXPECTED_FAILURE } from "./errors.ts"
+import { CALDAV_FAILURES, type CalDavFailure, UNEXPECTED_FAILURE, writeRefusal } from "./errors.ts"
 import { failed, outside, readRequest, refuse } from "./http.ts"
 import { canonicalPath, hrefOf, parentCalendar } from "./scope.ts"
 import { createCalendarAdminRoutes } from "./calendar-admin.ts"
@@ -49,8 +51,10 @@ export type Outcome<T> = { ok: true; value: T } | { ok: false; failure: CalDavFa
  * Lists are created, renamed, recoloured and deleted through the routes in `calendar-admin.ts`,
  * which share this relay's calendars and containment.
  *
- * Writes pass the browser's etag through exactly; a stale one answers 412 `conflict`. Failures are
- * logged with their code and status only, never a credential, a task's text or an etag.
+ * Writes pass the browser's etag through exactly; a stale one answers 412 `conflict`. A write the
+ * CalDAV server answers with 403 is passed on as a 403 with the condition it named, so the browser
+ * can tell a refusal from an outage; `/privileges` answers what the account may do at an address.
+ * Failures are logged with their code and status only, never a credential, a task's text or an etag.
  */
 export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOptions = {}): Hono {
   const client = options.client ?? createCalDavClient({
@@ -65,17 +69,25 @@ export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOp
   let calendars = new Map<string, CalDavCalendar>()
   let homes: Promise<Outcome<string[]>> | undefined
 
-  /** Runs one client call and turns its result, or anything it throws, into an outcome. */
+  /**
+   * Runs one client call and turns its result, or anything it throws, into an outcome. With
+   * `write`, a 403 from the CalDAV server is passed on as one (see `writeRefusal`).
+   */
   async function call<T>(
     operation: string,
     run: () => Promise<CalDavResult<T>>,
+    write = false,
   ): Promise<Outcome<T>> {
     try {
       const result = await run()
       if (result.success) return { ok: true, value: result.output }
       const status = result.error.status ? ` (HTTP ${result.error.status})` : ``
       console.warn(`caldav: ${operation} failed: ${CalDavErrorCode[result.error.code]}${status}`)
-      return { ok: false, failure: CALDAV_FAILURES[result.error.code] ?? UNEXPECTED_FAILURE }
+      const refusal = write ? writeRefusal(result.error) : null
+      return {
+        ok: false,
+        failure: refusal ?? CALDAV_FAILURES[result.error.code] ?? UNEXPECTED_FAILURE,
+      }
     } catch (error) {
       // The client returns failures rather than throwing them; the name is enough to find a bug.
       const name = error instanceof Error ? error.name : typeof error
@@ -184,6 +196,7 @@ export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOp
           body.ics,
           body.name === undefined ? undefined : { name: body.name },
         ),
+      true,
     )
     if (!outcome.ok) return failed(c, outcome.failure)
     return c.json(toWriteResult(outcome.value), 201)
@@ -199,6 +212,7 @@ export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOp
     const outcome = await call(
       "updateObject",
       () => client.updateObject(target, body.ics, body.etag),
+      true,
     )
     if (!outcome.ok) return failed(c, outcome.failure)
     return c.json(toWriteResult(outcome.value))
@@ -211,9 +225,33 @@ export function createCaldavRoutes(config: CalDavConfig, options: CalDavRoutesOp
     if (!url.ok) return failed(c, url.failure)
     if (!url.value) return outside(c)
     const target = url.value
-    const outcome = await call("deleteObject", () => client.deleteObject(target, body.etag))
+    const outcome = await call(
+      "deleteObject",
+      () => client.deleteObject(target, body.etag),
+      true,
+    )
     if (!outcome.ok) return failed(c, outcome.failure)
     return c.body(null, 204)
+  })
+
+  routes.get("/privileges", async (c) => {
+    const href = c.req.query("href")
+    // A calendar's address ends with a slash, a task's does not; both must be ones the relay lists.
+    const found = typeof href === "string" && href.endsWith("/")
+      ? await findCalendar(href).then((calendar): Outcome<string | null> =>
+        calendar.ok ? { ok: true, value: calendar.value?.url ?? null } : calendar
+      )
+      : await findObject(href)
+    if (!found.ok) return failed(c, found.failure)
+    if (!found.value) return outside(c)
+    const target = found.value
+    const ask = client.getPrivileges?.bind(client)
+    // A client that cannot ask is a failure, never "no privileges": that would read as read-only.
+    if (!ask) return failed(c, UNEXPECTED_FAILURE)
+    const outcome = await call("getPrivileges", () => ask(target))
+    if (!outcome.ok) return failed(c, outcome.failure)
+    const privileges = outcome.value?.filter((name) => DAV_PRIVILEGES.includes(name)) ?? null
+    return c.json({ privileges } satisfies PrivilegeList)
   })
 
   routes.route(

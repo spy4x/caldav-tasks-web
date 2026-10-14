@@ -26,6 +26,10 @@ flowchart LR
   or a task directly inside one; anything else is refused before a request leaves the server. The
   etag the browser sends is passed through unchanged, so a stale one comes back as `412` and the
   server never overwrites a newer version.
+  A write the CalDAV server answers with `403` comes back as a `403` too, with the name of the
+  reason when the server gave one and nothing else of its answer; `GET /api/caldav/privileges`
+  answers what the account may do at a listed address, and fails unless the CalDAV server really
+  answered that question (`apps/server/caldav/routes.test.ts`).
 - **Serves the built app** and `/health`.
 - **Sends reminders**, if you set that up (below).
 
@@ -64,13 +68,21 @@ screen shows the change at once. When the network returns, the queue is sent bef
 
 - Two edits to one task wait as one write. A task created and deleted offline is never sent. A
   create whose answer was lost is not made twice when it is sent again.
+- A task added while the answer was lost and then deleted is read from the server first. If it is
+  there exactly as this device sent it, it is deleted; if nothing is there, the delete is done. No
+  choice is asked for either. If another device changed it meanwhile, or the server stores other
+  lines than it was sent, the delete becomes a conflict and nothing is deleted.
 - Each queued write remembers the etag it was made on. If the server's copy has changed, the write
   becomes a **conflict** and waits for a choice: **Keep mine** writes the fields you changed onto
   the server's copy and leaves the rest of it as the other device wrote it (a queued
   delete or new task is sent as it is), **Use theirs** drops your edit. A task deleted elsewhere can only be discarded. Nothing is
   overwritten without that choice.
 - A server that is down, or a refused account, keeps the write queued; a refusal that will not pass
-  becomes a conflict. The queue survives a reload (`state/offline-writes.test.ts`).
+  becomes a conflict, and the writes behind it are sent. A `403` that gives no reason can be
+  either, so the app asks what the account may do at that address: only a list of privileges with
+  none to write (a list shared read-only) makes it a conflict. An answer that is no such list, as
+  when a sign-in in front of the app has ended, keeps the write queued. The queue survives a
+  reload (`state/offline-writes.test.ts`).
 - A new task whose file name a different task already holds is refused by the server. The app
   queues it again under a new file name and drops the refused write, so it is saved without a
   choice. Until then the screens show the new task at the other task's address. A save or a delete
