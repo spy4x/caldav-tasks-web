@@ -51,6 +51,9 @@ are made-up tasks in Tasks.org's form, and the tests that use them are in `apps/
 | List colour                       | the calendar's colour, `#RRGGBBAA`                                  | Read (the picker shows `#rrggbb` and drops the alpha); a list made here gets a colour Tasks.org reads (`e2e/lists.e2e.ts`)                                |
 | Properties this app does not know | any other line                                                      | Kept as they are (`e2e/tasks.e2e.ts`: `X-E2E-KEEP`)                                                                                                       |
 
+Not covered: a start date in the fixtures, locations, attachments and any other field Tasks.org may
+add. The browser keeps such lines when you edit a task, but only the fields in the table are shown.
+
 ## Repeat from the due date or from completion
 
 A repeating task's editor asks what the next date is counted from: the due date (the default) or
@@ -69,9 +72,6 @@ it into the task. So the two apps cannot see each other's setting:
   an edit on the phone. This has not been checked on a phone yet.
 
 Completing such a task here is covered by `e2e/repeat.e2e.ts` against Radicale.
-
-Not covered: a start date in the fixtures, locations, attachments and any other field Tasks.org may
-add. The browser keeps such lines when you edit a task, but only the fields in the table are shown.
 
 ## Browsers
 
