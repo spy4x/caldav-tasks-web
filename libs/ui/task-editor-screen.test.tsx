@@ -7,7 +7,13 @@ import { renderToString } from "preact-render-to-string"
 import { AlarmRelated, AlarmTriggerKind } from "@spy4x/time/ical-tasks"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { floatingDue } from "./due-label.ts"
-import { PriorityBand, type Task, type TaskList, TaskStatus } from "@spy4x/time/ical-tasks-model"
+import {
+  PriorityBand,
+  RepeatFrom,
+  type Task,
+  type TaskList,
+  TaskStatus,
+} from "@spy4x/time/ical-tasks-model"
 import {
   type TaskDraft,
   TaskEditorScreen,
@@ -155,6 +161,7 @@ Deno.test("Save hands over the whole form, and untouched dates and priority come
       listHref: "/cal/home/",
       tags: ["home", "garden"],
       repeatRule: null,
+      repeatFrom: RepeatFrom.DueDate,
       reminders: [],
     })
     expect(saved[0].due).toBe(stored.due!)
@@ -663,20 +670,117 @@ Deno.test("an interval that is not a whole number of 1 or more does not change t
   }, props({ task: task({ repeatRule: "FREQ=DAILY;INTERVAL=4" }), onSave: (d) => saved.push(d) }))
 })
 
-Deno.test("a repeat on a task with no start and no due date is refused where the person can see it", async () => {
+const NEEDS_DUE = "Pick a due date. A repeating task counts its next date from it."
+
+/** The text the due date field names as its description, or `undefined` when it names none. */
+function dueDateMessage(root: ParentNode, window: Window): string | undefined {
+  const described = e2e(root, "task-due-date").getAttribute("aria-describedby")
+  return described ? window.document.getElementById(described)?.textContent : undefined
+}
+
+Deno.test("a new repeat on a task with no due date is refused on the due date field, which takes the focus, and a start date is not enough", async () => {
   const saved: TaskDraft[] = []
-  await mount(async (root) => {
+  await mount(async (root, window) => {
     await type(root, "task-due-date", "")
     await type(root, "task-due-time", "")
+    await type(root, "task-start-date", "2026-10-13")
     await choose(root, "task-repeat-freq", "1")
     await press(e2e(root, "task-save"))
     expect(saved).toHaveLength(0)
-    expect(root.textContent).toContain("A task needs a start or due date to repeat from.")
-    expect(e2e(root, "task-repeat-freq").getAttribute("aria-invalid")).toBe("true")
-    // A start date is enough to repeat from.
-    await type(root, "task-start-date", "2026-10-13")
+    const due = e2e(root, "task-due-date")
+    expect(due.getAttribute("aria-invalid")).toBe("true")
+    expect(dueDateMessage(root, window)).toBe(NEEDS_DUE)
+    expect(window.document.activeElement?.id).toBe(due.id)
+    // The repeat control itself is not marked: the date is what is missing.
+    expect(e2e(root, "task-repeat-freq").getAttribute("aria-invalid")).toBeNull()
+
+    await type(root, "task-due-date", "2026-10-14")
     expect((await saveDraft(root, saved)).repeatRule).toBe("FREQ=DAILY;INTERVAL=1")
   }, props({ onSave: (draft) => saved.push(draft) }))
+})
+
+Deno.test("clearing the due date of a repeating task is refused on the due date field", async () => {
+  const saved: TaskDraft[] = []
+  await mount(
+    async (root, window) => {
+      await type(root, "task-due-date", "")
+      await type(root, "task-due-time", "")
+      await press(e2e(root, "task-save"))
+      expect(saved).toHaveLength(0)
+      expect(dueDateMessage(root, window)).toBe(NEEDS_DUE)
+      expect(window.document.activeElement?.id).toBe(e2e(root, "task-due-date").id)
+
+      // Without the repeat, the task may lose its due date.
+      await choose(root, "task-repeat-freq", "none")
+      expect((await saveDraft(root, saved)).due).toBeNull()
+    },
+    props({
+      task: task({ repeatRule: "FREQ=WEEKLY;INTERVAL=1" }),
+      onSave: (draft) => saved.push(draft),
+    }),
+  )
+})
+
+const repeatFrom = (root: ParentNode, from: RepeatFrom) =>
+  root.querySelector(`input[name="repeat-from"][value="${from}"]`) as HTMLInputElement | null
+
+Deno.test("the choice of what the next date is counted from shows only for a repeating task, as a named group that starts on the due date", async () => {
+  await mount(async (root) => {
+    expect(root.querySelector(`[data-e2e="task-repeat-from"]`) === null).toBe(true)
+
+    await choose(root, "task-repeat-freq", "2")
+    const group = e2e(root, "task-repeat-from")
+    expect(group.tagName).toBe("FIELDSET")
+    expect(group.querySelector("legend")?.textContent).toBe("Count the next date")
+    expect(repeatFrom(root, RepeatFrom.DueDate)!.checked).toBe(true)
+    expect(repeatFrom(root, RepeatFrom.Completion)!.checked).toBe(false)
+    expect(repeatFrom(root, RepeatFrom.Completion)!.closest("label")?.textContent).toBe(
+      "From the day it is completed",
+    )
+
+    await choose(root, "task-repeat-freq", "none")
+    expect(root.querySelector(`[data-e2e="task-repeat-from"]`) === null).toBe(true)
+  }, props())
+})
+
+Deno.test("picking From the day it is completed keeps the focus on it and Save hands the choice over; removing the repeat hands over the due date again", async () => {
+  const saved: TaskDraft[] = []
+  await mount(async (root, window) => {
+    await type(root, "task-title", "Water the ferns")
+    await choose(root, "task-repeat-freq", "2")
+    expect((await saveDraft(root, saved)).repeatFrom).toBe(RepeatFrom.DueDate)
+
+    const completion = repeatFrom(root, RepeatFrom.Completion)!
+    completion.focus()
+    await press(completion)
+    expect(completion.checked).toBe(true)
+    expect(window.document.activeElement === (completion as unknown)).toBe(true)
+    const draft = await saveDraft(root, saved)
+    expect(draft.title).toBe("Water the ferns")
+    expect(draft.repeatRule).toBe("FREQ=WEEKLY;INTERVAL=1")
+    expect(draft.repeatFrom).toBe(RepeatFrom.Completion)
+
+    await choose(root, "task-repeat-freq", "none")
+    const plain = await saveDraft(root, saved)
+    expect(plain.repeatRule).toBeNull()
+    expect(plain.repeatFrom).toBe(RepeatFrom.DueDate)
+  }, props({ onSave: (draft) => saved.push(draft) }))
+})
+
+Deno.test("a task that counts from completion opens on that choice, and picking the due date hands that over", async () => {
+  const saved: TaskDraft[] = []
+  await mount(
+    async (root) => {
+      expect(repeatFrom(root, RepeatFrom.Completion)!.checked).toBe(true)
+      expect((await saveDraft(root, saved)).repeatFrom).toBe(RepeatFrom.Completion)
+      await press(repeatFrom(root, RepeatFrom.DueDate)!)
+      expect((await saveDraft(root, saved)).repeatFrom).toBe(RepeatFrom.DueDate)
+    },
+    props({
+      task: task({ repeatRule: "FREQ=WEEKLY;INTERVAL=1", repeatFrom: RepeatFrom.Completion }),
+      onSave: (draft) => saved.push(draft),
+    }),
+  )
 })
 
 const END_DUE = reminder("-PT15M", AlarmRelated.End)
@@ -836,23 +940,23 @@ Deno.test("after Remove, focus goes to the next reminder's Remove button, then t
   )
 })
 
-Deno.test("a title-only save of a repeating task with no dates goes through, but a new rule on it is refused", async () => {
+Deno.test("a title-only save of a repeating task with no dates goes through, but a new rule on it is refused on the due date", async () => {
   const saved: TaskDraft[] = []
   const undated = task({
     due: undefined,
     repeatRule: "FREQ=WEEKLY;INTERVAL=1",
   })
-  await mount(async (root) => {
+  await mount(async (root, window) => {
     await type(root, "task-title", "Renamed")
     const draft = await saveDraft(root, saved)
     expect(draft.title).toBe("Renamed")
     expect(draft.repeatRule).toBe("FREQ=WEEKLY;INTERVAL=1")
-    expect(root.textContent).not.toContain("to repeat from")
+    expect(root.textContent).not.toContain(NEEDS_DUE)
 
     await choose(root, "task-repeat-freq", "1")
     await press(e2e(root, "task-save"))
     expect(saved).toHaveLength(1)
-    expect(root.textContent).toContain("A task needs a start or due date to repeat from.")
+    expect(dueDateMessage(root, window)).toBe(NEEDS_DUE)
   }, props({ task: undated, onSave: (d) => saved.push(d) }))
 })
 
