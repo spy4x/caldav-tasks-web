@@ -69,30 +69,30 @@
     // #endregion Aliases
 
     // #region Dependencies
-    // spy4x/ts-libs 1.73.0. Every package moves together. preact-components pins its own ts-libs
+    // spy4x/ts-libs 1.75.0. Every package moves together. preact-components pins its own ts-libs
     // version, so a second copy of @spy4x/time and @spy4x/platform may load next to this one. hono and arktype must stay on the exact
     // versions these packages were published with, or two copies load and their types stop matching.
-    "@spy4x/platform": "jsr:@spy4x/platform@1.73.0",
-    "@spy4x/server": "jsr:@spy4x/server@1.73.0",
-    "@spy4x/time": "jsr:@spy4x/time@1.73.0",
-    "@spy4x/caldav": "jsr:@spy4x/caldav@1.73.0",
-    "@spy4x/realtime": "jsr:@spy4x/realtime@1.73.0",
+    "@spy4x/platform": "jsr:@spy4x/platform@1.75.0",
+    "@spy4x/server": "jsr:@spy4x/server@1.75.0",
+    "@spy4x/time": "jsr:@spy4x/time@1.75.0",
+    "@spy4x/caldav": "jsr:@spy4x/caldav@1.75.0",
+    "@spy4x/realtime": "jsr:@spy4x/realtime@1.75.0",
     // Web Push: the sender, the subscription file store and the reminder glue.
-    "@spy4x/integrations": "jsr:@spy4x/integrations@1.73.0",
+    "@spy4x/integrations": "jsr:@spy4x/integrations@1.75.0",
     // The public-address check for a push endpoint the browser sends.
-    "@spy4x/net": "jsr:@spy4x/net@1.73.0",
+    "@spy4x/net": "jsr:@spy4x/net@1.75.0",
     "hono": "jsr:@hono/hono@4.13.8",
     "arktype": "npm:arktype@2.2.3",
 
-    // spy4x/preact-components 3.23.0. Every package is published at one version together, so all
+    // spy4x/preact-components 3.27.0. Every package is published at one version together, so all
     // five move in one change. They take preact and the signals packages as caret ranges, so the
     // versions below are the one copy that loads. wouter-preact must stay on the version they pin,
     // or two copies load.
-    "@spy4x/preact-icons": "jsr:@spy4x/preact-icons@3.23.0",
-    "@spy4x/preact-signals": "jsr:@spy4x/preact-signals@3.23.0",
-    "@spy4x/preact-system": "jsr:@spy4x/preact-system@3.23.0",
-    "@spy4x/preact-theme": "jsr:@spy4x/preact-theme@3.23.0",
-    "@spy4x/preact-ui": "jsr:@spy4x/preact-ui@3.23.0",
+    "@spy4x/preact-icons": "jsr:@spy4x/preact-icons@3.27.0",
+    "@spy4x/preact-signals": "jsr:@spy4x/preact-signals@3.27.0",
+    "@spy4x/preact-system": "jsr:@spy4x/preact-system@3.27.0",
+    "@spy4x/preact-theme": "jsr:@spy4x/preact-theme@3.27.0",
+    "@spy4x/preact-ui": "jsr:@spy4x/preact-ui@3.27.0",
     "preact": "npm:preact@10.29.8",
     "wouter-preact": "npm:wouter-preact@3.9.0",
     "@preact/signals": "npm:@preact/signals@2.5.1",
@@ -110,10 +110,10 @@
     "@axe-core/playwright": "npm:@axe-core/playwright@4.13.0",
     // The npm name of `@spy4x/preact-system`, for playwright.config.ts: Playwright loads the config
     // itself and finds only packages in `node_modules`. Keep it in step with the `jsr:` line above.
-    "@jsr/spy4x__preact-system": "npm:@jsr/spy4x__preact-system@3.23.0",
+    "@jsr/spy4x__preact-system": "npm:@jsr/spy4x__preact-system@3.27.0",
     // The npm name of `@spy4x/platform`, for the e2e files, which Playwright loads the same way:
     // they take `uuidV7()` from it. Keep it in step with the `jsr:` line above.
-    "@jsr/spy4x__platform": "npm:@jsr/spy4x__platform@1.73.0",
+    "@jsr/spy4x__platform": "npm:@jsr/spy4x__platform@1.75.0",
     // Pinned so a lock rewrite cannot move the env encryption tool (`@age/age-encryption`) back to
     // 2.0.1, which lacks the key wiping 2.4.0 added.
     "@noble/hashes": "npm:@noble/hashes@2.4.0"
