@@ -83,17 +83,10 @@ Under a process cap, `deno task build` passes at `TasksMax=500`
   (`tests/ui-boundary.test.ts` enforces it). Wiring lives in `apps/web/src`.
 - **Spacing** uses the scale of `@spy4x/preact-theme/spacing` (`tests/spacing.test.ts`).
 - **Type checking** is plain `deno check`, which covers `.tsx`.
-- **Shared libraries first.** Before writing a component or helper, search the lists in the section
-  below. If it is missing, file the issue in the library and wait for the release; do not keep a
+- **Shared libraries first.** Before writing a component or helper, search
+  [spy4x/ts-libs](https://github.com/spy4x/ts-libs) and
+  [spy4x/preact-components](https://github.com/spy4x/preact-components). If it is missing, file the issue in the library and wait for the release; do not keep a
   local copy.
 - **Errors never carry a credential.** No response body, log line or error message may hold
   `CALDAV_PASSWORD` or any other secret. The push code also never logs a push endpoint, a key or a
   task's text.
-
-## Shared libraries
-
-Before writing a component, helper or library here, search
-[spy4x/ts-libs](https://github.com/spy4x/ts-libs) and
-[spy4x/preact-components](https://github.com/spy4x/preact-components) for it. The global rule
-["Shared libs before local code"](https://github.com/spy4x/dotfiles/blob/main/ai-harnesses/AGENTS.md)
-says what belongs in each library; code only this repo needs stays here.
