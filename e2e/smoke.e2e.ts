@@ -14,13 +14,14 @@ test("answers /health with 200", async ({ request }) => {
 test("opens on Today and moves between the five destinations without a reload", async ({ page }) => {
   await page.goto(`/`)
   const nav = page.getByRole(`navigation`, { name: `Main navigation` })
-  await expect(nav.getByRole(`link`)).toHaveText([
-    `Today`,
-    `Upcoming`,
-    `Lists`,
-    `Search`,
-    `More`,
-  ])
+  // By accessible name: from `md` up each entry's text also holds its rail tooltip, a hidden copy
+  // of the label, so the text would read "TodayToday".
+  const labels = [`Today`, `Upcoming`, `Lists`, `Search`, `More`]
+  const links = nav.getByRole(`link`)
+  await expect(links).toHaveCount(labels.length)
+  for (const [index, label] of labels.entries()) {
+    await expect(links.nth(index)).toHaveAccessibleName(label)
+  }
   await expect(pageTitle(page)).toHaveText(`Today`)
 
   // The page object survives a client-side move; a full load would replace it.
