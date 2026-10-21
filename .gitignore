@@ -26,3 +26,6 @@ playwright-report
 
 # Logs
 *.log
+
+# The demo video's last raw take (media/demo/recipe/record.ts), kept for re-encoding
+media/demo/.take

@@ -1735,6 +1735,7 @@
       "npm:@preact/signals@2.5.1",
       "npm:arktype@2.2.3",
       "npm:fake-indexeddb@6.2.5",
+      "npm:playwright@1.57.0",
       "npm:preact@10.29.8",
       "npm:wouter-preact@3.9.0"
     ],
