@@ -33,6 +33,8 @@ const VIEWPORT = { width: 1280, height: 800 }
  * page scroll above the caption band.
  */
 const ZOOM = 1.9
+/** The task editor is wider than a list: at `ZOOM` its right-hand inputs and Save are clipped. */
+const EDITOR_ZOOM = 1.25
 const CONTEXT = {
   viewport: VIEWPORT,
   deviceScaleFactor: 1,
@@ -139,6 +141,30 @@ async function reveal(page: Page, target: Locator) {
   if (over > 0) await scrollLike(page, Math.round(over))
 }
 
+/**
+ * Clicks `target` like `clickLike` (glide, press, hold, release) and sets the page's zoom, with the
+ * bottom padding that keeps the last rows above the captions, when the screen it opens renders:
+ * a mutation observer applies it as soon as the `<h1>` changes, before that screen's first paint.
+ */
+async function clickAndZoom(page: Page, pointer: Point, target: Locator, zoom: number) {
+  await page.evaluate(([z, pad]) => {
+    const before = document.querySelector(`h1`)?.textContent
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(`h1`)?.textContent === before) return
+      observer.disconnect()
+      document.body.style.zoom = String(z)
+      document.body.style.paddingBottom = `${pad}px`
+    })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+  }, [zoom, Math.round(BAND / zoom)])
+  await hover(page, pointer, target)
+  await pause(page, 150)
+  await page.mouse.down()
+  await pause(page, 200)
+  await page.mouse.up()
+  await pause(page, 200)
+}
+
 /** Presses one key with a pause after it, so its key cap can be read. */
 async function key(page: Page, name: string, after = 800) {
   await page.keyboard.press(name)
@@ -197,6 +223,8 @@ try {
     await main.getByText(`Fix the gate`).waitFor()
     await page.evaluate(() => document.fonts.ready)
     await page.mouse.move(pointer.x, pointer.y)
+    // Both overdue rows, with their list names, above the caption band from the first frame.
+    await reveal(page, main.getByText(`Yesterday`, { exact: true }))
     await page.evaluate(`__demoPointerVisible(false)`)
     await page.screenshot({ path: `${TAKE}/poster.png` })
     await page.evaluate(`__demoPointerVisible(true)`)
@@ -222,7 +250,7 @@ try {
 
     await step(page, `Open a list: Plan the garden has two subtasks`, async () => {
       await clickLike(page, pointer, page.getByRole(`link`, { name: `Lists` }))
-      await pause(page, 900)
+      await pause(page, 600)
       await clickLike(page, pointer, main.getByText(`Errands`, { exact: true }))
       await parkLike(page, pointer, REST)
       await reveal(page, main.getByRole(`button`, { name: `Clear the beds`, exact: true }))
@@ -241,11 +269,8 @@ try {
 
     const repeat = main.getByLabel(`Repeat`, { exact: true })
     await step(page, `Open a task and make it repeat every week`, async () => {
-      await clickLike(
-        page,
-        pointer,
-        main.getByRole(`button`, { name: `Water the plants`, exact: true }),
-      )
+      const task = main.getByRole(`button`, { name: `Water the plants`, exact: true })
+      await clickAndZoom(page, pointer, task, EDITOR_ZOOM)
       await repeat.waitFor()
       await pause(page, 900)
       const box = await repeat.boundingBox()
@@ -256,14 +281,19 @@ try {
     }, 1800)
 
     await step(page, `Save: it is written back the way Tasks.org wrote it`, async () => {
-      await clickLike(page, pointer, main.getByRole(`button`, { name: `Save`, exact: true }))
+      const save = main.getByRole(`button`, { name: `Save`, exact: true })
+      const box = await save.boundingBox()
+      if (box && box.y + box.height > VIEWPORT.height - BAND - 20) {
+        await scrollLike(page, Math.round(box.y - VIEWPORT.height / 2))
+      }
+      await clickAndZoom(page, pointer, save, ZOOM)
       await parkLike(page, pointer, REST)
     })
 
     await step(page, `Complete a task, and Undo brings it back`, async () => {
       await clickLike(page, pointer, page.getByRole(`link`, { name: `Today` }))
       await main.getByText(`Call the plumber`).waitFor()
-      await pause(page, 900)
+      await pause(page, 500)
       await clickLike(
         page,
         pointer,
@@ -271,7 +301,7 @@ try {
       )
       const undo = page.getByRole(`button`, { name: `Undo` })
       await undo.waitFor()
-      await pause(page, 1200)
+      await pause(page, 900)
       await clickLike(page, pointer, undo)
       await main.getByRole(`button`, { name: `Call the plumber`, exact: true }).waitFor()
       await parkLike(page, pointer, REST)
