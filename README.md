@@ -8,7 +8,7 @@ lists in a browser (tested in Chromium), on the same server your phone syncs wit
 
 [![The demo video: Today with overdue and due tasks, a quick-added task with a tag, time and priority, a subtask moved by keyboard, a weekly repeat, complete and undo, and the shortcuts sheet](media/demo/poster.webp)](https://antonshubin.com/tools/caldav-tasks-web)
 
-The 54-second demo plays at [antonshubin.com/tools/caldav-tasks-web](https://antonshubin.com/tools/caldav-tasks-web); `media/demo/` holds the video and its recipe.
+The demo plays on [antonshubin.com/tools/caldav-tasks-web](https://antonshubin.com/tools/caldav-tasks-web); `media/demo/` holds the video and its recipe.
 
 ## Who it is for
 
