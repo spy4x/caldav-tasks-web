@@ -30,6 +30,12 @@
     "radicale:up": "docker compose -f infra/compose.dev.yml up -d --wait",
     "radicale:down": "docker compose -f infra/compose.dev.yml down",
 
+    // The demo video in media/demo/: record a new take and encode it (Docker, ffmpeg and Playwright's
+    // Chromium; media/demo/recipe/README.md), or encode the last take again after a caption or music
+    // change.
+    "demo-video": "bash media/demo/recipe/run.sh",
+    "demo-video:encode": "deno run --allow-read --allow-write=media/demo --allow-run=ffmpeg,ffprobe,fc-match media/demo/recipe/encode-take.ts",
+
     "env:encrypt": "deno run --no-prompt -R -W=. @spy4x/server/env-age64/cli encrypt",
     "env:decrypt": "deno run --no-prompt -R -W=. @spy4x/server/env-age64/cli decrypt",
     "env:status": "deno run --no-prompt -R -W=. @spy4x/server/env-age64/cli status",
@@ -106,6 +112,8 @@
     "@std/encoding": "jsr:@std/encoding@1.0.11",
     "@std/expect": "jsr:@std/expect@1.0.17",
     "@playwright/test": "npm:@playwright/test@1.57.0",
+    // The demo video's recorder (media/demo/recipe/), the same version as @playwright/test.
+    "playwright": "npm:playwright@1.57.0",
     // Accessibility checks in the Playwright specs.
     "@axe-core/playwright": "npm:@axe-core/playwright@4.13.0",
     // The npm name of `@spy4x/preact-system`, for playwright.config.ts: Playwright loads the config
@@ -124,6 +132,7 @@
     "node_modules",
     "e2e/report",
     "e2e/results",
+    "media/demo/.take",
     "*.lock"
   ],
   "lint": {
