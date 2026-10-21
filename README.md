@@ -6,7 +6,9 @@
 **A web companion to [Tasks.org](https://tasks.org/) for your own CalDAV server.** Open your task
 lists in a browser (tested in Chromium), on the same server your phone syncs with. One install serves one person.
 
-<!-- Video demo goes here once recorded: https://github.com/spy4x/caldav-tasks-web/issues/39 -->
+[![The demo video: Today with overdue and due tasks, a quick-added task with a tag, time and priority, a subtask moved by keyboard, a weekly repeat, complete and undo, and the shortcuts sheet](media/demo/poster.webp)](https://antonshubin.com/tools/caldav-tasks-web)
+
+The 54-second demo plays at [antonshubin.com/tools/caldav-tasks-web](https://antonshubin.com/tools/caldav-tasks-web); `media/demo/` holds the video and its recipe.
 
 ## Who it is for
 
