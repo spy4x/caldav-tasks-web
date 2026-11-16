@@ -1,18 +1,23 @@
 import { useNow } from "@spy4x/preact-signals/now"
-import { useSignal } from "@preact/signals"
-import { useEffect } from "preact/hooks"
+import { type Signal, useSignal } from "@preact/signals"
+import { useEffect, useState } from "preact/hooks"
+import type { ComponentChildren } from "preact"
+import { IconChevronDown } from "@spy4x/preact-icons"
+import type { TaskList } from "@spy4x/time/ical-tasks-model"
 import { useLocation, useParams, useSearch } from "wouter-preact"
 import { useUrlFilters } from "@spy4x/preact-signals/use-url-filters"
 import { CompletedRange, ListScreen } from "@ui/list-screen.tsx"
 import { LoadingBody } from "@ui/task-screen.tsx"
+import { clampShare, TwoLists } from "@ui/two-lists.tsx"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { loadCompleted } from "../state/sync.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { tasks } from "../state/tasks.ts"
-import { findListBySlug, listSettingsPath, taskPath } from "../routes.ts"
+import { findListBySlug, listPath, listSettingsPath, taskPath } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { sortFromParam, sortToParam, tagsFromParam, tagsToParam } from "./list-filters.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
+import { SidebarView } from "./SidebarView.tsx"
 import {
   addSiblingTask,
   completeWithUndo,
@@ -23,13 +28,34 @@ import {
 } from "./task-actions.ts"
 import { useQuickAdd } from "./use-quick-add.ts"
 
+/** This device's layout choices, kept in the browser: a viewer's convenience, nothing more. */
+const TWO_LISTS = `two-lists`
+const SECOND_LIST = `second-list`
+const SHARE = `two-lists-share`
+
+function stored(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function store(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Private windows may refuse; the choice then lasts until reload.
+  }
+}
+
 /**
  * A list, wired. The sort and the tag filter live in the address (`?sort=due&tags=home`), so a
- * reload, a bookmark and the Back button keep them.
+ * reload, a bookmark and the Back button keep them. On a desktop a second list can show beside it;
+ * which one, and how wide each is, this device remembers.
  */
 export function ListView() {
   const { slug = `` } = useParams<{ slug: string }>()
-  const [, navigate] = useLocation()
   const list = findListBySlug(taskLists.value, slug)
   const params = new URLSearchParams(useSearch())
   const sort = useSignal(params.get(`sort`) ?? ``)
@@ -40,20 +66,94 @@ export function ListView() {
     tags: { signal: tags, urlParam: `tags`, initialValue: `` },
     done: { signal: doneParam, urlParam: `done`, initialValue: `` },
   })
-  const completedRange = Object.values(CompletedRange).includes(doneParam.value as CompletedRange)
-    ? doneParam.value as CompletedRange
-    : CompletedRange.Week
-  const quickAdd = useQuickAdd({ listHref: list?.href })
-  const listHref = list?.href
-  const now = useNow({ zone: browserZone() }).value
-  useEffect(() => {
-    if (listHref) void loadCompleted(listHref)
-  }, [listHref])
+  // The second list's sort and filter are its own and stay off the address.
+  const secondFilters = { sort: useSignal(``), tags: useSignal(``), done: useSignal(``) }
+  const [split, setSplit] = useState(() => stored(TWO_LISTS) === `1`)
+  const [secondHref, setSecondHref] = useState(() => stored(SECOND_LIST))
+  const [share, setShare] = useState(() => clampShare(Number(stored(SHARE) ?? 50) || 50))
 
   if (!list) return calendarsLoaded.value ? <NotFoundView /> : <LoadingBody label="Loading list" />
+  const others = taskLists.value.filter((other) => other.href !== list.href)
+  const second = others.find((other) => other.href === secondHref) ?? others[0]
+  const main = { sort, tags, done: doneParam }
+  if (!second) return <ListPane list={list} filters={main} />
+
+  return (
+    <TwoLists
+      split={split}
+      onSplitChange={(next) => {
+        setSplit(next)
+        store(TWO_LISTS, next ? `1` : `0`)
+      }}
+      share={share}
+      onShareChange={(next) => {
+        setShare(next)
+        store(SHARE, String(next))
+      }}
+      left={<ListPane list={list} filters={main} pane />}
+      right={
+        <ListPane
+          key={second.href}
+          list={second}
+          filters={secondFilters}
+          pane
+          addHere
+          title={
+            <label class="relative inline-flex min-w-0 items-center">
+              <span class="sr-only">Second list</span>
+              <select
+                class="min-w-0 cursor-pointer appearance-none truncate rounded-md bg-transparent pe-6 hover:bg-hover"
+                value={second.href}
+                onChange={(event) => {
+                  setSecondHref(event.currentTarget.value)
+                  store(SECOND_LIST, event.currentTarget.value)
+                }}
+                data-e2e="second-list-select"
+              >
+                {others.map((other) => (
+                  <option key={other.href} value={other.href}>{other.name}</option>
+                ))}
+              </select>
+              <IconChevronDown
+                class="pointer-events-none absolute end-1 size-4"
+                aria-hidden="true"
+              />
+            </label>
+          }
+        />
+      }
+    />
+  )
+}
+
+/** One list's screen with its own sort, tag filter and completed range. */
+function ListPane(
+  { list, filters, pane, addHere, title }: {
+    list: TaskList
+    filters: { sort: Signal<string>; tags: Signal<string>; done: Signal<string> }
+    pane?: boolean
+    /** Its own one-line New task field, for the second list. */
+    addHere?: boolean
+    title?: ComponentChildren
+  },
+) {
+  const [, navigate] = useLocation()
+  const { sort, tags, done } = filters
+  const completedRange = Object.values(CompletedRange).includes(done.value as CompletedRange)
+    ? done.value as CompletedRange
+    : CompletedRange.Week
+  const quickAdd = useQuickAdd({ listHref: list.href })
+  const now = useNow({ zone: browserZone() }).value
+  useEffect(() => void loadCompleted(list.href), [list.href])
+
   return (
     <ListScreen
       list={list}
+      pane={pane}
+      title={title}
+      addField={addHere && (
+        <SidebarView compact autoFocus={false} currentPath={listPath(list)} navigate={navigate} />
+      )}
       tasks={tasks.value.filter((task) => task.listHref === list.href)}
       zone={browserZone()}
       now={now}
@@ -63,9 +163,8 @@ export function ListView() {
       activeTags={tagsFromParam(tags.value)}
       onActiveTagsChange={(next) => tags.value = tagsToParam(next)}
       completedRange={completedRange}
-      onCompletedRangeChange={(range) =>
-        doneParam.value = range === CompletedRange.Week ? `` : range}
-      onComplete={(task, done) => void completeWithUndo(task, done)}
+      onCompletedRangeChange={(range) => done.value = range === CompletedRange.Week ? `` : range}
+      onComplete={(task, isDone) => void completeWithUndo(task, isDone)}
       onOpen={(task) => navigate(taskPath(task))}
       onRenameTask={(task, title) => void renameTask(task, title)}
       onAddSibling={(task, title) => void addSiblingTask(task, title)}

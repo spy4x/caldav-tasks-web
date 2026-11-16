@@ -64,6 +64,12 @@ export interface ListScreenProps {
   onRename?: () => void
   onChangeColor?: () => void
   onDelete?: () => void
+  /** Inside a layout that gives the padding and width, such as one of two lists side by side. */
+  pane?: boolean
+  /** Takes the place of the list's name in the heading, such as a menu to pick another list. */
+  title?: ComponentChildren
+  /** A desktop field that adds to this list, where the sidebar's form adds to another one. */
+  addField?: ComponentChildren
 }
 
 const SORT_OPTIONS = [
@@ -189,6 +195,8 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   const done = finished.filter(tagged)
   const openShown = nodes.filter((node) => isOpen(node.task)).length
   const hasMenu = props.onRename || props.onChangeColor || props.onDelete
+  // Two lists can share the page, so their headings' ids carry the list.
+  const id = list.href.replace(/[^\w-]/g, `_`)
   const today = props.now.toLocaleDateString(undefined, {
     weekday: `long`,
     month: `long`,
@@ -197,7 +205,11 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   })
 
   return (
-    <div class="flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none">
+    <div
+      class={props.pane
+        ? `flex w-full min-w-0 flex-col gap-4 pb-16`
+        : `flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none`}
+    >
       <header class="flex flex-col gap-1" data-e2e="page-header">
         <a
           href={PATHS.lists}
@@ -213,13 +225,14 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
           Lists
         </a>
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {/* The count sits beside the heading, so the heading is the list's name alone. */}
-          <div class="flex min-w-0 items-baseline gap-3">
-            <h1 class="min-w-0 break-words text-2xl font-bold tracking-tight">{list.name}</h1>
-            <span class="shrink-0 text-[15px] text-muted">{openShown} open</span>
-          </div>
+          <h1 class="flex min-w-0 items-baseline gap-3 text-2xl font-bold tracking-tight">
+            {props.title ?? <span class="break-words">{list.name}</span>}
+            <span class="text-[15px] font-normal tracking-normal text-muted">
+              {openShown} open
+            </span>
+          </h1>
           <div class="ms-auto flex flex-wrap items-center gap-2">
-            <p class="pe-2 text-[13px] text-muted max-lg:hidden">{today}</p>
+            {!props.pane && <p class="pe-2 text-[13px] text-muted max-lg:hidden">{today}</p>}
             {!props.loading && tasks.length > 0 && (
               <div class="flex flex-wrap items-center gap-2" data-e2e="list-controls">
                 {allTags.length > 0 && (
@@ -270,6 +283,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
         </div>
       </header>
 
+      {props.addField && <div class="max-lg:hidden" data-e2e="pane-add">{props.addField}</div>}
       <div class="md:hidden" data-e2e="phone-quick-add">
         <QuickAdd
           onAdd={props.onQuickAdd}
@@ -293,8 +307,8 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
         )
         : (
           <>
-            <section aria-labelledby="incomplete-heading">
-              <h2 id="incomplete-heading" class="sr-only">Incomplete, {openShown}</h2>
+            <section aria-labelledby={`incomplete-${id}`}>
+              <h2 id={`incomplete-${id}`} class="sr-only">Incomplete, {openShown}</h2>
               {nodes.length === 0
                 ? (
                   <p class="rounded-xl border border-subtle bg-surface p-6 text-muted">
@@ -326,11 +340,11 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
 
             <section
               class="flex flex-col gap-2 pt-4"
-              aria-labelledby="completed-heading"
+              aria-labelledby={`completed-${id}`}
               data-e2e="completed-section"
             >
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 id="completed-heading" class="flex items-center gap-2 text-base font-semibold">
+                <h2 id={`completed-${id}`} class="flex items-center gap-2 text-base font-semibold">
                   Completed <Count n={done.length} />
                 </h2>
                 <MenuSelect

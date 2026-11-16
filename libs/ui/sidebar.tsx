@@ -53,6 +53,8 @@ export interface SidebarProps {
   compact?: boolean
   /** Puts the cursor in the task field on arrival, again each time this changes (the page). */
   focusKey?: string
+  /** The Task field's placeholder, such as which list it adds to. */
+  placeholder?: string
 }
 
 const PRIORITIES = [
@@ -277,7 +279,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           class={`${CONTROL} block resize-none pe-3 text-[15px] leading-6 placeholder:text-placeholder ${
             props.compact ? `h-12 overflow-hidden ps-12 py-3` : `h-26 ps-12 py-2`
           }`}
-          placeholder={props.compact ? `Add a new task…` : `What do you need to do?`}
+          placeholder={props.placeholder ??
+            (props.compact ? `Add a new task…` : `What do you need to do?`)}
           aria-label={props.compact ? `New task` : undefined}
           value={title}
           role="combobox"
