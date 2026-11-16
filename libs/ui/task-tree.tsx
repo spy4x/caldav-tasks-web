@@ -33,6 +33,8 @@ export interface TaskTreeProps {
   onAddSibling?: (task: Task, title: string) => void
   /** Deletes a task from its row's hover "Delete". */
   onDelete?: (task: Task) => void
+  /** Nests a dragged task under the row it is dropped on; see TaskRow's `onNest`. */
+  onNest?: (uid: string, parent: Task) => void
 }
 
 /** Wraps tasks as a tree with no subtasks, for a view that lists tasks flat. */
@@ -116,6 +118,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
           onRename={props.onRename}
           onAddSibling={props.onAddSibling}
           onDelete={props.onDelete}
+          onNest={props.onNest}
         />
       ))}
     </ul>
@@ -167,6 +170,7 @@ function SortableGroup(props: SortableGroupProps): JSX.Element {
               onRename={tree.onRename}
               onAddSibling={tree.onAddSibling}
               onDelete={tree.onDelete}
+              onNest={tree.onNest}
             />
             {open && node.children.length > 0 && (
               <SortableGroup {...props} nodes={node.children} depth={(props.depth ?? 0) + 1} />

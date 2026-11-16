@@ -10,7 +10,7 @@ import { tasks } from "../state/tasks.ts"
 import { setBrowserOnline, withApp } from "../state/testing.ts"
 import type { FakeServer } from "../state/testing.ts"
 import { toasts } from "../state/toasts.ts"
-import { completeWithUndo, deleteWithUndo, reorderInList } from "./task-actions.ts"
+import { completeWithUndo, deleteWithUndo, nestWithUndo, reorderInList } from "./task-actions.ts"
 
 const HREF = `${LIST_HREF}one.ics`
 
@@ -315,5 +315,31 @@ Deno.test(`the first drag in a list loads its completed tasks, so a completed on
     expect(await reorderInList(LIST_HREF, visible[3], visible, 1, `UTC`)).toBe(true)
 
     expect(serverOrder(server)).toEqual([`Alpha`, `Delta`, `Bravo`, `Hidden`, `Charlie`])
+  })
+})
+
+Deno.test(`dropping a task on another nests it there, Undo moves it back, and a loop is refused`, async () => {
+  await withApp(async (server) => {
+    toasts.clear()
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(HREF, LIST_HREF, fixture(`1`, `Buy milk`))
+    server.seed(`${LIST_HREF}two.ics`, LIST_HREF, fixture(`2`, `Groceries`))
+    await refresh()
+    const milk = tasks.value.find((task) => task.title === `Buy milk`)!
+    const groceries = tasks.value.find((task) => task.title === `Groceries`)!
+
+    await nestWithUndo(milk, groceries)
+    expect(server.objects.get(HREF)!.ics).toContain(`RELATED-TO`)
+    expect(tasks.value.find((task) => task.uid === milk.uid)!.parentUid).toBe(groceries.uid)
+    const toast = lastToast()
+    expect(toast.body).toBe(`Moved "Buy milk" under "Groceries"`)
+
+    // Groceries under its own subtask would be a loop.
+    await nestWithUndo(groceries, tasks.value.find((task) => task.uid === milk.uid)!)
+    expect(lastToast().body).toContain(`own subtasks`)
+
+    await toast.action!.onAction()
+    expect(server.objects.get(HREF)!.ics).not.toContain(`RELATED-TO`)
+    expect(tasks.value.find((task) => task.uid === milk.uid)!.parentUid).toBeUndefined()
   })
 })

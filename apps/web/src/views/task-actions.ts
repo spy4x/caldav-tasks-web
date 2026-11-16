@@ -7,6 +7,7 @@ import { loadCompleted } from "../state/sync.ts"
 import {
   saveTask,
   setTaskDone,
+  setTaskParent,
   tasks,
   undoWrite,
   WriteKind,
@@ -134,6 +135,43 @@ export async function reorderInList(
     if (!reportReorderFailure(await saveTask(write.task, write.edit))) return false
   }
   return true
+}
+
+/** Whether `parent` is `task` or sits under it, at any depth: nesting there would make a loop. */
+export function isWithin(parent: Task, task: Task, all: readonly Task[]): boolean {
+  const byUid = new Map(all.map((each) => [each.uid, each]))
+  const seen = new Set<string>()
+  for (
+    let at: Task | undefined = parent;
+    at && !seen.has(at.uid);
+    at = byUid.get(at.parentUid ?? ``)
+  ) {
+    if (at.uid === task.uid) return true
+    seen.add(at.uid)
+  }
+  return false
+}
+
+/** Makes `task` a subtask of `parent` (dropped onto it), with Undo. Only within one list. */
+export async function nestWithUndo(task: Task, parent: Task): Promise<void> {
+  if (task.parentUid === parent.uid || task.listHref !== parent.listHref) return
+  if (isWithin(parent, task, tasks.value)) {
+    if (task.uid !== parent.uid) {
+      toasts.error({ title: NO_HEADING, body: `A task can't go under one of its own subtasks.` })
+    }
+    return
+  }
+  const before = task.parentUid
+  const result = await setTaskParent(task, parent.uid)
+  if (!reportFailure(result) || result.kind !== WriteKind.Saved) return
+  toasts.success({
+    title: NO_HEADING,
+    body: `Moved "${task.title}" under "${parent.title}"`,
+    action: {
+      label: `Undo`,
+      onAction: () => undo(() => setTaskParent(result.task, before), `Moved back`),
+    },
+  })
 }
 
 /** Saves a title typed into a row, and says why when it could not be saved. */

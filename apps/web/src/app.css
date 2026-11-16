@@ -162,6 +162,13 @@ input[type="checkbox"] {
   translate: 0 0.5rem;
   pointer-events: none;
 }
+/* A row a dragged task would be nested under. */
+.task-drop-target {
+  border-radius: 0.5rem;
+  background: var(--color-accent-soft, color-mix(in srgb, var(--color-accent) 8%, transparent));
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
 .app-toasts > :not(:last-child) {
   margin-block-end: 0.5rem;
 }

@@ -11,6 +11,8 @@ import {
   type TaskEdit,
 } from "@spy4x/time/ical-tasks-edit"
 import { parseTask, type Task, TaskStatus } from "@spy4x/time/ical-tasks-model"
+import { parseIcal, serializeIcal } from "@spy4x/time/ical"
+import { patchTodo, readTodo } from "@spy4x/time/ical-tasks"
 import type { ConflictReason, Outcome } from "@spy4x/realtime/outbox"
 import { completeMessage } from "@tasks/identity.ts"
 import { offline, relay } from "./connection.ts"
@@ -95,6 +97,38 @@ export function saveTask(task: Task, edit: TaskEdit, now = new Date()): Promise<
       return { ok: true, task: result.output.task, ics: result.output.ics }
     },
   }, edit)
+}
+
+/**
+ * Puts a task under `parentUid`, or at the top level when it is `undefined`: its parent link
+ * (`RELATED-TO`, type `PARENT`) is replaced and any other link stays. After a 412 the same move is
+ * made on the fresh copy; there is no field to collide on.
+ */
+export function setTaskParent(
+  task: Task,
+  parentUid: string | undefined,
+  now = new Date(),
+): Promise<WriteResult> {
+  const change = (current: Task): Step => {
+    if (current.parentUid === parentUid) return { ok: true, alreadyDone: true }
+    const root = parseIcal(current.ics)
+    if (!root.success) return { ok: false, message: root.error.message }
+    const others = (readTodo(root.output)?.relatedTo ?? []).filter((link) => link.type !== `PARENT`)
+    const relatedTo = parentUid ? [...others, { uid: parentUid, type: `PARENT` }] : others
+    const patched = patchTodo(root.output, { relatedTo }, { now })
+    if (!patched.success) return { ok: false, message: patched.error.message }
+    const ics = serializeIcal(root.output)
+    const parsed = parseTask({
+      href: current.href,
+      etag: current.etag,
+      listHref: current.listHref,
+      ics,
+    })
+    return parsed.success
+      ? { ok: true, task: parsed.output, ics }
+      : { ok: false, message: parsed.error }
+  }
+  return commit(task, { first: change, rebase: (_base, theirs) => change(theirs) })
 }
 
 const isDone = (task: Task) => task.status === TaskStatus.Completed

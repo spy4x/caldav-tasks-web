@@ -52,7 +52,15 @@ export interface TaskRowProps {
   onAddSibling?: (task: Task, title: string) => void
   /** Given, a "Delete" button shows on hover, right of "Edit". */
   onDelete?: (task: Task) => void
+  /**
+   * Given, the row can be dragged (by anything but its reorder handle) and dropped onto another
+   * row: that row's `onNest` is called with the dragged task's `UID` and its own task.
+   */
+  onNest?: (uid: string, parent: Task) => void
 }
+
+/** The drag data type that carries a task's `UID` between rows. */
+const NEST_TYPE = `application/x-task-uid`
 
 const INDENT = [`ps-2`, `ps-12`, `ps-16`, `ps-16`] as const
 const MAX_TAGS = 3
@@ -93,6 +101,40 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   const quiet = sub || props.plain
   const [renaming, setRenaming] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [dropping, setDropping] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const nest = props.onNest
+  const carriesTask = (event: DragEvent) => event.dataTransfer?.types.includes(NEST_TYPE) ?? false
+  const dragProps = nest && !renaming && !adding
+    ? {
+      draggable: true,
+      onDragStart: (event: DragEvent) => {
+        event.dataTransfer?.setData(NEST_TYPE, task.uid)
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = `move`
+        setDragging(true)
+      },
+      onDragEnd: () => setDragging(false),
+      onDragOver: (event: DragEvent) => {
+        if (!carriesTask(event)) return
+        event.preventDefault()
+        if (event.dataTransfer) event.dataTransfer.dropEffect = `move`
+        if (!dropping) setDropping(true)
+      },
+      onDragLeave: (event: DragEvent) => {
+        const into = event.relatedTarget
+        if (!(into instanceof Node && (event.currentTarget as Node).contains(into))) {
+          setDropping(false)
+        }
+      },
+      onDrop: (event: DragEvent) => {
+        if (!carriesTask(event)) return
+        event.preventDefault()
+        setDropping(false)
+        const uid = event.dataTransfer?.getData(NEST_TYPE)
+        if (uid && uid !== task.uid) nest(uid, task)
+      },
+    }
+    : {}
   const newLine = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (adding) newLine.current?.focus()
@@ -144,7 +186,8 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
           : props.plain
           ? `min-h-9`
           : `min-h-11 border-t border-subtle first:border-t-0`
-      }`}
+      } ${dropping ? `task-drop-target` : ``} ${dragging ? `opacity-50` : ``}`}
+      {...dragProps}
       data-e2e="task-row"
       data-task-uid={task.uid}
       onKeyDown={onKeyDown}
