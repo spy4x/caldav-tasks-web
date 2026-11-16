@@ -195,7 +195,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   const hintDue = !due && parsed?.due ? shortDate(parsed.due.date, parsed.due.time) : ``
   const hintParent = split.parent ? (named?.title ?? split.parent) : ``
 
-  const submit = async (event?: Event) => {
+  const submit = async (event?: Event, pickedUid?: string) => {
     event?.preventDefault()
     if (props.busy) return
     if (!split.child) {
@@ -205,7 +205,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
     }
     setError(``)
     const input: NewTaskInput = { text: split.child, priority, ...(due ? { due } : {}) }
-    if (named) input.parentUid = named.uid
+    if (pickedUid) input.parentUid = pickedUid
+    else if (named) input.parentUid = named.uid
     else if (split.parent) input.parentTitle = split.parent
     else if (parentStillThere && parentUid) input.parentUid = parentUid
     if (await props.onAdd(input)) {
@@ -216,9 +217,14 @@ export function Sidebar(props: SidebarProps): JSX.Element {
     }
   }
 
-  const choose = (item: MenuItem) => {
+  /** Enter or a click adds the task under the pick at once; Tab only fills the pick in. */
+  const choose = (item: MenuItem, add = true) => {
     if (item.kind === `create`) {
       void submit()
+      return
+    }
+    if (add) {
+      void submit(undefined, item.uid)
       return
     }
     setTitle(split.child)
@@ -235,7 +241,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       }
       if (event.key === `Enter` || event.key === `Tab`) {
         event.preventDefault()
-        choose(items[current])
+        choose(items[current], event.key === `Enter`)
         return
       }
       if (event.key === `Escape`) {

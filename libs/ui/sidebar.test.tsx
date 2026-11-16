@@ -46,8 +46,6 @@ Deno.test("typing ` /` offers the main tasks; picking one nests the task; an unk
         `+Create “gro” as a main task`,
       ])
       await key(`Enter`)
-      expect(field.value).toBe(`Milk`)
-      await key(`Enter`)
       expect(added[0]).toEqual({ text: `Milk`, priority: 0, parentUid: `g` })
 
       await write(`Eggs / Buy groceries`)
@@ -84,7 +82,7 @@ Deno.test("the compact sidebar is the task field alone, and ` / ` still offers t
         `↳Buy groceries`,
         `+Create “gro” as a main task`,
       ])
-      for (const _ of [1, 2]) {
+      for (const _ of [1]) {
         await act(async () => {
           field.dispatchEvent(
             new window.KeyboardEvent(`keydown`, { key: `Enter`, bubbles: true }) as never,
@@ -92,6 +90,33 @@ Deno.test("the compact sidebar is the task field alone, and ` / ` still offers t
           await new Promise((resolve) => setTimeout(resolve, 0))
         })
       }
+      expect(added).toEqual([{ text: `Milk`, priority: 0, parentUid: `g` }])
+    },
+  )
+})
+
+Deno.test("Tab fills the picked main task in without adding; Enter then adds under it", async () => {
+  const added: NewTaskInput[] = []
+  await mount(
+    <Sidebar {...props({ onAdd: (input) => (added.push(input), Promise.resolve(true)) })} />,
+    async ({ root, window, act }) => {
+      const field = must<HTMLTextAreaElement>(root, `[data-e2e="new-task-title"]`)
+      const key = (k: string) =>
+        act(async () => {
+          field.dispatchEvent(
+            new window.KeyboardEvent(`keydown`, { key: k, bubbles: true }) as never,
+          )
+          await new Promise((resolve) => setTimeout(resolve, 0))
+        })
+      await act(() => {
+        field.focus()
+        field.value = `Milk / gro`
+        field.dispatchEvent(new window.Event(`input`, { bubbles: true }) as never)
+      })
+      await key(`Tab`)
+      expect(added).toEqual([])
+      expect(field.value).toBe(`Milk`)
+      await key(`Enter`)
       expect(added).toEqual([{ text: `Milk`, priority: 0, parentUid: `g` }])
     },
   )
