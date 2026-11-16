@@ -5,6 +5,7 @@ import {
   IconChevronDown,
   IconEllipsisVertical,
   IconFunnel,
+  IconPlus,
 } from "@spy4x/preact-icons"
 import { Dropdown, DropdownItem } from "@spy4x/preact-ui/dropdown"
 import { isOpen, type Task, type TaskList } from "@spy4x/time/ical-tasks-model"
@@ -198,7 +199,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   })
 
   return (
-    <div class="flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16">
+    <div class="flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none md:group-data-[sidebar-hidden]/frame:pt-6">
       <header class="flex flex-col gap-1" data-e2e="page-header">
         <a
           href={PATHS.lists}
@@ -272,15 +273,19 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
       </header>
 
       <div
-        class="md:hidden md:group-data-[sidebar-hidden]/frame:order-first md:group-data-[sidebar-hidden]/frame:block"
+        class="relative md:hidden md:group-data-[sidebar-hidden]/frame:order-first md:group-data-[sidebar-hidden]/frame:mb-4 md:group-data-[sidebar-hidden]/frame:block"
         data-e2e="phone-quick-add"
       >
+        <IconPlus
+          class="pointer-events-none absolute start-4 top-4 z-10 hidden size-4 text-muted md:group-data-[sidebar-hidden]/frame:block"
+          aria-hidden="true"
+        />
         <QuickAdd
           onAdd={props.onQuickAdd}
           zone={props.zone}
           busy={props.quickAddBusy}
           label="New task"
-          placeholder="Add a task"
+          placeholder="Add a new task…"
           labels={{ submit: "Add task", noTitle: "Add a title to create the task" }}
           hint={`Added to ${list.name}`}
         />

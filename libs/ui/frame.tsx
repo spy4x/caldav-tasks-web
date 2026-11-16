@@ -1,10 +1,10 @@
 import type { ComponentChildren, ComponentType, JSX } from "preact"
 import { useEffect, useRef, useState } from "preact/hooks"
 import {
-  IconBars3,
   IconCalendarDays,
   IconCheck,
   IconChevronLeft,
+  IconChevronRight,
   IconEllipsisVertical,
   IconLens,
   IconList,
@@ -121,6 +121,36 @@ export function AppFrame(
   useEffect(() => {
     if (toggled.current) (hidden ? showButton : hideButton).current?.focus()
   }, [hidden])
+  const logo = (
+    <AppLink
+      href={PATHS.today}
+      navigate={navigate}
+      class="flex items-center gap-3 font-heading text-lg font-semibold"
+    >
+      <span class="flex size-7 items-center justify-center rounded-md bg-accent text-accent-foreground">
+        <IconCheck class="size-4" aria-hidden="true" />
+      </span>
+      To do
+    </AppLink>
+  )
+  const search = (wide: boolean) => (
+    <AppLink
+      href={PATHS.search}
+      navigate={navigate}
+      aria-label="Search tasks"
+      class="flex h-8 items-center gap-2 rounded-md px-2 text-sm text-muted hover:bg-hover hover:text-foreground"
+      data-e2e="header-search"
+    >
+      <IconLens class="size-4" aria-hidden="true" />
+      {wide && <span>Search tasks</span>}
+      <kbd
+        class="rounded border border-subtle px-1 font-sans text-xs"
+        aria-hidden="true"
+      >
+        /
+      </kbd>
+    </AppLink>
+  )
   return (
     <div
       data-sidebar-hidden={sidebar && hidden ? `` : undefined}
@@ -132,42 +162,26 @@ export function AppFrame(
       >
         Skip to content
       </a>
+      {sidebar && hidden && (
+        <header
+          class="hidden h-18 shrink-0 items-center justify-between border-b border-subtle bg-surface px-8 md:flex"
+          data-e2e="top-bar"
+        >
+          {logo}
+          {search(true)}
+        </header>
+      )}
       <div class="flex flex-1">
-        {sidebar && (
+        {sidebar && !hidden && (
           <aside
-            class={`hidden w-90 shrink-0 border-r border-subtle bg-surface ${
-              hidden ? `` : `md:block`
-            }`}
+            class="hidden w-90 shrink-0 border-r border-subtle bg-surface md:block"
             data-e2e="sidebar"
           >
             <div class="px-6 pt-6 pb-8">
               <div class="mb-8 flex items-center gap-1">
-                <AppLink
-                  href={PATHS.today}
-                  navigate={navigate}
-                  class="flex items-center gap-3 font-heading text-lg font-semibold"
-                >
-                  <span class="flex size-7 items-center justify-center rounded-md bg-accent text-accent-foreground">
-                    <IconCheck class="size-4" aria-hidden="true" />
-                  </span>
-                  To do
-                </AppLink>
+                {logo}
                 <span class="ms-auto" />
-                <AppLink
-                  href={PATHS.search}
-                  navigate={navigate}
-                  aria-label="Search tasks"
-                  class="flex h-8 items-center gap-2 rounded-md px-2 text-sm text-muted hover:bg-hover hover:text-foreground"
-                  data-e2e="header-search"
-                >
-                  <IconLens class="size-4" aria-hidden="true" />
-                  <kbd
-                    class="rounded border border-subtle px-1 font-sans text-xs"
-                    aria-hidden="true"
-                  >
-                    /
-                  </kbd>
-                </AppLink>
+                {search(false)}
                 <button
                   type="button"
                   aria-label="Hide sidebar"
@@ -186,18 +200,20 @@ export function AppFrame(
           </aside>
         )}
         {sidebar && hidden && (
-          <button
-            type="button"
-            aria-label="Show sidebar"
-            title="Show sidebar"
-            aria-expanded="false"
-            class="fixed top-3 left-3 z-20 hidden size-9 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-foreground md:flex"
-            ref={showButton}
-            onClick={() => toggle(false)}
-            data-e2e="sidebar-show"
-          >
-            <IconBars3 class="size-5" aria-hidden="true" />
-          </button>
+          <div class="hidden w-20 shrink-0 border-r border-subtle px-4 py-6 md:block">
+            <button
+              type="button"
+              aria-label="Show sidebar"
+              title="Show sidebar"
+              aria-expanded="false"
+              class="flex size-11 items-center justify-center rounded-lg border border-subtle bg-surface text-foreground shadow-sm hover:bg-hover"
+              ref={showButton}
+              onClick={() => toggle(false)}
+              data-e2e="sidebar-show"
+            >
+              <IconChevronRight class="size-4" aria-hidden="true" />
+            </button>
+          </div>
         )}
         <main id="main" tabindex={-1} class="min-w-0 flex-1 pb-16 outline-none md:pb-0">
           {children}

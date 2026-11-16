@@ -234,7 +234,7 @@ Deno.test("quick add on a list carries the app's wording, not the library's", as
   await mount(<ListScreen {...props()} />, async ({ root, window, act }) => {
     const input = must<HTMLInputElement>(root, `[data-e2e="quick-add-input"]`)
     expect(input.getAttribute(`aria-label`)).toBe(`New task`)
-    expect(input.placeholder).toBe(`Add a task`)
+    expect(input.placeholder).toBe(`Add a new task…`)
     expect(must(root, `[data-e2e="quick-add-submit"]`).textContent).toBe(`Add task`)
     input.value = `#work !high`
     await act(() => must<HTMLFormElement>(root, `[data-e2e="quick-add"]`).requestSubmit())

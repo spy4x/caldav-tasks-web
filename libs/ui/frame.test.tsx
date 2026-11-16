@@ -103,14 +103,15 @@ Deno.test("the sidebar hides and comes back, and the frame says so for the scree
   try {
     await act(() => render(<AppFrame sidebar={<p>Lists</p>}>page</AppFrame>, root as never))
     const frame = () => root.firstElementChild!
-    const aside = () => root.querySelector(`[data-e2e="sidebar"]`)!
+    const aside = () => root.querySelector(`[data-e2e="sidebar"]`)
     expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(false)
-    expect(aside().className).toContain(`md:block`)
+    expect(aside()).not.toBeNull()
     await act(() =>
       (root.querySelector(`[data-e2e="sidebar-hide"]`) as unknown as HTMLElement).click()
     )
     expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(true)
-    expect(aside().className).not.toContain(`md:block`)
+    expect(aside()).toBeNull()
+    expect(root.querySelector(`[data-e2e="top-bar"]`)).not.toBeNull()
     await act(() =>
       (root.querySelector(`[data-e2e="sidebar-show"]`) as unknown as HTMLElement).click()
     )
