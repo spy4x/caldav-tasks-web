@@ -225,9 +225,13 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
           Lists
         </a>
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <h1 class="flex min-w-0 items-baseline gap-3 text-2xl font-bold tracking-tight">
+          <h1
+            class={`flex min-w-0 items-baseline gap-3 text-2xl font-bold tracking-tight ${
+              props.pane ? `grow basis-32` : ``
+            }`}
+          >
             {props.title ?? <span class="break-words">{list.name}</span>}
-            <span class="text-[15px] font-normal tracking-normal text-muted">
+            <span class="shrink-0 whitespace-nowrap text-[13px] font-normal tracking-normal text-muted">
               {openShown} open
             </span>
           </h1>

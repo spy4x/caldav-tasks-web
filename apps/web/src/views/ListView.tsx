@@ -99,26 +99,29 @@ export function ListView() {
           pane
           addHere
           title={
-            <label class="relative inline-flex min-w-0 items-center">
-              <span class="sr-only">Second list</span>
-              <select
-                class="min-w-0 cursor-pointer appearance-none truncate rounded-md bg-transparent pe-6 hover:bg-hover"
-                value={second.href}
-                onChange={(event) => {
-                  setSecondHref(event.currentTarget.value)
-                  store(SECOND_LIST, event.currentTarget.value)
-                }}
-                data-e2e="second-list-select"
-              >
-                {others.map((other) => (
-                  <option key={other.href} value={other.href}>{other.name}</option>
-                ))}
-              </select>
-              <IconChevronDown
-                class="pointer-events-none absolute end-1 size-4"
-                aria-hidden="true"
-              />
-            </label>
+            // The name shows as text with the menu laid invisibly over it: a native menu is as
+            // wide as its longest option.
+
+
+              <label class="relative inline-flex min-w-0 items-center gap-1 rounded-md hover:bg-hover focus-within:outline-2 focus-within:outline-[var(--color-ring)]">
+                <span class="truncate">{second.name}</span>
+                <IconChevronDown class="size-4 shrink-0" aria-hidden="true" />
+                <select
+                  aria-label="Second list"
+                  class="absolute inset-0 cursor-pointer opacity-0"
+                  value={second.href}
+                  onChange={(event) => {
+                    setSecondHref(event.currentTarget.value)
+                    store(SECOND_LIST, event.currentTarget.value)
+                  }}
+                  data-e2e="second-list-select"
+                >
+                  {others.map((other) => (
+                    <option key={other.href} value={other.href}>{other.name}</option>
+                  ))}
+                </select>
+              </label>
+
           }
         />
       }
