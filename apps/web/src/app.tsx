@@ -26,7 +26,7 @@ import { ListsView } from "./views/ListsView.tsx"
 import { ListView } from "./views/ListView.tsx"
 import { ListSettingsView } from "./views/ListSettingsView.tsx"
 import { NotFoundView } from "./views/NotFoundView.tsx"
-import { SearchView } from "./views/SearchView.tsx"
+import { rememberPage, SearchView } from "./views/SearchView.tsx"
 import { SettingsView } from "./views/SettingsView.tsx"
 import { SignInAgainView } from "./views/SignInAgainView.tsx"
 import { SignInView } from "./views/SignInView.tsx"
@@ -96,6 +96,7 @@ function SignedInApp() {
   useEffect(() => () => void (document.title = APP_TITLE), [])
   const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
   useShortcuts(navigate)
+  useEffect(() => rememberPage(`${location}${globalThis.location.search}`), [location])
   useRouteAnnouncer({
     path: location,
     // `/` opens Search with the cursor in its field and `n` opens Today with it in the quick add:
@@ -114,6 +115,9 @@ function SignedInApp() {
       currentPath={location}
       navigate={guarded}
       sidebar={<SidebarView currentPath={location} navigate={guarded} />}
+      newTask={/^\/lists\/[^/]+$/.test(location)
+        ? <SidebarView compact currentPath={location} navigate={guarded} />
+        : undefined}
     >
       {notice.value && (
         <div class="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">

@@ -95,11 +95,13 @@ function readHidden(): boolean {
  own quick add.
  */
 export function AppFrame(
-  { currentPath, navigate, sidebar, children }: {
+  { currentPath, navigate, sidebar, newTask, children }: {
     currentPath?: string
     navigate?: (path: string) => void
     /** The desktop column: the new task form and the lists. Hidden on a phone. */
     sidebar?: ComponentChildren
+    /** The New task field drawn atop the page while the sidebar is hidden. */
+    newTask?: ComponentChildren
     children: ComponentChildren
   },
 ): JSX.Element {
@@ -214,7 +216,10 @@ export function AppFrame(
         )}
         <main id="main" tabindex={-1} class="min-w-0 flex-1 pb-16 outline-none md:pb-0">
           {sidebar && hidden && (
-            <div class="hidden justify-end px-12 pt-2 md:flex">{search(true)}</div>
+            <div class="hidden flex-col gap-1 px-12 pt-2 md:flex">
+              <div class="flex justify-end">{search(true)}</div>
+              {newTask}
+            </div>
           )}
           {children}
         </main>

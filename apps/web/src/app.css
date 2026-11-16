@@ -74,6 +74,8 @@
      hover step) from --color-accent. */
   --color-accent-foreground: #ffffff;
   --color-ring: var(--color-accent);
+  /* The library's fields (quick add, search) light up in the accent too, not the preset's colour. */
+  --color-focus-ring: var(--color-accent);
 
   /* What is chosen or current. Lamp and parchment, because the accent stays for the primary action. */
   --color-selected: var(--color-parchment);
@@ -404,29 +406,4 @@ h3 {
   ascent-override: 90.44%;
   descent-override: 22.52%;
   line-gap-override: 0%;
-}
-
-/* With the sidebar hidden, a list's quick add is the page's one New task field: a single wide
-   field with a plus inside, Enter to add. The hint stays for screen readers. */
-@media (min-width: 48rem) {
-  [data-sidebar-hidden] [data-e2e="phone-quick-add"] {
-    input {
-      min-height: 3rem;
-      padding-inline-start: 2.75rem;
-      border-radius: 0.75rem;
-      background: var(--color-surface);
-      font-size: 15px;
-    }
-    [data-e2e$="-submit"] {
-      display: none;
-    }
-    [id$="-hint"] {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-  }
 }

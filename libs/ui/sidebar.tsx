@@ -1,5 +1,5 @@
 import type { ComponentChildren, JSX } from "preact"
-import { useRef, useState } from "preact/hooks"
+import { useEffect, useRef, useState } from "preact/hooks"
 import { parseQuickAdd } from "@spy4x/platform"
 import {
   IconCalendar,
@@ -49,6 +49,10 @@ export interface SidebarProps {
   /** Creates the task. Resolves `true` when it was created, so the form clears. */
   onAdd: (input: NewTaskInput) => Promise<boolean>
   navigate?: (path: string) => void
+  /** Only the task field, one line: the page's New task field while the sidebar is hidden. */
+  compact?: boolean
+  /** Puts the cursor in the task field on arrival, again each time this changes (the page). */
+  focusKey?: string
 }
 
 const PRIORITIES = [
@@ -132,6 +136,23 @@ function shortDate(date: string, time?: string): string {
     timeZone: `UTC`,
   })
   return time ? `${day}, ${time}` : day
+}
+
+/**
+ * Puts the cursor in a new-task field as a page opens, so typing and Enter add a task. Only on a
+ * desktop, where no keyboard pops up; after the route announcer has placed the focus; and not when
+ * another field already holds it. Returns the cancel.
+ */
+export function focusOnArrival(field: () => HTMLElement | null | undefined): () => void {
+  const timer = setTimeout(() => {
+    const el = field()
+    if (!el || el.offsetParent === null) return
+    if (!globalThis.matchMedia?.(`(min-width: 768px)`).matches) return
+    const active = document.activeElement
+    if (active?.closest(`input, textarea, select, [contenteditable="true"], dialog`)) return
+    el.focus()
+  })
+  return () => clearTimeout(timer)
 }
 
 type MenuItem = { kind: `pick`; uid: string; title: string } | { kind: `create`; title: string }
@@ -223,7 +244,98 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         return
       }
     }
+    if (event.key === `Escape`) {
+      // Leaves the field, so the page's one-key shortcuts work again.
+      event.currentTarget.blur()
+      return
+    }
     if (event.key === `Enter` && !event.shiftKey) void submit(event)
+  }
+
+  useEffect(
+    () => props.focusKey === undefined ? undefined : focusOnArrival(() => titleRef.current),
+    [props.focusKey],
+  )
+
+  const field = (
+    <>
+      <span class="relative block">
+        <IconPlus
+          class={`pointer-events-none absolute start-4 size-4 text-muted ${
+            props.compact ? `top-4` : `top-3`
+          }`}
+          aria-hidden="true"
+        />
+        <textarea
+          ref={titleRef}
+          class={`${CONTROL} block resize-none pe-3 text-[15px] leading-6 placeholder:text-placeholder ${
+            props.compact ? `h-12 overflow-hidden ps-12 py-3` : `h-26 ps-12 py-2`
+          }`}
+          placeholder={props.compact ? `Add a new task…` : `What do you need to do?`}
+          aria-label={props.compact ? `New task` : undefined}
+          value={title}
+          role="combobox"
+          aria-expanded={menuOpen}
+          aria-controls="new-task-parents"
+          aria-autocomplete="list"
+          aria-activedescendant={menuOpen ? `new-task-parent-${current}` : undefined}
+          aria-invalid={error ? true : undefined}
+          onInput={(event) => {
+            setTitle(event.currentTarget.value)
+            setMenuOff(false)
+            setActive(0)
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onKeyDown={onKeyDown}
+          data-e2e="new-task-title"
+        />
+        {menuOpen && (
+          <ul
+            id="new-task-parents"
+            role="listbox"
+            aria-label="Nest under"
+            class="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-subtle bg-surface p-1 text-sm shadow-lg"
+            data-e2e="new-task-parent-menu"
+          >
+            {items.map((item, index) => (
+              <li
+                key={item.kind === `pick` ? item.uid : `create`}
+                id={`new-task-parent-${index}`}
+                role="option"
+                aria-selected={index === current}
+                class={`flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 ${
+                  index === current ? `bg-selected-soft text-accent-text` : `hover:bg-hover`
+                }`}
+                // Keeps the focus in the field, so the menu does not close before the pick.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => choose(item)}
+              >
+                <span aria-hidden="true">{item.kind === `pick` ? `↳` : `+`}</span>
+                <span class="truncate">
+                  {item.kind === `pick` ? item.title : `Create “${item.title}” as a main task`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </span>
+      {(hintDue || hintParent) && !error && (
+        <span class="flex flex-wrap gap-x-3 text-xs text-muted" data-e2e="new-task-hint">
+          {hintDue && <span>Due {hintDue}</span>}
+          {hintParent && <span>Under {hintParent}{named ? `` : ` (new)`}</span>}
+        </span>
+      )}
+      {error && <span class="text-xs text-danger">{error}</span>}
+    </>
+  )
+
+  if (props.compact) {
+    return (
+      <form class="flex flex-col gap-1" onSubmit={submit} data-e2e="new-task-form">
+        {field}
+      </form>
+    )
   }
 
   return (
@@ -234,69 +346,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           <p class="text-[13px] text-muted">Capture a task, then add the details.</p>
         </div>
         <Field label="Task">
-          <span class="relative block">
-            <IconPlus
-              class="pointer-events-none absolute start-4 top-3 size-4 text-muted"
-              aria-hidden="true"
-            />
-            <textarea
-              ref={titleRef}
-              class={`${CONTROL} block h-26 resize-none ps-12 pe-3 py-2 text-[15px] leading-6 placeholder:text-placeholder`}
-              placeholder="What do you need to do?"
-              value={title}
-              role="combobox"
-              aria-expanded={menuOpen}
-              aria-controls="new-task-parents"
-              aria-autocomplete="list"
-              aria-activedescendant={menuOpen ? `new-task-parent-${current}` : undefined}
-              aria-invalid={error ? true : undefined}
-              onInput={(event) => {
-                setTitle(event.currentTarget.value)
-                setMenuOff(false)
-                setActive(0)
-              }}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              onKeyDown={onKeyDown}
-              data-e2e="new-task-title"
-            />
-            {menuOpen && (
-              <ul
-                id="new-task-parents"
-                role="listbox"
-                aria-label="Nest under"
-                class="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-subtle bg-surface p-1 text-sm shadow-lg"
-                data-e2e="new-task-parent-menu"
-              >
-                {items.map((item, index) => (
-                  <li
-                    key={item.kind === `pick` ? item.uid : `create`}
-                    id={`new-task-parent-${index}`}
-                    role="option"
-                    aria-selected={index === current}
-                    class={`flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 ${
-                      index === current ? `bg-selected-soft text-accent-text` : `hover:bg-hover`
-                    }`}
-                    // Keeps the focus in the field, so the menu does not close before the pick.
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => choose(item)}
-                  >
-                    <span aria-hidden="true">{item.kind === `pick` ? `↳` : `+`}</span>
-                    <span class="truncate">
-                      {item.kind === `pick` ? item.title : `Create “${item.title}” as a main task`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </span>
-          {(hintDue || hintParent) && !error && (
-            <span class="flex flex-wrap gap-x-3 text-xs text-muted" data-e2e="new-task-hint">
-              {hintDue && <span>Due {hintDue}</span>}
-              {hintParent && <span>Under {hintParent}{named ? `` : ` (new)`}</span>}
-            </span>
-          )}
-          {error && <span class="text-xs text-danger">{error}</span>}
+          {field}
         </Field>
         <Field label="Due date">
           <span class="relative block">

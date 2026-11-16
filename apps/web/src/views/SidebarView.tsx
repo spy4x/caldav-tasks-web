@@ -20,7 +20,11 @@ import { namedParent, newTaskFromQuickAdd } from "./use-quick-add.ts"
  * under one of that list's open top-level tasks, which is created first when named but missing.
  */
 export function SidebarView(
-  { currentPath, navigate }: { currentPath: string; navigate: (path: string) => void },
+  { currentPath, navigate, compact }: {
+    currentPath: string
+    navigate: (path: string) => void
+    compact?: boolean
+  },
 ) {
   const busy = useSignal(false)
   const lists = taskLists.value
@@ -101,6 +105,9 @@ export function SidebarView(
       busy={busy.value}
       onAdd={add}
       navigate={navigate}
+      compact={compact}
+      // Where this is the page's only New task field. Today focuses its own quick add.
+      focusKey={slug || currentPath === PATHS.upcoming ? currentPath : undefined}
     />
   )
 }

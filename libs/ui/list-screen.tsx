@@ -5,7 +5,6 @@ import {
   IconChevronDown,
   IconEllipsisVertical,
   IconFunnel,
-  IconPlus,
 } from "@spy4x/preact-icons"
 import { Dropdown, DropdownItem } from "@spy4x/preact-ui/dropdown"
 import { isOpen, type Task, type TaskList } from "@spy4x/time/ical-tasks-model"
@@ -167,8 +166,7 @@ function MenuSelect<T extends string | number>(
  * One list: a heading with today's date, the open tasks as a tree in a card with a tag filter and
  * an order menu, and below them the finished tasks of a chosen period, newest first. A finished
  * subtask stays under its open parent, so "1 of 3 subtasks" adds up. On a phone a quick add sits
- * under the heading; on a desktop the sidebar's New task form adds to this list, and with the
- * sidebar hidden the quick add comes back, above the heading.
+ * under the heading; on a desktop the sidebar's New task form adds to this list.
  */
 export function ListScreen(props: ListScreenProps): JSX.Element {
   const { list, tasks, zone } = props
@@ -199,7 +197,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   })
 
   return (
-    <div class="flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none md:group-data-[sidebar-hidden]/frame:pt-0">
+    <div class="flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none">
       <header class="flex flex-col gap-1" data-e2e="page-header">
         <a
           href={PATHS.lists}
@@ -272,14 +270,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
         </div>
       </header>
 
-      <div
-        class="relative md:hidden md:group-data-[sidebar-hidden]/frame:order-first md:group-data-[sidebar-hidden]/frame:mb-4 md:group-data-[sidebar-hidden]/frame:block"
-        data-e2e="phone-quick-add"
-      >
-        <IconPlus
-          class="pointer-events-none absolute start-4 top-4 z-10 hidden size-4 text-muted md:group-data-[sidebar-hidden]/frame:block"
-          aria-hidden="true"
-        />
+      <div class="md:hidden" data-e2e="phone-quick-add">
         <QuickAdd
           onAdd={props.onQuickAdd}
           zone={props.zone}

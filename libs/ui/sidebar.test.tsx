@@ -62,3 +62,37 @@ Deno.test("typing ` /` offers the main tasks; picking one nests the task; an unk
     },
   )
 })
+
+Deno.test("the compact sidebar is the task field alone, and ` / ` still offers the main tasks", async () => {
+  const added: NewTaskInput[] = []
+  await mount(
+    <Sidebar
+      {...props({ onAdd: (input) => (added.push(input), Promise.resolve(true)) })}
+      compact
+    />,
+    async ({ root, window, act }) => {
+      expect(root.querySelector(`[data-e2e="new-task-due"]`)).toBeNull()
+      expect(root.querySelector(`[data-e2e="new-task-priority"]`)).toBeNull()
+      const field = must<HTMLTextAreaElement>(root, `[data-e2e="new-task-title"]`)
+      expect(field.getAttribute(`aria-label`)).toBe(`New task`)
+      await act(() => {
+        field.focus()
+        field.value = `Milk / gro`
+        field.dispatchEvent(new window.Event(`input`, { bubbles: true }) as never)
+      })
+      expect(texts(root, `[data-e2e="new-task-parent-menu"] li`)).toEqual([
+        `↳Buy groceries`,
+        `+Create “gro” as a main task`,
+      ])
+      for (const _ of [1, 2]) {
+        await act(async () => {
+          field.dispatchEvent(
+            new window.KeyboardEvent(`keydown`, { key: `Enter`, bubbles: true }) as never,
+          )
+          await new Promise((resolve) => setTimeout(resolve, 0))
+        })
+      }
+      expect(added).toEqual([{ text: `Milk`, priority: 0, parentUid: `g` }])
+    },
+  )
+})
