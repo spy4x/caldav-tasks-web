@@ -12,7 +12,7 @@ import { tasks, WriteKind } from "../state/tasks.ts"
 import { toasts } from "../state/toasts.ts"
 import { browserZone } from "./clock.ts"
 import { homeList } from "./TodayView.tsx"
-import { newTaskFromQuickAdd } from "./use-quick-add.ts"
+import { namedParent, newTaskFromQuickAdd } from "./use-quick-add.ts"
 
 /**
  * The sidebar, wired: a new task goes into the list on screen, or the home list (Daily) anywhere
@@ -72,16 +72,12 @@ export function SidebarView(
     try {
       let parent: Task | undefined = parents.find((p) => p.uid === input.parentUid)
       if (!parent && input.parentTitle) {
-        const name = input.parentTitle.trim().toLowerCase()
-        parent = parents.find((p) => p.title.trim().toLowerCase() === name)
-        if (!parent) {
-          const made = await addTask({ title: input.parentTitle }, { listHref: target.href })
-          if (made.kind === WriteKind.Failed) {
-            toasts.error({ title: ``, body: made.message })
-            return false
-          }
-          if (made.kind === WriteKind.Saved) parent = made.task
+        const found = await namedParent(target.href, input.parentTitle)
+        if (`error` in found) {
+          toasts.error({ title: ``, body: found.error })
+          return false
         }
+        parent = found.parent
       }
       const result = await addTask(fields, { listHref: target.href, parent })
       if (result.kind === WriteKind.Failed) {
