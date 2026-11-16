@@ -2,7 +2,7 @@ import { useSignal } from "@preact/signals"
 import { useLocation } from "wouter-preact"
 import { listPath } from "../routes.ts"
 import { taskLists } from "../state/task-lists.ts"
-import { homeList } from "./TodayView.tsx"
+import { homeHref, homeList, setHomeList } from "../state/home-list.ts"
 import { SettingsScreen } from "@ui/settings-screen.tsx"
 import { setShortcutsEnabled, shortcutsEnabled, shortcutsOpen } from "../shortcuts.ts"
 import { caldavAccount } from "../state/session.ts"
@@ -40,6 +40,9 @@ export function SettingsView() {
         else navigate(href)
       }}
       themeStore={themeStore}
+      lists={taskLists.value}
+      homeHref={homeHref.value}
+      onHomeChange={setHomeList}
       caldavUrl={caldavAccount.value?.url ?? null}
       caldavUsername={caldavAccount.value?.username ?? null}
       timeZone={browserZone()}

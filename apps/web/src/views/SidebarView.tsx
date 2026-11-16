@@ -12,11 +12,11 @@ import { addTask } from "../state/task-writes.ts"
 import { tasks, WriteKind } from "../state/tasks.ts"
 import { toasts } from "../state/toasts.ts"
 import { browserZone } from "./clock.ts"
-import { homeList } from "./TodayView.tsx"
+import { homeList } from "../state/home-list.ts"
 import { namedParent, newTaskFromQuickAdd } from "./use-quick-add.ts"
 
 /**
- * The sidebar, wired: a new task goes into the list on screen, or the home list (Daily) anywhere
+ * The sidebar, wired: a new task goes into the list on screen, or the default list (Settings) anywhere
  * else. Its text is read like the quick add's (a date, `!high`, `#tag`), and it can be nested
  * under one of that list's open top-level tasks, which is created first when named but missing.
  */

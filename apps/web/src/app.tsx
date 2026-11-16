@@ -124,6 +124,15 @@ function SignedInApp() {
     <AppFrame
       currentPath={location}
       navigate={guarded}
+      sidebarHidden={sidebarHidden}
+      onSidebarHiddenChange={(hidden) => {
+        setSidebarHidden(hidden)
+        try {
+          localStorage.setItem(SIDEBAR_HIDDEN, hidden ? `1` : `0`)
+        } catch {
+          // Not remembered in a private window; it still toggles.
+        }
+      }}
       sidebar={<SidebarView currentPath={location} navigate={guarded} />}
       sidebarHidden={sidebarHidden}
       onSidebarHiddenChange={(hidden) => {

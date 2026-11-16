@@ -16,6 +16,11 @@ export interface SettingsScreenProps {
   navigate?: (href: string) => void
   /** The app's theme store; the toggle reads and cycles it. */
   themeStore: ThemeToggleStore
+  /** The lists to choose the default from. Left out, Settings has no "Default list". */
+  lists?: readonly { href: string; name: string }[]
+  /** The list the app opens on, on this device; `null` opens on Today. */
+  homeHref?: string | null
+  onHomeChange?: (href: string | null) => void
   /** The CalDAV server this install talks to, or `null` while it is not known (no network yet). */
   caldavUrl: string | null
   /** The CalDAV account in use, or `null` while it is not known. Never a password. */
@@ -75,7 +80,8 @@ const UNKNOWN = `Not known yet. It loads when the server answers.`
 /**
  * Settings: the theme, the CalDAV server and account in use, the time zone, the version and
  * "Sign out", with one sentence on how to sign out everywhere, and reminder notifications for this
- * device. Nothing else here is edited except the theme and the "Keyboard shortcuts" switch: the
+ * device. Nothing else here is edited except the theme, the default list (the one the app opens
+ * on, on this device) and the "Keyboard shortcuts" switch: the
  * server and account come from the install's environment.
  */
 export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
@@ -95,6 +101,23 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
           <Row term="Theme" e2e="settings-theme">
             <ThemeToggle store={props.themeStore} />
           </Row>
+          {props.lists && props.onHomeChange && (
+            <Row term="Default list" termId={HOME_TERM} e2e="settings-home">
+              <select
+                aria-labelledby={HOME_TERM}
+                class="h-9 max-w-64 cursor-pointer truncate rounded-lg border border-subtle bg-surface px-3 text-sm"
+                value={props.homeHref ?? ``}
+                onChange={(event) =>
+                  props.onHomeChange?.(event.currentTarget.value || null)}
+                data-e2e="home-list"
+              >
+                <option value="">None (open on Today)</option>
+                {props.lists.map((list) => (
+                  <option key={list.href} value={list.href}>{list.name}</option>
+                ))}
+              </select>
+            </Row>
+          )}
           <Row term="CalDAV server" e2e="settings-server">
             <span class="break-all">{props.caldavUrl ?? UNKNOWN}</span>
           </Row>
@@ -189,6 +212,9 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
     </ScreenLayout>
   )
 }
+
+/** The id of the "Default list" term, which names its menu. */
+const HOME_TERM = `settings-home-term`
 
 /** The id of the "Keyboard shortcuts" term, which names its switch. */
 const SHORTCUTS_TERM = `settings-shortcuts-term`

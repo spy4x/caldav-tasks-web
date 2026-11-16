@@ -7,20 +7,17 @@ import { focusOnArrival } from "@ui/sidebar.tsx"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { tasks } from "../state/tasks.ts"
+import { homeList } from "../state/home-list.ts"
 import { listPath, taskPath } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { completeWithUndo } from "./task-actions.ts"
 import { useQuickAdd } from "./use-quick-add.ts"
 import { focusNewTask } from "../state/focus-new-task.ts"
 
-/** The list the app opens on, by name. The Today tab still shows Today once the app is open. */
-const HOME_LIST = `daily`
-/** True once the first visit has had its chance to open the home list, or when it started elsewhere. */
-/** The list named Daily, whatever its case or spacing, if there is one. */
-export function homeList<T extends { name: string }>(lists: readonly T[]): T | undefined {
-  return lists.find((list) => list.name.trim().toLowerCase() === HOME_LIST)
-}
-
+/**
+ * True once the first visit has had its chance to open the default list (Settings), or when it
+ * started elsewhere. The Today tab still shows Today once the app is open.
+ */
 let homeHandled = globalThis.location?.pathname !== `/`
 
 /** Today, wired: what is overdue or due today, with a quick add that dates the task today. */

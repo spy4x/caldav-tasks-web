@@ -1,0 +1,32 @@
+import { signal } from "@preact/signals"
+
+/** Where this device keeps the list the app opens on. */
+export const HOME_LIST_KEY = `caldav-tasks-home-list`
+
+function stored(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(HOME_LIST_KEY) ?? null
+  } catch {
+    return null
+  }
+}
+
+/** The address of the list the app opens on, on this device; `null` opens on Today. */
+export const homeHref = signal<string | null>(stored())
+
+/** Makes `href` the list the app opens on here, or Today with `null`. */
+export function setHomeList(href: string | null): void {
+  homeHref.value = href
+  try {
+    if (href === null) globalThis.localStorage?.removeItem(HOME_LIST_KEY)
+    else globalThis.localStorage?.setItem(HOME_LIST_KEY, href)
+  } catch {
+    // Private windows may refuse; the choice then lasts until reload.
+  }
+}
+
+/** The default list among `lists`, if one is chosen and still exists. */
+export function homeList<T extends { href: string }>(lists: readonly T[]): T | undefined {
+  const href = homeHref.value
+  return href === null ? undefined : lists.find((list) => list.href === href)
+}
