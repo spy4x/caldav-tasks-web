@@ -45,8 +45,16 @@ export interface ListScreenProps {
   onAddSibling?: (task: Task, title: string) => void
   /** Deletes a task from its row; given, a "Delete" shows on hover right of "Edit". */
   onDeleteTask?: (task: Task) => void
-  /** Given, an open task can be dragged onto another to become its subtask; see TaskRow's `onNest`. */
-  onNestTask?: (uid: string, parent: Task) => void
+  /**
+   * In manual order, a drag can also put a task under another or take it out of its parent; see
+   * TaskTree's `onMoveUnder`.
+   */
+  onMoveTask?: (
+    task: Task,
+    parent: Task | undefined,
+    siblings: readonly Task[],
+    toIndex: number,
+  ) => void
   /** Creates a task in this list. The phone's way to add; a desktop has the sidebar's form. */
   onQuickAdd: (parsed: QuickAddResult) => void
   quickAddBusy?: boolean
@@ -308,7 +316,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                         onRename={props.onRenameTask}
                         onAddSibling={props.onAddSibling}
                         onDelete={props.onDeleteTask}
-                        onNest={props.onNestTask}
+                        onMoveUnder={props.sort === SortMode.Manual ? props.onMoveTask : undefined}
                         onReorder={props.sort === SortMode.Manual ? props.onReorder : undefined}
                       />
                     </FocusKeeper>

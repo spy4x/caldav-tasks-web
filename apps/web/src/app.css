@@ -112,35 +112,6 @@ input[type="checkbox"] {
  * shows its handle. Here the rows sit in the list's card like any other, and the handle shows on
  * the right when the pointer is over the row (always, on a touch screen).
  */
-.task-sortable ul {
-  gap: 0;
-}
-.task-sortable li[data-sortable-item] {
-  align-items: flex-start;
-  gap: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
-}
-.task-sortable-top > ul > li[data-sortable-item] + li[data-sortable-item] {
-  border-top: 1px solid var(--color-border-subtle);
-}
-.task-sortable [data-sortable-handle] {
-  order: 2;
-  width: 2rem;
-  height: 2.25rem;
-  margin-top: 0.25rem;
-  margin-inline-end: 0.25rem;
-}
-.task-sortable-top > ul > li > [data-sortable-handle] {
-  margin-top: 0.25rem;
-}
-.task-sortable:not(.task-sortable-top) [data-sortable-handle] {
-  height: 2rem;
-  margin-top: 0;
-}
-
 /*
  * Notifications: a quiet card in the corner instead of the library's solid fill. The kind shows
  * only in the icon's colour, and the action (Undo) is a blue text button on the same line.
@@ -162,12 +133,28 @@ input[type="checkbox"] {
   translate: 0 0.5rem;
   pointer-events: none;
 }
-/* A row a dragged task would be nested under. */
+/* Drag: the lifted row, the row it would go under, and indents that slide. */
+.task-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+.task-dragging [data-e2e="task-row"] {
+  transition: padding-inline-start 0.16s ease-out;
+}
+.task-lifted {
+  z-index: 20;
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+}
 .task-drop-target {
   border-radius: 0.5rem;
-  background: var(--color-accent-soft, color-mix(in srgb, var(--color-accent) 8%, transparent));
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
+}
+.task-handle {
+  margin-inline-start: -0.5rem;
 }
 .app-toasts > :not(:last-child) {
   margin-block-end: 0.5rem;
@@ -286,12 +273,12 @@ input[type="checkbox"] {
   border-color: var(--color-sage);
 }
 @media (hover: hover) {
-  .task-sortable [data-sortable-handle] {
+  .task-handle {
     opacity: 0;
   }
-  .task-sortable li[data-sortable-item]:hover > [data-sortable-handle],
-  .task-sortable [data-sortable-handle]:focus-visible,
-  .task-sortable [data-sortable-handle][aria-pressed="true"] {
+  [data-e2e="task-row"]:hover .task-handle,
+  .task-handle:focus-visible,
+  .task-handle[aria-pressed="true"] {
     opacity: 1;
   }
 }

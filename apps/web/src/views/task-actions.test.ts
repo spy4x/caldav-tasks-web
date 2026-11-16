@@ -10,7 +10,7 @@ import { tasks } from "../state/tasks.ts"
 import { setBrowserOnline, withApp } from "../state/testing.ts"
 import type { FakeServer } from "../state/testing.ts"
 import { toasts } from "../state/toasts.ts"
-import { completeWithUndo, deleteWithUndo, nestWithUndo, reorderInList } from "./task-actions.ts"
+import { completeWithUndo, deleteWithUndo, moveUnder, reorderInList } from "./task-actions.ts"
 
 const HREF = `${LIST_HREF}one.ics`
 
@@ -328,18 +328,41 @@ Deno.test(`dropping a task on another nests it there, Undo moves it back, and a 
     const milk = tasks.value.find((task) => task.title === `Buy milk`)!
     const groceries = tasks.value.find((task) => task.title === `Groceries`)!
 
-    await nestWithUndo(milk, groceries)
+    await moveUnder(LIST_HREF, milk, groceries, [], 0, `UTC`)
     expect(server.objects.get(HREF)!.ics).toContain(`RELATED-TO`)
     expect(tasks.value.find((task) => task.uid === milk.uid)!.parentUid).toBe(groceries.uid)
     const toast = lastToast()
     expect(toast.body).toBe(`Moved "Buy milk" under "Groceries"`)
 
     // Groceries under its own subtask would be a loop.
-    await nestWithUndo(groceries, tasks.value.find((task) => task.uid === milk.uid)!)
+    const nested = tasks.value.find((task) => task.uid === milk.uid)!
+    await moveUnder(LIST_HREF, groceries, nested, [], 0, `UTC`)
     expect(lastToast().body).toContain(`own subtasks`)
 
     await toast.action!.onAction()
     expect(server.objects.get(HREF)!.ics).not.toContain(`RELATED-TO`)
     expect(tasks.value.find((task) => task.uid === milk.uid)!.parentUid).toBeUndefined()
+  })
+})
+
+Deno.test(`taking a subtask out to the top level writes both its parent and its place`, async () => {
+  await withApp(async (server) => {
+    toasts.clear()
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    server.seed(`${LIST_HREF}a.ics`, LIST_HREF, fixture(`a`, `Alpha`, [`X-APPLE-SORT-ORDER:10`]))
+    server.seed(`${LIST_HREF}b.ics`, LIST_HREF, fixture(`b`, `Bravo`, [`X-APPLE-SORT-ORDER:11`]))
+    server.seed(
+      `${LIST_HREF}c.ics`,
+      LIST_HREF,
+      fixture(`c`, `Charlie`, [`X-APPLE-SORT-ORDER:12`, `RELATED-TO:a`]),
+    )
+    await refresh()
+    const find = (title: string) => tasks.value.find((task) => task.title === title)!
+
+    await moveUnder(LIST_HREF, find(`Charlie`), undefined, [find(`Alpha`), find(`Bravo`)], 1, `UTC`)
+
+    expect(server.objects.get(`${LIST_HREF}c.ics`)!.ics).not.toContain(`RELATED-TO`)
+    expect(serverOrder(server)).toEqual([`Alpha`, `Charlie`, `Bravo`])
+    expect(lastToast().body).toBe(`Moved "Charlie" out to the top level`)
   })
 })

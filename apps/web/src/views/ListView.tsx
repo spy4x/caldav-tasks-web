@@ -17,7 +17,7 @@ import {
   addSiblingTask,
   completeWithUndo,
   deleteWithUndo,
-  nestWithUndo,
+  moveUnder,
   renameTask,
   reorderInList,
 } from "./task-actions.ts"
@@ -70,10 +70,8 @@ export function ListView() {
       onRenameTask={(task, title) => void renameTask(task, title)}
       onAddSibling={(task, title) => void addSiblingTask(task, title)}
       onDeleteTask={(task) => void deleteWithUndo(task)}
-      onNestTask={(uid, parent) => {
-        const task = tasks.value.find((each) => each.uid === uid)
-        if (task) void nestWithUndo(task, parent)
-      }}
+      onMoveTask={(task, parent, siblings, to) =>
+        void moveUnder(list.href, task, parent, siblings, to, browserZone())}
       onReorder={(task, siblings, to) =>
         void reorderInList(list.href, task, siblings, to, browserZone())}
       onQuickAdd={(parsed) => void quickAdd.add(parsed)}

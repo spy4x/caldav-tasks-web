@@ -12,9 +12,24 @@ export const serverTasks = signal<Task[]>([])
  */
 export const tasks = signal<Task[]>([])
 
-// Whatever changes the server's copy or the queue changes what the screens show.
+/**
+ * Changes shown before the server has them, by `UID`: a drag's new order and parent appear at
+ * once, while its writes (which can take seconds) are on their way.
+ */
+export const shownAhead = signal<ReadonlyMap<string, Partial<Task>>>(new Map())
+
+/** The tasks without {@link shownAhead}: the copies a write must start from. */
+export function savedTasks(): Task[] {
+  return overlay(serverTasks.value, pendingEntries.value)
+}
+
+// Whatever changes the server's copy, the queue or a change shown ahead changes the screens.
 effect(() => {
-  tasks.value = overlay(serverTasks.value, pendingEntries.value)
+  const ahead = shownAhead.value
+  const all = overlay(serverTasks.value, pendingEntries.value)
+  tasks.value = ahead.size === 0
+    ? all
+    : all.map((task) => ahead.has(task.uid) ? { ...task, ...ahead.get(task.uid) } : task)
 })
 
 /** Turns cached rows into tasks. */

@@ -1,7 +1,8 @@
 import type { Task } from "@spy4x/time/ical-tasks-model"
 import { toasts } from "../state/toasts.ts"
+import { savedTasks, shownAhead } from "../state/task-store.ts"
 import { addTask, deleteTaskTree, restoreTask } from "../state/task-writes.ts"
-import { reorderWrites } from "@tasks/reorder.ts"
+import { type ReorderWrite, reorderWrites } from "@tasks/reorder.ts"
 import { findCalendar } from "../state/calendars.ts"
 import { loadCompleted } from "../state/sync.ts"
 import {
@@ -114,13 +115,38 @@ function reportReorderFailure(result: WriteResult): boolean {
   return false
 }
 
+/** Shows `changes` at once while `write` runs; the saved copies take over when it ends. */
+async function showingAhead<T>(
+  changes: ReadonlyMap<string, Partial<Task>>,
+  write: () => Promise<T>,
+): Promise<T> {
+  shownAhead.value = new Map([...shownAhead.value, ...changes])
+  try {
+    return await write()
+  } finally {
+    const rest = new Map(shownAhead.value)
+    for (const uid of changes.keys()) rest.delete(uid)
+    shownAhead.value = rest
+  }
+}
+
+/** The new positions of `writes`, as changes to show ahead. */
+function positions(writes: ReorderWrite[], into = new Map<string, Partial<Task>>()) {
+  for (const { task, edit } of writes) {
+    into.set(task.uid, { ...into.get(task.uid), sortOrder: edit.sortOrder ?? undefined })
+  }
+  return into
+}
+
+const listTasks = (listHref: string) => savedTasks().filter((each) => each.listHref === listHref)
+
 /**
  * Moves a task to `toIndex` among the `visible` siblings in manual order, in the list `listHref`.
- * Every loaded task of the list counts, so hidden siblings keep their place; before the first drag
- * in a list, its completed tasks are loaded too, as "Show completed" loads them. Writes the fewest
- * tasks that keep the order (the moved one, a neighbour, or a few spread out), one after another.
- * Failures show a toast; a failure after the first write leaves the earlier ones saved. Resolves
- * `true` when every write was saved.
+ * The new order shows at once. Every loaded task of the list counts, so hidden siblings keep their
+ * place; before the first drag in a list, its completed tasks are loaded too, as "Show completed"
+ * loads them. Writes the fewest tasks that keep the order (the moved one, a neighbour, or a few
+ * spread out), one after another. Failures show a toast; a failure after the first write leaves
+ * the earlier ones saved. Resolves `true` when every write was saved.
  */
 export async function reorderInList(
   listHref: string,
@@ -129,12 +155,14 @@ export async function reorderInList(
   toIndex: number,
   zone: string,
 ): Promise<boolean> {
-  if (findCalendar(listHref)?.completedLoaded === false) await loadCompleted(listHref)
-  const all = tasks.value.filter((each) => each.listHref === listHref)
-  for (const write of reorderWrites(all, visible, task.uid, toIndex, zone)) {
-    if (!reportReorderFailure(await saveTask(write.task, write.edit))) return false
-  }
-  return true
+  const writes = (all: readonly Task[]) => reorderWrites(all, visible, task.uid, toIndex, zone)
+  return await showingAhead(positions(writes(listTasks(listHref))), async () => {
+    if (findCalendar(listHref)?.completedLoaded === false) await loadCompleted(listHref)
+    for (const write of writes(listTasks(listHref))) {
+      if (!reportReorderFailure(await saveTask(write.task, write.edit))) return false
+    }
+    return true
+  })
 }
 
 /** Whether `parent` is `task` or sits under it, at any depth: nesting there would make a loop. */
@@ -152,24 +180,54 @@ export function isWithin(parent: Task, task: Task, all: readonly Task[]): boolea
   return false
 }
 
-/** Makes `task` a subtask of `parent` (dropped onto it), with Undo. Only within one list. */
-export async function nestWithUndo(task: Task, parent: Task): Promise<void> {
-  if (task.parentUid === parent.uid || task.listHref !== parent.listHref) return
-  if (isWithin(parent, task, tasks.value)) {
-    if (task.uid !== parent.uid) {
+/**
+ * Moves `task` under `parent` (the top level when `undefined`), at `toIndex` among `siblings`, its
+ * new siblings in the order shown. Shows the move at once, then writes the new parent and the
+ * position. Refused under one of its own subtasks or in another list. Offers Undo, which puts it
+ * back under its old parent.
+ */
+export async function moveUnder(
+  listHref: string,
+  task: Task,
+  parent: Task | undefined,
+  siblings: readonly Task[],
+  toIndex: number,
+  zone: string,
+): Promise<void> {
+  if (task.listHref !== listHref || (parent && parent.listHref !== listHref)) return
+  if (parent && isWithin(parent, task, tasks.value)) {
+    if (parent.uid !== task.uid) {
       toasts.error({ title: NO_HEADING, body: `A task can't go under one of its own subtasks.` })
     }
     return
   }
   const before = task.parentUid
-  const result = await setTaskParent(task, parent.uid)
-  if (!reportFailure(result) || result.kind !== WriteKind.Saved) return
+  const moved = (all: readonly Task[]) =>
+    all.map((each) => each.uid === task.uid ? { ...each, parentUid: parent?.uid } : each)
+  const visible = [...siblings.slice(0, toIndex), task, ...siblings.slice(toIndex)]
+  const order = reorderWrites(moved(listTasks(listHref)), visible, task.uid, toIndex, zone)
+  const ahead = positions(order, new Map([[task.uid, { parentUid: parent?.uid }]]))
+  const saved = await showingAhead(ahead, async () => {
+    const result = await setTaskParent(task, parent?.uid)
+    if (!reportFailure(result) || result.kind !== WriteKind.Saved) return false
+    for (const write of order) {
+      const base = write.task.uid === task.uid ? result.task : write.task
+      if (!reportReorderFailure(await saveTask(base, write.edit))) break
+    }
+    return true
+  })
+  if (!saved) return
   toasts.success({
     title: NO_HEADING,
-    body: `Moved "${task.title}" under "${parent.title}"`,
+    body: parent
+      ? `Moved "${task.title}" under "${parent.title}"`
+      : `Moved "${task.title}" out to the top level`,
     action: {
       label: `Undo`,
-      onAction: () => undo(() => setTaskParent(result.task, before), `Moved back`),
+      onAction: () => {
+        const now = tasks.value.find((each) => each.uid === task.uid) ?? task
+        return undo(() => setTaskParent(now, before), `Moved back`)
+      },
     },
   })
 }
