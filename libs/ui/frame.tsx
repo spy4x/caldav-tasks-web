@@ -1,7 +1,10 @@
 import type { ComponentChildren, ComponentType, JSX } from "preact"
+import { useEffect, useRef, useState } from "preact/hooks"
 import {
+  IconBars3,
   IconCalendarDays,
   IconCheck,
+  IconChevronLeft,
   IconEllipsisVertical,
   IconLens,
   IconList,
@@ -73,9 +76,23 @@ export function AppLink(
   )
 }
 
+/** The `localStorage` key that remembers the sidebar was hidden. */
+const SIDEBAR_HIDDEN = `sidebar-hidden`
+
+function readHidden(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_HIDDEN) === `1`
+  } catch {
+    return false
+  }
+}
+
 /**
  * The app's frame: the caller's `sidebar` on the left from `md` up, headed by the name and
- * Search, the page in `<main>`, and a tab bar of the five destinations on a phone.
+ * Search, the page in `<main>`, and a tab bar of the five destinations on a phone. The sidebar
+ can be hidden, and stays hidden on this browser; the frame then carries
+ `data-sidebar-hidden`, which a screen reads (`group-data-[sidebar-hidden]/frame:`) to show its
+ own quick add.
  */
 export function AppFrame(
   { currentPath, navigate, sidebar, children }: {
@@ -87,8 +104,28 @@ export function AppFrame(
   },
 ): JSX.Element {
   const current = navKey(currentPath)
+  const [hidden, setHidden] = useState(readHidden)
+  const toggle = (next: boolean) => {
+    setHidden(next)
+    try {
+      localStorage.setItem(SIDEBAR_HIDDEN, next ? `1` : `0`)
+    } catch {
+      // Not remembered in a private window; it still toggles.
+    }
+    toggled.current = true
+  }
+  // The button pressed goes away; keep the keyboard on the one that replaces it.
+  const toggled = useRef(false)
+  const hideButton = useRef<HTMLButtonElement>(null)
+  const showButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (toggled.current) (hidden ? showButton : hideButton).current?.focus()
+  }, [hidden])
   return (
-    <div class="flex min-h-dvh flex-col bg-canvas text-foreground">
+    <div
+      data-sidebar-hidden={sidebar && hidden ? `` : undefined}
+      class="group/frame flex min-h-dvh flex-col bg-canvas text-foreground"
+    >
       <a
         href="#main"
         class="sr-only focus:not-sr-only focus:absolute focus:z-30 focus:m-2 focus:rounded-md focus:bg-surface focus:p-2"
@@ -98,11 +135,13 @@ export function AppFrame(
       <div class="flex flex-1">
         {sidebar && (
           <aside
-            class="hidden w-90 shrink-0 border-r border-subtle bg-surface md:block"
+            class={`hidden w-90 shrink-0 border-r border-subtle bg-surface ${
+              hidden ? `` : `md:block`
+            }`}
             data-e2e="sidebar"
           >
             <div class="px-6 pt-6 pb-8">
-              <div class="mb-8 flex items-center justify-between gap-2">
+              <div class="mb-8 flex items-center gap-1">
                 <AppLink
                   href={PATHS.today}
                   navigate={navigate}
@@ -113,6 +152,7 @@ export function AppFrame(
                   </span>
                   To do
                 </AppLink>
+                <span class="ms-auto" />
                 <AppLink
                   href={PATHS.search}
                   navigate={navigate}
@@ -128,10 +168,36 @@ export function AppFrame(
                     /
                   </kbd>
                 </AppLink>
+                <button
+                  type="button"
+                  aria-label="Hide sidebar"
+                  title="Hide sidebar"
+                  aria-expanded="true"
+                  class="flex size-8 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-foreground"
+                  ref={hideButton}
+                  onClick={() => toggle(true)}
+                  data-e2e="sidebar-hide"
+                >
+                  <IconChevronLeft class="size-4" aria-hidden="true" />
+                </button>
               </div>
               {sidebar}
             </div>
           </aside>
+        )}
+        {sidebar && hidden && (
+          <button
+            type="button"
+            aria-label="Show sidebar"
+            title="Show sidebar"
+            aria-expanded="false"
+            class="fixed top-3 left-3 z-20 hidden size-9 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-foreground md:flex"
+            ref={showButton}
+            onClick={() => toggle(false)}
+            data-e2e="sidebar-show"
+          >
+            <IconBars3 class="size-5" aria-hidden="true" />
+          </button>
         )}
         <main id="main" tabindex={-1} class="min-w-0 flex-1 pb-16 outline-none md:pb-0">
           {children}

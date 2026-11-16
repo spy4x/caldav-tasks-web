@@ -93,3 +93,32 @@ Deno.test("every destination is a link to its page; a plain click goes to naviga
     await window.happyDOM.close()
   }
 })
+
+Deno.test("the sidebar hides and comes back, and the frame says so for the screens", async () => {
+  const window = new Window({ url: "http://app.localhost/" })
+  const own = globalThis.document
+  Object.assign(globalThis, { document: window.document })
+  const root = window.document.createElement("div")
+  window.document.body.append(root)
+  try {
+    await act(() => render(<AppFrame sidebar={<p>Lists</p>}>page</AppFrame>, root as never))
+    const frame = () => root.firstElementChild!
+    const aside = () => root.querySelector(`[data-e2e="sidebar"]`)!
+    expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(false)
+    expect(aside().className).toContain(`md:block`)
+    await act(() =>
+      (root.querySelector(`[data-e2e="sidebar-hide"]`) as unknown as HTMLElement).click()
+    )
+    expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(true)
+    expect(aside().className).not.toContain(`md:block`)
+    await act(() =>
+      (root.querySelector(`[data-e2e="sidebar-show"]`) as unknown as HTMLElement).click()
+    )
+    expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(false)
+    expect(root.querySelector(`[data-e2e="sidebar-show"]`)).toBeNull()
+  } finally {
+    render(null, root as never)
+    Object.assign(globalThis, { document: own })
+    await window.happyDOM.close()
+  }
+})

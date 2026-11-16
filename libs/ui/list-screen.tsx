@@ -166,7 +166,8 @@ function MenuSelect<T extends string | number>(
  * One list: a heading with today's date, the open tasks as a tree in a card with a tag filter and
  * an order menu, and below them the finished tasks of a chosen period, newest first. A finished
  * subtask stays under its open parent, so "1 of 3 subtasks" adds up. On a phone a quick add sits
- * at the bottom; on a desktop the sidebar's New task form adds to this list.
+ * under the heading; on a desktop the sidebar's New task form adds to this list, and with the
+ * sidebar hidden the quick add comes back, above the heading.
  */
 export function ListScreen(props: ListScreenProps): JSX.Element {
   const { list, tasks, zone } = props
@@ -270,7 +271,10 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
         </div>
       </header>
 
-      <div class="md:hidden" data-e2e="phone-quick-add">
+      <div
+        class="md:hidden md:group-data-[sidebar-hidden]/frame:order-first md:group-data-[sidebar-hidden]/frame:block"
+        data-e2e="phone-quick-add"
+      >
         <QuickAdd
           onAdd={props.onQuickAdd}
           zone={props.zone}
