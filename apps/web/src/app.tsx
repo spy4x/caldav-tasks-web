@@ -2,7 +2,8 @@ import "./app.css"
 import { useCallback, useEffect } from "preact/hooks"
 import { Redirect, Route, Switch, useLocation, useSearch } from "wouter-preact"
 import { Notice } from "@spy4x/preact-ui/notice"
-import { Toastr } from "@spy4x/preact-ui/toastr"
+import { signal } from "@preact/signals"
+import { type ToastId, Toastr } from "@spy4x/preact-ui/toastr"
 import { useRouteAnnouncer } from "@spy4x/preact-system/route-announcer"
 import { AppFrame } from "@ui/frame.tsx"
 import { APP_TITLE, pageTitle } from "./page-title.ts"
@@ -40,14 +41,33 @@ const SHORTCUT_ROWS = listShortcuts()
  * The app: every address behind the sign-in gate. A signed-out visit to any page goes to Sign in
  * and, once signed in, back to where the person was going.
  */
+/** Toasts fading out: still drawn for {@link TOAST_EXIT_MS} so they leave softly, not at once. */
+const leaving = signal<ReadonlySet<ToastId>>(new Set())
+const TOAST_EXIT_MS = 200
+
+function dismissSoftly(id: ToastId): void {
+  if (leaving.value.has(id)) return
+  leaving.value = new Set(leaving.value).add(id)
+  setTimeout(() => {
+    toasts.remove(id)
+    const rest = new Set(leaving.value)
+    rest.delete(id)
+    leaving.value = rest
+  }, TOAST_EXIT_MS)
+}
+
 export function App() {
   useEffect(() => void loadSession(), [])
   return (
     <>
       <Gate />
       <Toastr
-        toasts={toasts.list.value}
-        onDismiss={toasts.remove}
+        toasts={toasts.list.value.map((toast) => ({
+          ...toast,
+          duration: toast.duration ?? (toast.action ? 6000 : 3000),
+          ...(leaving.value.has(toast.id) ? { dataE2E: `toast-leaving` } : {}),
+        }))}
+        onDismiss={dismissSoftly}
         corner="bottom-right"
         class="app-toasts"
       />
