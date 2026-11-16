@@ -199,7 +199,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   })
 
   return (
-    <div class="flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none md:group-data-[sidebar-hidden]/frame:pt-6">
+    <div class="flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none md:group-data-[sidebar-hidden]/frame:pt-0">
       <header class="flex flex-col gap-1" data-e2e="page-header">
         <a
           href={PATHS.lists}

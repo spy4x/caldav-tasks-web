@@ -111,7 +111,7 @@ Deno.test("the sidebar hides and comes back, and the frame says so for the scree
     )
     expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(true)
     expect(aside()).toBeNull()
-    expect(root.querySelector(`[data-e2e="top-bar"]`)).not.toBeNull()
+    expect(root.querySelector(`[data-e2e="sidebar-rail"]`)).not.toBeNull()
     await act(() =>
       (root.querySelector(`[data-e2e="sidebar-show"]`) as unknown as HTMLElement).click()
     )

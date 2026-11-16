@@ -121,7 +121,7 @@ export function AppFrame(
   useEffect(() => {
     if (toggled.current) (hidden ? showButton : hideButton).current?.focus()
   }, [hidden])
-  const logo = (
+  const logo = (withName: boolean) => (
     <AppLink
       href={PATHS.today}
       navigate={navigate}
@@ -130,7 +130,7 @@ export function AppFrame(
       <span class="flex size-7 items-center justify-center rounded-md bg-accent text-accent-foreground">
         <IconCheck class="size-4" aria-hidden="true" />
       </span>
-      To do
+      {withName ? `To do` : <span class="sr-only">To do</span>}
     </AppLink>
   )
   const search = (wide: boolean) => (
@@ -162,15 +162,6 @@ export function AppFrame(
       >
         Skip to content
       </a>
-      {sidebar && hidden && (
-        <header
-          class="hidden h-18 shrink-0 items-center justify-between border-b border-subtle bg-surface px-8 md:flex"
-          data-e2e="top-bar"
-        >
-          {logo}
-          {search(true)}
-        </header>
-      )}
       <div class="flex flex-1">
         {sidebar && !hidden && (
           <aside
@@ -179,7 +170,7 @@ export function AppFrame(
           >
             <div class="px-6 pt-6 pb-8">
               <div class="mb-8 flex items-center gap-1">
-                {logo}
+                {logo(true)}
                 <span class="ms-auto" />
                 {search(false)}
                 <button
@@ -200,13 +191,19 @@ export function AppFrame(
           </aside>
         )}
         {sidebar && hidden && (
-          <div class="hidden w-20 shrink-0 border-r border-subtle px-4 py-6 md:block">
+          <div
+            class="hidden w-20 shrink-0 flex-col items-center border-r border-subtle bg-surface md:flex"
+            data-e2e="sidebar-rail"
+          >
+            <div class="flex h-18 w-full items-center justify-center border-b border-subtle">
+              {logo(false)}
+            </div>
             <button
               type="button"
               aria-label="Show sidebar"
               title="Show sidebar"
               aria-expanded="false"
-              class="flex size-11 items-center justify-center rounded-lg border border-subtle bg-surface text-foreground shadow-sm hover:bg-hover"
+              class="mt-4 flex size-11 items-center justify-center rounded-lg border border-subtle bg-surface text-foreground shadow-sm hover:bg-hover"
               ref={showButton}
               onClick={() => toggle(false)}
               data-e2e="sidebar-show"
@@ -216,6 +213,9 @@ export function AppFrame(
           </div>
         )}
         <main id="main" tabindex={-1} class="min-w-0 flex-1 pb-16 outline-none md:pb-0">
+          {sidebar && hidden && (
+            <div class="hidden justify-end px-12 pt-2 md:flex">{search(true)}</div>
+          )}
           {children}
         </main>
       </div>
