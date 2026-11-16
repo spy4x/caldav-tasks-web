@@ -74,9 +74,9 @@ export interface ListScreenProps {
 
 const SORT_OPTIONS = [
   { value: SortMode.Manual, label: `Manual order` },
-  { value: SortMode.Due, label: `Due date` },
-  { value: SortMode.Priority, label: `Priority` },
-  { value: SortMode.Title, label: `Title` },
+  { value: SortMode.Due, label: `By due date` },
+  { value: SortMode.Priority, label: `By priority` },
+  { value: SortMode.Title, label: `By title` },
 ]
 
 /** Which finished tasks a list shows, by when they were completed. */
@@ -227,7 +227,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <h1
             class={`flex min-w-0 items-baseline gap-3 text-2xl font-bold tracking-tight ${
-              props.pane ? `grow basis-32` : ``
+              props.pane ? `grow basis-48` : ``
             }`}
           >
             {props.title ?? <span class="break-words">{list.name}</span>}
@@ -255,7 +255,6 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 <MenuSelect
                   label="Sort by"
                   icon={<IconArrowDown class="size-4 text-muted" aria-hidden="true" />}
-                  prefix="Order:"
                   value={props.sort}
                   options={SORT_OPTIONS}
                   onChange={(mode) =>
@@ -322,7 +321,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                   </p>
                 )
                 : (
-                  <div class="rounded-xl border border-subtle bg-surface">
+                  <div class="@container rounded-xl border border-subtle bg-surface">
                     <FocusKeeper label="Tasks">
                       <TaskTree
                         label={`${list.name} tasks`}
@@ -362,20 +361,22 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
               {done.length === 0
                 ? <p class="text-sm text-muted">Nothing completed in this period.</p>
                 : (
-                  <FocusKeeper label="Completed tasks">
-                    <TaskTree
-                      label={`${list.name} completed tasks`}
-                      nodes={flatNodes(done)}
-                      plain
-                      zone={zone}
-                      now={props.now}
-                      onComplete={props.onComplete}
-                      onOpen={props.onOpen}
-                      onRename={props.onRenameTask}
-                      onAddSibling={props.onAddSibling}
-                      onDelete={props.onDeleteTask}
-                    />
-                  </FocusKeeper>
+                  <div class="@container">
+                    <FocusKeeper label="Completed tasks">
+                      <TaskTree
+                        label={`${list.name} completed tasks`}
+                        nodes={flatNodes(done)}
+                        plain
+                        zone={zone}
+                        now={props.now}
+                        onComplete={props.onComplete}
+                        onOpen={props.onOpen}
+                        onRename={props.onRenameTask}
+                        onAddSibling={props.onAddSibling}
+                        onDelete={props.onDeleteTask}
+                      />
+                    </FocusKeeper>
+                  </div>
                 )}
             </section>
           </>

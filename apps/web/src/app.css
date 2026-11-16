@@ -261,7 +261,7 @@ input[type="checkbox"] {
     opacity: 0;
   }
   [data-e2e="task-row"]:hover .row-edit,
-  .row-edit:focus-visible {
+  .row-edit:focus-within {
     opacity: 1;
   }
 }

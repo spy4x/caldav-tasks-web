@@ -79,7 +79,12 @@ Deno.test("choosing a sort in the menu reports the mode", async () => {
     <ListScreen {...props({ onSortChange: (mode) => chosen.push(mode) })} />,
     async ({ root, window, act }) => {
       const select = must<HTMLSelectElement>(root, `[data-e2e="sort"]`)
-      expect(texts(select, `option`)).toEqual([`Manual order`, `Due date`, `Priority`, `Title`])
+      expect(texts(select, `option`)).toEqual([
+        `Manual order`,
+        `By due date`,
+        `By priority`,
+        `By title`,
+      ])
       await act(() => {
         select.value = String(SortMode.Priority)
         select.dispatchEvent(new window.Event(`change`, { bubbles: true }) as never)

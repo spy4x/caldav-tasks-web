@@ -142,7 +142,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   const Tag = (props.bare ? `div` : `li`) as `li`
   return (
     <Tag
-      class={`isolate relative flex flex-wrap items-center gap-x-2 pe-4 ${
+      class={`isolate relative flex flex-wrap items-center gap-x-2 pe-4 @max-xl:gap-x-1 ${
         INDENT[Math.min(depth, 3)]
       } ${
         sub
@@ -167,7 +167,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
         onChange={(event) =>
           props.onComplete(task, (event.currentTarget as HTMLInputElement).checked)}
       />
-      <div class={`min-w-0 flex-1 ${quiet ? `py-1` : `py-2`}`}>
+      <div class={`min-w-0 flex-1 @max-xl:pe-4 ${quiet ? `py-1` : `py-2`}`}>
         {renaming
           ? (
             <input
@@ -205,7 +205,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
             </button>
           )}
       </div>
-      <div class="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[13px] text-muted">
+      <div class="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[13px] text-muted empty:hidden @max-xl:basis-full @max-xl:justify-start @max-xl:ps-12 @max-xl:pb-2">
         {expandable && (
           <button
             type="button"
@@ -265,38 +265,50 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
             <span class="sr-only">Has a reminder</span>
           </span>
         )}
-        {props.onRename && (
-          <button
-            type="button"
-            class="row-edit relative z-10 inline-flex h-7 cursor-pointer items-center rounded-md px-2 text-[13px] text-muted hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
-            aria-label={`Edit ${task.title}`}
-            onClick={() => props.onOpen(task)}
-            data-e2e="task-edit"
-          >
-            Edit
-          </button>
-        )}
-        {props.onDelete && (
-          <button
-            type="button"
-            class="row-edit relative z-10 -ms-3 inline-flex h-7 cursor-pointer items-center rounded-md px-2 text-[13px] text-danger/80 hover:bg-danger-soft hover:text-danger focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
-            aria-label={`Delete ${task.title}`}
-            onClick={() => props.onDelete?.(task)}
-            data-e2e="task-row-delete"
-          >
-            Delete
-          </button>
+        {(props.onRename || props.onDelete) && (
+          // Narrower than 48rem, Edit and Delete take no room: they show over the row on hover.
+          <span class="row-edit relative z-10 inline-flex items-center gap-1 @max-3xl:absolute @max-3xl:end-12 @max-3xl:top-1 @max-3xl:z-20 @max-3xl:rounded-md @max-3xl:bg-surface @max-3xl:shadow-sm">
+            {props.onRename && (
+              <button
+                type="button"
+                class="relative z-10 inline-flex h-7 cursor-pointer items-center rounded-md px-2 text-[13px] text-muted hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
+                aria-label={`Edit ${task.title}`}
+                onClick={() => props.onOpen(task)}
+                data-e2e="task-edit"
+              >
+                Edit
+              </button>
+            )}
+            {props.onDelete && (
+              <button
+                type="button"
+                class="relative z-10 inline-flex h-7 cursor-pointer items-center rounded-md px-2 text-[13px] text-danger/80 hover:bg-danger-soft hover:text-danger focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
+                aria-label={`Delete ${task.title}`}
+                onClick={() => props.onDelete?.(task)}
+                data-e2e="task-row-delete"
+              >
+                Delete
+              </button>
+            )}
+          </span>
         )}
         {(due || !quiet) && (
           <span
-            class={`min-w-20 text-right ${due ? TONE_CLASS[due.tone] : `text-muted`}`}
+            class={`min-w-20 text-right @max-xl:min-w-0 ${
+              due ? TONE_CLASS[due.tone] : `text-muted`
+            }`}
             data-e2e={due ? `task-due` : undefined}
           >
             {due ? due.text : `No date`}
           </span>
         )}
-        {props.handle}
       </div>
+      {props.handle && (
+        // Narrow, the handle keeps to the right of the title, off the details line.
+        <span class="ms-2 @max-xl:absolute @max-xl:end-2 @max-xl:top-2 @max-xl:ms-0">
+          {props.handle}
+        </span>
+      )}
       {adding && (
         <div class="relative z-10 basis-full ps-12 pb-3">
           <input
