@@ -6,6 +6,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconFlag,
+  IconHome,
   IconList,
   IconPlus,
   IconWrench,
@@ -33,6 +34,8 @@ export interface SidebarLink {
   /** The dot's colour; a view without one draws the accent. */
   color?: string
   count?: number
+  /** The default list, the one the app opens on: a home icon marks it. */
+  home?: boolean
 }
 
 /** Props of {@link Sidebar}. */
@@ -441,6 +444,12 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                     aria-hidden="true"
                   />
                   <span class="min-w-0 flex-1 truncate">{link.label}</span>
+                  {link.home && (
+                    <span class="-ms-2 inline-flex text-muted" title="Default list">
+                      <IconHome class="size-4" aria-hidden="true" />
+                      <span class="sr-only">(default list)</span>
+                    </span>
+                  )}
                   {link.count !== undefined && (
                     <span class="min-w-6 rounded-md bg-chip px-1 text-center text-xs text-muted">
                       {link.count}

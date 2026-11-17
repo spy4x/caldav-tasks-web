@@ -13,6 +13,8 @@ import { calendarsLoaded } from "../state/calendars.ts"
 import { loadCompleted } from "../state/sync.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { tasks } from "../state/tasks.ts"
+import { homeHref, setHomeList } from "../state/home-list.ts"
+import { toasts } from "../state/toasts.ts"
 import { findListBySlug, listPath, listSettingsPath, taskPath } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { sortFromParam, sortToParam, tagsFromParam, tagsToParam } from "./list-filters.ts"
@@ -182,6 +184,11 @@ function ListPane(
       // Name, colour and delete share one settings page; Delete lives in its "More actions".
       onRename={() => navigate(listSettingsPath(list))}
       onChangeColor={() => navigate(listSettingsPath(list))}
+      isHome={homeHref.value === list.href}
+      onMakeHome={() => {
+        setHomeList(list.href)
+        toasts.success({ title: ``, body: `${list.name} is now the default list` })
+      }}
     />
   )
 }

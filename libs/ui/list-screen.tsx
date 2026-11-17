@@ -5,6 +5,7 @@ import {
   IconChevronDown,
   IconEllipsisVertical,
   IconFunnel,
+  IconHome,
 } from "@spy4x/preact-icons"
 import { Dropdown, DropdownItem } from "@spy4x/preact-ui/dropdown"
 import { isOpen, type Task, type TaskList } from "@spy4x/time/ical-tasks-model"
@@ -64,6 +65,10 @@ export interface ListScreenProps {
   onRename?: () => void
   onChangeColor?: () => void
   onDelete?: () => void
+  /** The default list, the one the app opens on: a home icon beside the name says so. */
+  isHome?: boolean
+  /** Makes this the default list; offered in "More actions" while it is not. */
+  onMakeHome?: () => void
   /** Inside a layout that gives the padding and width, such as one of two lists side by side. */
   pane?: boolean
   /** Takes the place of the list's name in the heading, such as a menu to pick another list. */
@@ -194,7 +199,8 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   const nodes = buildTree(sortTasks(shown, props.sort, zone), zone)
   const done = finished.filter(tagged)
   const openShown = nodes.filter((node) => isOpen(node.task)).length
-  const hasMenu = props.onRename || props.onChangeColor || props.onDelete
+  const canMakeHome = props.onMakeHome && !props.isHome
+  const hasMenu = props.onRename || props.onChangeColor || props.onDelete || canMakeHome
   // Two lists can share the page, so their headings' ids carry the list.
   const id = list.href.replace(/[^\w-]/g, `_`)
   const today = props.now.toLocaleDateString(undefined, {
@@ -231,6 +237,12 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
             }`}
           >
             {props.title ?? <span class="break-words">{list.name}</span>}
+            {props.isHome && (
+              <span class="inline-flex self-center text-muted" title="Default list">
+                <IconHome class="size-5" aria-hidden="true" />
+                <span class="sr-only">(default list)</span>
+              </span>
+            )}
             <span class="shrink-0 whitespace-nowrap text-[13px] font-normal tracking-normal text-muted">
               {openShown} open
             </span>
@@ -271,6 +283,9 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 menuLabel="More actions"
                 horizontal="right"
               >
+                {canMakeHome && (
+                  <DropdownItem onClick={props.onMakeHome}>Make default list</DropdownItem>
+                )}
                 {props.onRename && (
                   <DropdownItem onClick={props.onRename}>Rename list</DropdownItem>
                 )}

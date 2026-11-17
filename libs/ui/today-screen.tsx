@@ -8,7 +8,8 @@ import type { QuickAddResult } from "@spy4x/platform"
 import { QuickAdd } from "@spy4x/preact-ui/quick-add"
 import { FocusKeeper } from "./task-focus.tsx"
 import { EmptyBody, GroupHeading, LoadingBody, ScreenLayout } from "./task-screen.tsx"
-import { flatNodes, TaskTree } from "./task-tree.tsx"
+import { buildTree } from "@spy4x/platform/universal/ical-tasks-view"
+import { TaskTree } from "./task-tree.tsx"
 
 /** Props of {@link TodayScreen}. */
 export interface TodayScreenProps {
@@ -24,6 +25,15 @@ export interface TodayScreenProps {
   loading?: boolean
   onComplete: (task: Task, done: boolean) => void
   onOpen: (task: Task) => void
+  /** Renames a task in place from its row; given, pressing a title renames it. */
+  onRenameTask?: (task: Task, title: string) => void
+  /** Deletes a task from its row's hover "Delete". */
+  onDeleteTask?: (task: Task) => void
+  /**
+   * A drag put `task` under `parent` (`undefined`: out to the top level). Today is in date order,
+   * so a drag changes only the parent: a drop between rows springs back.
+   */
+  onMoveTask?: (task: Task, parent: Task | undefined) => void
   /** Creates a task due today in the default list. */
   onQuickAdd: (parsed: QuickAddResult) => void
   quickAddBusy?: boolean
@@ -44,6 +54,14 @@ export function TodayScreen(props: TodayScreenProps): JSX.Element {
     listOf,
     onComplete: props.onComplete,
     onOpen: props.onOpen,
+    onRename: props.onRenameTask,
+    onDelete: props.onDeleteTask,
+    ...(props.onMoveTask
+      ? {
+        onReorder: () => {},
+        onMoveUnder: (task: Task, parent: Task | undefined) => props.onMoveTask?.(task, parent),
+      }
+      : {}),
   }
 
   return (
@@ -99,14 +117,22 @@ export function TodayScreen(props: TodayScreenProps): JSX.Element {
                   </button>
                 </GroupHeading>
                 {overdueOpen && (
-                  <TaskTree label="Overdue" nodes={flatNodes(props.overdue)} {...common} />
+                  <TaskTree
+                    label="Overdue"
+                    nodes={buildTree(props.overdue, props.zone)}
+                    {...common}
+                  />
                 )}
               </section>
             )}
             {props.today.length > 0 && (
               <section aria-labelledby="today-due" class="flex flex-col gap-2">
                 <GroupHeading id="today-due">Due today</GroupHeading>
-                <TaskTree label="Due today" nodes={flatNodes(props.today)} {...common} />
+                <TaskTree
+                  label="Due today"
+                  nodes={buildTree(props.today, props.zone)}
+                  {...common}
+                />
               </section>
             )}
           </FocusKeeper>
