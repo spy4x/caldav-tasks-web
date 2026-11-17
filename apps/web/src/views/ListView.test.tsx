@@ -48,7 +48,7 @@ Deno.test(`"2 lists" shows a second list beside the first, and its menu picks an
         </Route>
       </Router>,
       async ({ root }) => {
-        const button = root.querySelector<HTMLButtonElement>(`[data-e2e="two-lists"]`)
+        const button = root.querySelector<HTMLButtonElement>(`#two-lists-switch`)
         await act(() => button?.click())
         const select = root.querySelector<HTMLSelectElement>(`[data-e2e="second-list-select"]`)
         const placeholder = () =>

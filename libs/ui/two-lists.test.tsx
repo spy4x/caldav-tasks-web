@@ -29,7 +29,7 @@ Deno.test("the switch asks for two lists, and the hinge's arrow keys resize them
         for (const key of [`ArrowRight`, `ArrowLeft`]) {
           hinge.dispatchEvent(new window.KeyboardEvent(`keydown`, { key, bubbles: true }) as never)
         }
-        must<HTMLButtonElement>(root, `[data-e2e="single-list"]`).click()
+        must<HTMLButtonElement>(root, `#two-lists-switch`).click()
       })
       expect(calls).toEqual([{ share: 75 }, { share: 68 }, { split: false }])
     },
@@ -49,9 +49,9 @@ Deno.test("a single list has no hinge and no second list", async () => {
     ({ root }) => {
       expect(root.querySelector(`[data-e2e="hinge"]`)).toBeNull()
       expect(root.querySelector(`[data-e2e="second-list"]`)).toBeNull()
-      expect(root.querySelector(`[data-e2e="two-lists"]`)?.getAttribute(`aria-pressed`)).toBe(
-        `false`,
-      )
+      const toggle = must<HTMLButtonElement>(root, `#two-lists-switch`)
+      expect(toggle.getAttribute(`aria-labelledby`)).toBe(`two-lists-label`)
+      expect(must(root, `#two-lists-label`).textContent).toBe(`2 lists`)
       return Promise.resolve()
     },
   )

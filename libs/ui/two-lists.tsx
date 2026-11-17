@@ -1,6 +1,7 @@
 import type { ComponentChildren, JSX } from "preact"
 import { useRef } from "preact/hooks"
-import { IconBars3, IconViewColumns } from "@spy4x/preact-icons"
+import { IconViewColumns } from "@spy4x/preact-icons"
+import { ToggleSwitch } from "@spy4x/preact-ui/toggle-switch"
 
 /** The narrowest and widest the left list can be, in percent of the page. */
 export const MIN_SHARE = 25
@@ -18,6 +19,9 @@ export function clampShare(share: number, width = Infinity): number {
   return Math.round(Math.min(100 - low, Math.max(low, share)))
 }
 
+/** The id of the switch's label, which names it. */
+const SWITCH_LABEL = `two-lists-label`
+
 /** Props of {@link TwoLists}. */
 export interface TwoListsProps {
   split: boolean
@@ -32,27 +36,11 @@ export interface TwoListsProps {
 
 /**
  * One list, or two side by side with a hinge between them that drags (or takes the arrow keys) to
- * make one wider. A "2 lists / Single list" switch sits above. Two lists show on a screen 1024 pixels wide or more.
+ * make one wider. A "2 lists" switch stays in the page's bottom right corner. Two lists show on a screen 1024 pixels wide or more.
  */
 export function TwoLists(props: TwoListsProps): JSX.Element {
   const box = useRef<HTMLDivElement>(null)
   const { split, share } = props
-  const option = (value: boolean, label: string, icon: ComponentChildren) => (
-    <button
-      type="button"
-      aria-pressed={split === value}
-      class={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-[13px] ${
-        split === value
-          ? `bg-surface text-accent-text shadow-sm ring-1 ring-[var(--color-accent)]`
-          : `text-muted hover:text-foreground`
-      }`}
-      onClick={() => props.onSplitChange(value)}
-      data-e2e={value ? `two-lists` : `single-list`}
-    >
-      {icon}
-      {label}
-    </button>
-  )
   const dragTo = (event: PointerEvent) => {
     const rect = box.current?.getBoundingClientRect()
     if (!rect?.width) return
@@ -61,19 +49,23 @@ export function TwoLists(props: TwoListsProps): JSX.Element {
 
   return (
     <div
-      class={`flex w-full flex-col px-4 pt-4 md:px-12 md:pt-8 lg:pt-0 ${
+      class={`flex w-full flex-col px-4 pt-4 md:px-12 md:pt-8 ${
         split ? `` : `max-w-6xl md:group-data-[sidebar-hidden]/frame:max-w-none`
       }`}
     >
-      <div class="hidden justify-end pt-6 pb-2 lg:flex">
-        <div
-          role="group"
-          aria-label="Layout"
-          class="inline-flex gap-1 rounded-lg border border-subtle bg-canvas p-1"
-        >
-          {option(true, `2 lists`, <IconViewColumns class="size-4" aria-hidden="true" />)}
-          {option(false, `Single list`, <IconBars3 class="size-4" aria-hidden="true" />)}
-        </div>
+      {/* Kept in the corner while the page scrolls. */}
+      <div
+        class="fixed end-6 bottom-6 z-30 hidden items-center gap-3 rounded-xl border border-subtle bg-surface py-2 ps-3 pe-2 text-[13px] shadow-md lg:flex"
+        data-e2e="layout-switch"
+      >
+        <IconViewColumns class="size-4 text-muted" aria-hidden="true" />
+        <span id={SWITCH_LABEL}>2 lists</span>
+        <ToggleSwitch
+          id="two-lists-switch"
+          value={split}
+          onToggle={props.onSplitChange}
+          aria-labelledby={SWITCH_LABEL}
+        />
       </div>
       <div ref={box} class="flex min-w-0">
         <div
