@@ -108,7 +108,7 @@ export function ListView() {
                 <IconChevronDown class="size-4 shrink-0" aria-hidden="true" />
                 <select
                   aria-label="Second list"
-                  class="absolute inset-0 cursor-pointer opacity-0"
+                  class="absolute inset-0 cursor-pointer text-sm font-normal tracking-normal opacity-0"
                   value={second.href}
                   onChange={(event) => {
                     setSecondHref(event.currentTarget.value)
