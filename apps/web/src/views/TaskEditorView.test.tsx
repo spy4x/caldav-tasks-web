@@ -16,7 +16,7 @@ import { setBrowserOnline, withApp } from "../state/testing.ts"
 import { toasts } from "../state/toasts.ts"
 import type { FakeServer } from "../state/testing.ts"
 import { ROUTES, taskPath } from "../routes.ts"
-import { TaskEditorView } from "./TaskEditorView.tsx"
+import { rememberPageBeforeTask, TaskEditorView } from "./TaskEditorView.tsx"
 
 const HREF = `${LIST_HREF}one.ics`
 
@@ -352,5 +352,27 @@ Deno.test(`the editor lists and counts only the subtasks in the task's own list`
       const dialog = must(root.ownerDocument, `[data-e2e="task-delete-dialog"]`)
       expect(dialog.querySelector(`h2`)?.textContent).toBe(`Delete this task and its 1 subtask?`)
     })
+  })
+})
+
+Deno.test(`Save returns to the page the editor was opened from, not to the task's own list`, async () => {
+  await withApp(async (server) => {
+    await start(server)
+    const before = `/lists/daily?sort=manual`
+    rememberPageBeforeTask(before)
+    rememberPageBeforeTask(taskPath({ uid: `1` }))
+    const memory = memoryLocation({ path: taskPath({ uid: `1` }), record: true })
+    await onPage(
+      <Router hook={memory.hook}>
+        <Route path={ROUTES.task}>
+          <TaskEditorView />
+        </Route>
+      </Router>,
+      async ({ root }) => {
+        await type(root, `task-title`, `Buy oat milk`)
+        await press(root, `task-save`)
+      },
+    )
+    expect(memory.history.at(-1)).toBe(before)
   })
 })

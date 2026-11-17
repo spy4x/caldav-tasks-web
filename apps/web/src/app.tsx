@@ -30,7 +30,7 @@ import { rememberPage, SearchView } from "./views/SearchView.tsx"
 import { SettingsView } from "./views/SettingsView.tsx"
 import { SignInAgainView } from "./views/SignInAgainView.tsx"
 import { SignInView } from "./views/SignInView.tsx"
-import { TaskEditorView } from "./views/TaskEditorView.tsx"
+import { rememberPageBeforeTask, TaskEditorView } from "./views/TaskEditorView.tsx"
 import { TodayView } from "./views/TodayView.tsx"
 import { SidebarView } from "./views/SidebarView.tsx"
 import { UpcomingView } from "./views/UpcomingView.tsx"
@@ -106,7 +106,11 @@ function SignedInApp() {
   useEffect(() => () => void (document.title = APP_TITLE), [])
   const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
   useShortcuts(navigate)
-  useEffect(() => rememberPage(`${location}${globalThis.location.search}`), [location])
+  useEffect(() => {
+    const page = `${location}${globalThis.location.search}`
+    rememberPage(page)
+    rememberPageBeforeTask(page)
+  }, [location])
   useRouteAnnouncer({
     path: location,
     // Control K opens Search with the cursor in its field and `n` opens Today with it in the quick add:
