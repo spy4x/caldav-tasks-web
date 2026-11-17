@@ -3,7 +3,6 @@ import { useEffect } from "preact/hooks"
 import { useLocation } from "wouter-preact"
 import { todayView } from "@spy4x/platform/universal/ical-tasks-view"
 import { TodayScreen } from "@ui/today-screen.tsx"
-import { focusOnArrival } from "@ui/sidebar.tsx"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { tasks } from "../state/tasks.ts"
@@ -33,14 +32,6 @@ export function TodayView() {
     const home = homeList(taskLists.value)
     if (home) navigate(listPath(home), { replace: true })
   }, [calendarsLoaded.value])
-  // Today's own quick add is its New task field: the cursor waits in it, when Settings asks.
-  useEffect(
-    () =>
-      focusNewTask.value
-        ? focusOnArrival(() => document.querySelector<HTMLElement>(`[data-e2e="quick-add-input"]`))
-        : undefined,
-    [],
-  )
   return (
     <TodayScreen
       overdue={overdue}

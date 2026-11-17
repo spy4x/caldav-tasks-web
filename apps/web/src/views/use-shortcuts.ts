@@ -4,18 +4,13 @@ import { completeFocusedRow, editFocusedRow, moveRowFocus } from "@ui/task-focus
 import { leaveGuard } from "../leave-guard.ts"
 import { createShortcutMatcher, ShortcutId, shortcutsOpen } from "../shortcuts.ts"
 
-/** The page's own quick add where it shows (a phone, or Today), else the sidebar's New task field. */
+/** Today's phone field or, on a desktop, the sidebar's (or the one atop the page). */
 const NEW_TASK = `[data-e2e="quick-add-input"], [data-e2e="new-task-title"]`
 const SEARCH = `[data-e2e="search-input"]`
 
-/**
- * The first field on screen, trying the selectors in the order written, or the first that exists:
- * a field can be in the page but hidden at this size.
- */
+/** The first match that is on screen, or the first match: one of the fields is hidden by size. */
 function shown(selector: string): HTMLElement | undefined {
-  const all = selector.split(`, `).flatMap((one) => [
-    ...document.querySelectorAll<HTMLElement>(one),
-  ])
+  const all = [...document.querySelectorAll<HTMLElement>(selector)]
   return all.find((el) => el.offsetParent !== null) ?? all[0]
 }
 

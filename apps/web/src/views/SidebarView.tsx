@@ -41,6 +41,7 @@ export function SidebarView(
     }
   }
   const target = onScreen ?? homeList(lists) ?? lists[0]
+  const onToday = currentPath === PATHS.today
   const parents = target
     ? tasks.value.filter((t) => t.listHref === target.href && isOpen(t) && !t.parentUid)
     : []
@@ -64,9 +65,11 @@ export function SidebarView(
       return false
     }
     const now = new Date()
+    // On Today, a task with no date is due today, so it shows where it was added.
     const read = newTaskFromQuickAdd(parseQuickAdd(input.text, { now, timeZone: zone }), {
       now,
       zone,
+      dueToday: onToday,
     })
     const fields = {
       ...read,
@@ -109,9 +112,15 @@ export function SidebarView(
       onAdd={add}
       navigate={navigate}
       compact={compact}
-      placeholder={compact && target ? `Add a task to ${target.name}…` : undefined}
+      placeholder={onToday
+        ? `Add a task for today…`
+        : compact && target
+        ? `Add a task to ${target.name}…`
+        : undefined}
       // Where this is the page's only New task field. Today focuses its own quick add.
-      focusKey={autoFocus && (slug || currentPath === PATHS.upcoming) ? currentPath : undefined}
+      focusKey={autoFocus && (slug || onToday || currentPath === PATHS.upcoming)
+        ? currentPath
+        : undefined}
     />
   )
 }

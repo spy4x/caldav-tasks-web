@@ -134,16 +134,8 @@ function SignedInApp() {
         }
       }}
       sidebar={<SidebarView currentPath={location} navigate={guarded} />}
-      sidebarHidden={sidebarHidden}
-      onSidebarHiddenChange={(hidden) => {
-        setSidebarHidden(hidden)
-        try {
-          localStorage.setItem(SIDEBAR_HIDDEN, hidden ? `1` : `0`)
-        } catch {
-          // Not remembered in a private window; it still toggles.
-        }
-      }}
-      newTask={/^\/lists\/[^/]+$/.test(location)
+      newTask={/^\/lists\/[^/]+$/.test(location) || location === ROUTES.today ||
+          location === ROUTES.upcoming
         ? <SidebarView compact currentPath={location} navigate={guarded} />
         : undefined}
     >

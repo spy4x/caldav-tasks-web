@@ -7,6 +7,8 @@ import { mount, must } from "@ui/mount.test.tsx"
 import { refresh } from "../state/sync.ts"
 import { withApp } from "../state/testing.ts"
 import { SidebarView } from "./SidebarView.tsx"
+import { PATHS } from "@ui/frame.tsx"
+import { browserZone } from "./clock.ts"
 
 const PARENT = [
   `BEGIN:VCALENDAR`,
@@ -52,6 +54,36 @@ Deno.test(`one Enter on a suggested main task adds the new task under it`, async
         expect(milk).toBeDefined()
         expect(milk).toContain(`RELATED-TO`)
         expect(milk).toContain(`groceries`)
+      },
+    )
+  })
+})
+
+Deno.test(`on Today, a task added from the sidebar with no date is due today`, async () => {
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Daily`, changeMarker: `c1` }]
+    await refresh()
+    await mount(
+      <SidebarView currentPath={PATHS.today} navigate={() => {}} />,
+      async ({ root, window }) => {
+        const field = must<HTMLTextAreaElement>(root, `[data-e2e="new-task-title"]`)
+        expect(field.getAttribute(`placeholder`)).toBe(`Add a task for today…`)
+        await act(async () => {
+          field.value = `Call the bank`
+          field.dispatchEvent(new window.Event(`input`, { bubbles: true }) as never)
+        })
+        await act(async () => {
+          field.dispatchEvent(
+            new window.KeyboardEvent(`keydown`, { key: `Enter`, bubbles: true }) as never,
+          )
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        })
+        const today = new Date().toLocaleDateString(`en-CA`, { timeZone: browserZone() })
+          .replaceAll(`-`, ``)
+        const ics = [...server.objects.values()].map((o) => o.ics).find((text) =>
+          /^SUMMARY:Call the bank\s*$/m.test(text)
+        )
+        expect(ics).toMatch(new RegExp(String.raw`^DUE;VALUE=DATE:${today}\s*$`, `m`))
       },
     )
   })

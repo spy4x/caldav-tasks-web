@@ -55,16 +55,18 @@ export function TodayScreen(props: TodayScreenProps): JSX.Element {
         />
       }
       quickAdd={
-        <QuickAdd
-          onAdd={props.onQuickAdd}
-          zone={props.zone}
-          busy={props.quickAddBusy}
-          label="New task"
-          placeholder="Add a task"
-          labels={{ submit: "Add task", noTitle: "Add a title to create the task" }}
-          hint={(parsed) =>
-            parsed.due ? `Added to your default list` : `Added to your default list, due today`}
-        />
+        <div class="md:hidden">
+          <QuickAdd
+            onAdd={props.onQuickAdd}
+            zone={props.zone}
+            busy={props.quickAddBusy}
+            label="New task"
+            placeholder="Add a task"
+            labels={{ submit: "Add task", noTitle: "Add a title to create the task" }}
+            hint={(parsed) =>
+              parsed.due ? `Added to your default list` : `Added to your default list, due today`}
+          />
+        </div>
       }
     >
       {props.loading ? <LoadingBody label="Loading today's tasks" /> : empty
