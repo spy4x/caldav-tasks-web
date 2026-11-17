@@ -142,7 +142,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   const Tag = (props.bare ? `div` : `li`) as `li`
   return (
     <Tag
-      class={`isolate relative flex flex-wrap items-center gap-x-2 pe-4 @max-xl:gap-x-1 ${
+      class={`isolate relative flex flex-wrap items-center gap-x-2 pe-4 ${
         INDENT[Math.min(depth, 3)]
       } ${
         sub
@@ -155,19 +155,37 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
       data-task-uid={task.uid}
       onKeyDown={onKeyDown}
     >
-      <Checkbox
-        checked={!open}
-        aria-label={`Complete ${task.title}`}
-        shape="round"
-        labelClass={`relative z-10 min-w-11 shrink-0 justify-center ${
-          quiet ? `min-h-8` : `min-h-11`
-        }`}
-        data-task-check={task.uid}
-        data-e2e="task-check"
-        onChange={(event) =>
-          props.onComplete(task, (event.currentTarget as HTMLInputElement).checked)}
-      />
-      <div class={`min-w-0 flex-1 @max-xl:pe-4 ${quiet ? `py-1` : `py-2`}`}>
+      <span class="relative shrink-0">
+        {expandable && (
+          // A second way to fold the subtasks, in the space left of the check. The count is the
+          // one in the tab order and the one a screen reader hears.
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-hidden="true"
+            class="absolute -start-2 top-1/2 z-20 flex size-4 -translate-y-1/2 cursor-pointer items-center justify-center text-muted hover:text-foreground"
+            onClick={() => setExpanded(!expanded)}
+            data-e2e="task-expand-arrow"
+          >
+            <IconChevronDown
+              class={`size-3 transition-transform ${expanded ? `` : `-rotate-90`}`}
+            />
+          </button>
+        )}
+        <Checkbox
+          checked={!open}
+          aria-label={`Complete ${task.title}`}
+          shape="round"
+          labelClass={`relative z-10 min-w-11 shrink-0 justify-center ${
+            quiet ? `min-h-8` : `min-h-11`
+          }`}
+          data-task-check={task.uid}
+          data-e2e="task-check"
+          onChange={(event) =>
+            props.onComplete(task, (event.currentTarget as HTMLInputElement).checked)}
+        />
+      </span>
+      <div class={`min-w-0 flex-1 ${quiet ? `py-1` : `py-2`}`}>
         {renaming
           ? (
             <input
@@ -205,7 +223,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
             </button>
           )}
       </div>
-      <div class="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[13px] text-muted empty:hidden @max-xl:basis-full @max-xl:justify-start @max-xl:ps-12 @max-xl:pb-2">
+      <div class="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[13px] text-muted empty:hidden">
         {expandable && (
           <button
             type="button"
@@ -219,15 +237,9 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
           >
             <span aria-hidden="true">
               {props.doneSubtaskCount !== undefined
-                ? `${props.doneSubtaskCount} of ${subtaskCount} ${
-                  subtaskCount === 1 ? `subtask` : `subtasks`
-                }`
+                ? `${props.doneSubtaskCount}/${subtaskCount}`
                 : subtaskCount}
             </span>
-            <IconChevronDown
-              class={`size-3 transition-transform ${expanded ? `` : `-rotate-90`}`}
-              aria-hidden="true"
-            />
           </button>
         )}
         {list && (
@@ -267,7 +279,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
         )}
         {(props.onRename || props.onDelete) && (
           // Narrower than 48rem, Edit and Delete take no room: they show over the row on hover.
-          <span class="row-edit relative z-10 inline-flex items-center gap-1 @max-3xl:absolute @max-3xl:end-12 @max-3xl:top-1 @max-3xl:z-20 @max-3xl:rounded-md @max-3xl:bg-surface @max-3xl:shadow-sm">
+          <span class="row-edit relative z-10 inline-flex items-center gap-1 @max-3xl:absolute @max-3xl:end-12 @max-3xl:top-1/2 @max-3xl:-translate-y-1/2 @max-3xl:z-20 @max-3xl:rounded-md @max-3xl:bg-surface @max-3xl:shadow-sm">
             {props.onRename && (
               <button
                 type="button"
@@ -304,8 +316,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
         )}
       </div>
       {props.handle && (
-        // Narrow, the handle keeps to the right of the title, off the details line.
-        <span class="ms-2 @max-xl:absolute @max-xl:end-2 @max-xl:top-2 @max-xl:ms-0">
+        <span class="ms-2">
           {props.handle}
         </span>
       )}
