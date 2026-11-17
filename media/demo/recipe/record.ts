@@ -111,7 +111,7 @@ const steps: { text: string; at: number }[] = []
  * Runs one step under its caption, then holds the screen until the caption has been on long
  * enough to read (and at least `hold` ms after the step's last action).
  */
-async function step(page: Page, text: string, action: () => Promise<void>, hold = 1500) {
+async function step(page: Page, text: string, action: () => Promise<void>, hold = 1200) {
   const at = now()
   steps.push({ text, at })
   await action()
@@ -250,7 +250,7 @@ try {
 
     await step(page, `Open a list: Plan the garden has two subtasks`, async () => {
       await clickLike(page, pointer, page.getByRole(`link`, { name: `Lists` }))
-      await pause(page, 600)
+      await pause(page, 300)
       await clickLike(page, pointer, main.getByText(`Errands`, { exact: true }))
       await parkLike(page, pointer, REST)
       await reveal(page, main.getByRole(`button`, { name: `Clear the beds`, exact: true }))
@@ -272,13 +272,13 @@ try {
       const task = main.getByRole(`button`, { name: `Water the plants`, exact: true })
       await clickAndZoom(page, pointer, task, EDITOR_ZOOM)
       await repeat.waitFor()
-      await pause(page, 900)
+      await pause(page, 500)
       const box = await repeat.boundingBox()
       if (box) await scrollLike(page, Math.round(box.y - VIEWPORT.height * 0.35))
       await hover(page, pointer, repeat)
       await pause(page, 400)
       await repeat.selectOption({ label: `Weekly` })
-    }, 1800)
+    }, 1400)
 
     await step(page, `Save: it is written back the way Tasks.org wrote it`, async () => {
       const save = main.getByRole(`button`, { name: `Save`, exact: true })
@@ -293,7 +293,7 @@ try {
     await step(page, `Complete a task, and Undo brings it back`, async () => {
       await clickLike(page, pointer, page.getByRole(`link`, { name: `Today` }))
       await main.getByText(`Call the plumber`).waitFor()
-      await pause(page, 500)
+      await pause(page, 300)
       await clickLike(
         page,
         pointer,
@@ -301,7 +301,7 @@ try {
       )
       const undo = page.getByRole(`button`, { name: `Undo` })
       await undo.waitFor()
-      await pause(page, 900)
+      await pause(page, 600)
       await clickLike(page, pointer, undo)
       await main.getByRole(`button`, { name: `Call the plumber`, exact: true }).waitFor()
       await parkLike(page, pointer, REST)
