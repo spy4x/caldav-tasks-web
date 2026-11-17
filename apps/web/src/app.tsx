@@ -9,7 +9,7 @@ import { AppFrame } from "@ui/frame.tsx"
 import { APP_TITLE, pageTitle } from "./page-title.ts"
 import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
-import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
+import { listShortcuts, searchKeyLabel, shortcutsOpen } from "./shortcuts.ts"
 import { ShortcutsDialog } from "@spy4x/preact-ui/shortcuts-dialog"
 import { leaveGuard } from "./leave-guard.ts"
 import { useShortcuts } from "./views/use-shortcuts.ts"
@@ -109,7 +109,7 @@ function SignedInApp() {
   useEffect(() => rememberPage(`${location}${globalThis.location.search}`), [location])
   useRouteAnnouncer({
     path: location,
-    // `/` opens Search with the cursor in its field and `n` opens Today with it in the quick add:
+    // Control K opens Search with the cursor in its field and `n` opens Today with it in the quick add:
     // a page that focused its own control keeps it.
     keepPageFocus: true,
     // The address as the browser holds it: the router's own is half decoded, which loses a task
@@ -124,6 +124,7 @@ function SignedInApp() {
     <AppFrame
       currentPath={location}
       navigate={guarded}
+      searchKey={searchKeyLabel()}
       sidebarHidden={sidebarHidden}
       onSidebarHiddenChange={(hidden) => {
         setSidebarHidden(hidden)

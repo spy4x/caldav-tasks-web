@@ -75,7 +75,9 @@ function key(
   repeat = false,
 ) {
   const event = new window.KeyboardEvent(`keydown`, {
-    key: name,
+    // `ctrl+k` stands for Search's chord.
+    ...(name === `ctrl+k` ? { ctrlKey: true } : {}),
+    key: name === `ctrl+k` ? `k` : name,
     bubbles: true,
     cancelable: true,
     repeat,
@@ -223,7 +225,7 @@ Deno.test("with the switch off, n, j, x, e, /, g t and ? do nothing and the keys
     await mount(<Page log={log} quickAdd />, async ({ root, window }) => {
       const check = must<HTMLInputElement>(root, `input[data-task-check="a"]`)
       check.focus()
-      for (const name of [`n`, `j`, `x`, `e`, `/`, `g`, `t`, `?`]) {
+      for (const name of [`n`, `j`, `x`, `e`, `g`, `t`, `?`]) {
         expect(await key(window as never, active(window), name)).toBe(true)
       }
       expect(log).toEqual([])
@@ -306,10 +308,10 @@ Deno.test("n on a page without a quick add goes to Today and focuses the field w
   })
 })
 
-Deno.test("/ on the search page focuses the field and keeps the query and the address", async () => {
+Deno.test("Control K on the search page focuses the field and keeps the query and the address", async () => {
   const log: string[] = []
   await mount(<Page log={log} search />, async ({ root, window }) => {
-    await key(window as never, window.document.body as never, `/`)
+    await key(window as never, window.document.body as never, `ctrl+k`)
     expect(log).toEqual([])
     expect(window.document.activeElement?.getAttribute(`data-e2e`)).toBe(`search-input`)
     expect(must<HTMLInputElement>(root, `[data-e2e="search-input"]`).value).toBe(`foo`)
@@ -347,7 +349,7 @@ Deno.test("a second shortcut replaces the first one's wait for its field", async
   const log: string[] = []
   await mount(<Page log={log} />, async ({ window, rerender }) => {
     await key(window as never, window.document.body as never, `n`)
-    await key(window as never, window.document.body as never, `/`)
+    await key(window as never, window.document.body as never, `ctrl+k`)
     expect(log).toEqual([`go /`, `go /search`])
     await rerender(<Page log={log} quickAdd search />)
     await observed()

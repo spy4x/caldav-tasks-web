@@ -84,13 +84,24 @@ export function AppLink(
  own quick add.
  */
 export function AppFrame(
-  { currentPath, navigate, sidebar, newTask, sidebarHidden, onSidebarHiddenChange, children }: {
+  {
+    currentPath,
+    navigate,
+    sidebar,
+    newTask,
+    sidebarHidden,
+    onSidebarHiddenChange,
+    searchKey = `Ctrl+K`,
+    children,
+  }: {
     currentPath?: string
     navigate?: (path: string) => void
     /** The desktop column: the new task form and the lists. Hidden on a phone. */
     sidebar?: ComponentChildren
     /** The New task field drawn atop the page while the sidebar is hidden. */
     newTask?: ComponentChildren
+    /** Search's keyboard shortcut as shown beside it, such as `Ctrl+K` or `⌘K`. */
+    searchKey?: string
     /** Whether the sidebar is hidden, when the caller keeps it; left out, the frame does. */
     sidebarHidden?: boolean
     onSidebarHiddenChange?: (hidden: boolean) => void
@@ -138,7 +149,7 @@ export function AppFrame(
         class="rounded border border-subtle px-1 font-sans text-xs"
         aria-hidden="true"
       >
-        /
+        {searchKey}
       </kbd>
     </AppLink>
   )
