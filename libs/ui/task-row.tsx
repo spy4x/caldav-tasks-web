@@ -25,6 +25,8 @@ export interface TaskRowProps {
   depth?: number
   /** Shown in the meta line, for views that mix lists. */
   list?: RowList
+  /** An item of a simple list: a dot where the check would be, so it cannot be completed. */
+  noCheck?: boolean
   /** How many subtasks are listed under the row. Greater than zero adds the expander. */
   subtaskCount?: number
   /** How many of those are done, for "1 of 3 subtasks". */
@@ -196,18 +198,31 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
             />
           </button>
         )}
-        <Checkbox
-          checked={!open}
-          aria-label={`Complete ${task.title}`}
-          shape="round"
-          labelClass={`relative z-10 min-w-11 shrink-0 justify-center ${
-            quiet ? `min-h-8` : `min-h-11`
-          }`}
-          data-task-check={task.uid}
-          data-e2e="task-check"
-          onChange={(event) =>
-            props.onComplete(task, (event.currentTarget as HTMLInputElement).checked)}
-        />
+        {props.noCheck
+          ? (
+            <span
+              class={`relative z-10 flex min-w-11 shrink-0 items-center justify-center text-muted ${
+                quiet ? `min-h-8` : `min-h-11`
+              }`}
+              data-e2e="task-bullet"
+            >
+              <span class="size-1 rounded-full bg-current" aria-hidden="true" />
+            </span>
+          )
+          : (
+            <Checkbox
+              checked={!open}
+              aria-label={`Complete ${task.title}`}
+              shape="round"
+              labelClass={`relative z-10 min-w-11 shrink-0 justify-center ${
+                quiet ? `min-h-8` : `min-h-11`
+              }`}
+              data-task-check={task.uid}
+              data-e2e="task-check"
+              onChange={(event) =>
+                props.onComplete(task, (event.currentTarget as HTMLInputElement).checked)}
+            />
+          )}
       </span>
       <div class={`min-w-0 flex-1 ${quiet ? `py-1` : `py-2`}`}>
         {renaming

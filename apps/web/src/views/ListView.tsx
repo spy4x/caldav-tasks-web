@@ -37,14 +37,28 @@ const SECOND_LIST = `second-list`
 const SHARE = `two-lists-share`
 /** The lists whose finished tasks are hidden, as a JSON array of their addresses. */
 const HIDE_COMPLETED = `hide-completed`
+/** The lists drawn as simple lists, with no checks, as a JSON array of their addresses. */
+const SIMPLE_LISTS = `simple-lists`
 
-function hiddenDone(): string[] {
+/** The addresses of the lists a per-list choice is on for. */
+function listsWith(key: string): string[] {
   try {
-    const parsed = JSON.parse(stored(HIDE_COMPLETED) ?? `[]`)
+    const parsed = JSON.parse(stored(key) ?? `[]`)
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }
+}
+
+/** A yes-or-no choice for one list, kept on this device with the other lists' under `key`. */
+function useListChoice(key: string, href: string): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => listsWith(key).includes(href))
+  useEffect(() => setOn(listsWith(key).includes(href)), [href])
+  return [on, (next) => {
+    setOn(next)
+    const others = listsWith(key).filter((other) => other !== href)
+    store(key, JSON.stringify(next ? [...others, href] : others))
+  }]
 }
 
 function stored(key: string): string | null {
@@ -201,8 +215,9 @@ function ListPane(
   const quickAdd = useQuickAdd({ listHref: list.href })
   const now = useNow({ zone: browserZone() }).value
   useEffect(() => void loadCompleted(list.href), [list.href])
-  const [hideDone, setHideDone] = useState(() => hiddenDone().includes(list.href))
-  useEffect(() => setHideDone(hiddenDone().includes(list.href)), [list.href])
+  // ponytail: kept on this device, as the CalDAV client saves only a list's name and colour.
+  const [hideDone, setHideDone] = useListChoice(HIDE_COMPLETED, list.href)
+  const [simple, setSimple] = useListChoice(SIMPLE_LISTS, list.href)
 
   return (
     <ListScreen
@@ -239,11 +254,9 @@ function ListPane(
       onChangeColor={() => navigate(listSettingsPath(list))}
       onDelete={() => navigate(`${listSettingsPath(list)}?${ASK_DELETE}`)}
       hideCompleted={hideDone}
-      onHideCompletedChange={(hide) => {
-        setHideDone(hide)
-        const others = hiddenDone().filter((href) => href !== list.href)
-        store(HIDE_COMPLETED, JSON.stringify(hide ? [...others, list.href] : others))
-      }}
+      onHideCompletedChange={setHideDone}
+      simple={simple}
+      onSimpleChange={setSimple}
       isHome={homeHref.value === list.href}
       onMakeHome={() => {
         setHomeList(list.href)

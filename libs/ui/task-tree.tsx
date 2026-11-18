@@ -36,6 +36,8 @@ export interface TaskTreeProps {
     siblings: readonly Task[],
     toIndex: number,
   ) => void
+  /** Rows of a simple list: a dot where each check would be. */
+  noChecks?: boolean
   /** Leaves finished subtasks out of the rows; a parent's "2/4" still counts them. */
   hideDone?: boolean
   /** Quiet rows with no lines between them, as in the Completed section. */
@@ -151,7 +153,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
     // Hidden finished subtasks still count, so "2/4" stays true; a row with none shown has no count.
     if (node.children.length === 0) continue
     counts.set(uid, descendants(all.get(uid)!))
-    dones.set(uid, doneDescendants(all.get(uid)!))
+    if (!props.noChecks) dones.set(uid, doneDescendants(all.get(uid)!))
   }
 
   const setExpanded = (task: Task, expanded: boolean) => {
@@ -204,6 +206,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
             now={props.now}
             depth={depth}
             list={props.listOf?.(task)}
+            noCheck={props.noChecks}
             subtaskCount={counts.get(task.uid)}
             doneSubtaskCount={dones.get(task.uid)}
             expanded={!collapsed.has(task.uid)}
@@ -402,6 +405,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
             now={props.now}
             depth={depth}
             list={props.listOf?.(task)}
+            noCheck={props.noChecks}
             subtaskCount={counts.get(task.uid)}
             doneSubtaskCount={dones.get(task.uid)}
             expanded={!hidden.has(task.uid)}

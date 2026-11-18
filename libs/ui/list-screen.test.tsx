@@ -308,3 +308,24 @@ Deno.test("Hide completed tasks leaves out finished subtasks and the Completed s
     expect(root.querySelector(`[aria-label^="Hide 2 subtasks"]`)).not.toBeNull()
   })
 })
+
+Deno.test("a simple list has no checks or Completed section, keeps finished items and counts items", async () => {
+  const turned: boolean[] = []
+  await mount(
+    <ListScreen {...props({ simple: true, onSimpleChange: (next) => turned.push(next) })} />,
+    async ({ root, act }) => {
+      expect(root.querySelector(`[data-e2e="task-check"]`)).toBeNull()
+      expect(root.querySelectorAll(`[data-e2e="task-bullet"]`).length).toBe(5)
+      expect(titles(root)).toContain(`Done thing`)
+      expect(root.querySelector(`[data-e2e="completed-section"]`)).toBeNull()
+      // The count sits beside the heading, in the page header.
+      expect(root.querySelector(`[data-e2e="page-header"]`)?.textContent).toContain(`4 items`)
+      await act(() => must<HTMLButtonElement>(root, `[aria-label="More actions"]`).click())
+      expect(root.querySelector(`[data-e2e="hide-completed"]`)).toBeNull()
+      const item = must<HTMLElement>(root, `[data-e2e="simple-list"]`)
+      expect(item.getAttribute(`aria-checked`)).toBe(`true`)
+      await act(() => item.click())
+      expect(turned).toEqual([false])
+    },
+  )
+})
