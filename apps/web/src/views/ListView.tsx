@@ -19,6 +19,7 @@ import { findListBySlug, listPath, listSettingsPath, taskPath } from "../routes.
 import { browserZone } from "./clock.ts"
 import { sortFromParam, sortToParam, tagsFromParam, tagsToParam } from "./list-filters.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
+import { ASK_DELETE } from "./ListSettingsView.tsx"
 import { SidebarView } from "./SidebarView.tsx"
 import {
   addSiblingTask,
@@ -172,7 +173,7 @@ function ListPane(
       onComplete={(task, isDone) => void completeWithUndo(task, isDone)}
       onOpen={(task) => navigate(taskPath(task))}
       onRenameTask={(task, title) => void renameTask(task, title)}
-      onAddSibling={(task, title) => void addSiblingTask(task, title)}
+      onAddSibling={addSiblingTask}
       onDeleteTask={(task) => void deleteWithUndo(task)}
       onMoveTask={(task, parent, siblings, to) =>
         void moveUnder(list.href, task, parent, siblings, to, browserZone())}
@@ -181,9 +182,10 @@ function ListPane(
       onQuickAdd={(parsed) => void quickAdd.add(parsed)}
       quickAddBusy={quickAdd.busy.value}
       navigate={navigate}
-      // Name, colour and delete share one settings page; Delete lives in its "More actions".
+      // Name, colour and delete share one settings page; Delete opens it with its question asked.
       onRename={() => navigate(listSettingsPath(list))}
       onChangeColor={() => navigate(listSettingsPath(list))}
+      onDelete={() => navigate(`${listSettingsPath(list)}?${ASK_DELETE}`)}
       isHome={homeHref.value === list.href}
       onMakeHome={() => {
         setHomeList(list.href)
