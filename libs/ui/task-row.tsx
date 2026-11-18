@@ -184,7 +184,8 @@ ${task.notes}`,
   const Tag = (props.bare ? `div` : `li`) as `li`
   return (
     <Tag
-      class={`isolate relative flex flex-wrap items-center gap-x-2 pe-4 ${
+      // A row with its @ menu open stays above the rows after it, which would cover the menu.
+      class={`isolate relative flex flex-wrap items-center gap-x-2 pe-4 has-[[data-e2e=mention-menu]]:z-30 ${
         INDENT[Math.min(depth, 3)]
       } ${
         sub
