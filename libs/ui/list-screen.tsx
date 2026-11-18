@@ -43,7 +43,7 @@ export interface ListScreenProps {
   /** Renames a task from its row; given, pressing a title renames it and "Edit" opens it. */
   onRenameTask?: (task: Task, title: string) => void
   /** Adds a task beside one (under the same parent), from the line Enter opens while renaming. */
-  onAddSibling?: (task: Task, title: string) => void
+  onAddSibling?: (task: Task, title: string) => void | Promise<string | undefined>
   /** Deletes a task from its row; given, a "Delete" shows on hover right of "Edit". */
   onDeleteTask?: (task: Task) => void
   /**

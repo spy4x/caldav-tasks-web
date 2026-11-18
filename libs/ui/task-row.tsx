@@ -1,5 +1,6 @@
 import type { JSX } from "preact"
 import { useEffect, useRef, useState } from "preact/hooks"
+import { signal } from "@preact/signals"
 import { IconArrowPath, IconBell, IconChevronDown, IconFlag } from "@spy4x/preact-icons"
 import { Checkbox } from "@spy4x/preact-ui/checkbox"
 import { dueLabel, DueTone } from "./due-label.ts"
@@ -47,9 +48,10 @@ export interface TaskRowProps {
   onRename?: (task: Task, title: string) => void
   /**
    * Given, Enter while renaming opens a new line under the row: a title typed there and Enter
-   * creates a task beside this one (a subtask of the same parent), and opens the next line.
+   * creates a task beside this one (a subtask of the same parent), and opens the next line. When
+   * it resolves to the new task's UID, that line opens under the new task.
    */
-  onAddSibling?: (task: Task, title: string) => void
+  onAddSibling?: (task: Task, title: string) => void | Promise<string | undefined>
   /** Given, a "Delete" button shows on hover, right of "Edit". */
   onDelete?: (task: Task) => void
   /** A drag handle, drawn at the right end of the row. */
@@ -59,6 +61,9 @@ export interface TaskRowProps {
   /** A dragged task would go under this row. */
   dropInto?: boolean
 }
+
+/** The task just added from a new line: its row opens the next line, so the line stays below it. */
+const lineMovesTo = signal<string | null>(null)
 
 const INDENT = [`ps-2`, `ps-12`, `ps-16`, `ps-16`] as const
 const MAX_TAGS = 3
@@ -103,6 +108,12 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   useEffect(() => {
     if (adding) newLine.current?.focus()
   }, [adding])
+  const lineComesHere = lineMovesTo.value === task.uid
+  useEffect(() => {
+    if (!lineComesHere) return
+    lineMovesTo.value = null
+    setAdding(true)
+  }, [lineComesHere])
   const field = useRef<HTMLInputElement>(null)
   const finished = useRef(false)
   useEffect(() => {
@@ -122,9 +133,19 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   /** Creates the task typed on the new line; `keepOpen` leaves an empty line for the next one. */
   const addFromNewLine = (input: HTMLInputElement, keepOpen: boolean) => {
     const title = input.value.trim()
-    if (title) props.onAddSibling?.(task, title)
     input.value = ``
     if (!title || !keepOpen) setAdding(false)
+    if (!title) return
+    const added = props.onAddSibling?.(task, title)
+    // The next line opens under the new task once it is there; until then it stays here.
+    if (keepOpen) {
+      void Promise.resolve(added).then((uid) => {
+        // Something typed here meanwhile keeps the line where it is.
+        if (!uid || newLine.current?.value) return
+        setAdding(false)
+        lineMovesTo.value = uid
+      })
+    }
   }
 
   const setExpanded = (next: boolean) => props.onExpandedChange?.(task, next)

@@ -244,11 +244,15 @@ export async function renameTask(task: Task, title: string): Promise<void> {
   }
 }
 
-/** Adds a task beside `task`: in its list, under its parent when it is a subtask. */
-export async function addSiblingTask(task: Task, title: string): Promise<void> {
+/**
+ * Adds a task beside `task`: in its list, under its parent when it is a subtask. Resolves to the
+ * new task's UID, or `undefined` when it could not be added.
+ */
+export async function addSiblingTask(task: Task, title: string): Promise<string | undefined> {
   const parent = task.parentUid
     ? tasks.value.find((candidate) => candidate.uid === task.parentUid)
     : undefined
   const result = await addTask({ title }, { listHref: task.listHref, parent })
   if (result.kind === WriteKind.Failed) toasts.error({ title: ``, body: result.message })
+  return result.kind === WriteKind.Saved ? result.task.uid : undefined
 }

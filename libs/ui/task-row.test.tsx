@@ -222,7 +222,7 @@ Deno.test("with onRename, the title renames in place, Enter saves and opens a ne
         onComplete={() => {}}
         onOpen={(task) => opened.push(task.title)}
         onRename={(_task, title) => renamed.push(title)}
-        onAddSibling={(_task, title) => added.push(title)}
+        onAddSibling={(_task, title) => void added.push(title)}
         onDelete={(task) => deleted.push(task.title)}
       />
     </ul>,
@@ -251,4 +251,47 @@ Deno.test("with onRename, the title renames in place, Enter saves and opens a ne
       expect(deleted).toEqual([`Buy milk`])
     },
   )
+})
+
+Deno.test("after a task is added from the new line, the next line opens under the new task", async () => {
+  const added: string[] = []
+  const rows = (titles: string[]) => (
+    <ul>
+      {titles.map((title, at) => (
+        <TaskRow
+          key={`${at}`}
+          task={makeTask(`${at}`, title)}
+          zone="UTC"
+          now={NOW}
+          onComplete={() => {}}
+          onOpen={() => {}}
+          onRename={() => {}}
+          onAddSibling={(_task, title) => {
+            added.push(title)
+            return Promise.resolve(`${titles.length}`)
+          }}
+        />
+      ))}
+    </ul>
+  )
+  await mount(rows([`Eggs`]), async ({ root, window, act, rerender }) => {
+    const key = (target: HTMLElement, k: string) =>
+      act(() => {
+        target.dispatchEvent(
+          new window.KeyboardEvent(`keydown`, { key: k, bubbles: true }) as never,
+        )
+      })
+    await act(() => must<HTMLButtonElement>(root, `[data-e2e="task-open"]`).click())
+    await key(must<HTMLInputElement>(root, `[data-e2e="task-rename"]`), `Enter`)
+    const line = must<HTMLInputElement>(root, `[data-e2e="task-new-line"]`)
+    line.value = `Milk`
+    await key(line, `Enter`)
+    await rerender(rows([`Eggs`, `Milk`]))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(added).toEqual([`Milk`])
+    const lines = root.querySelectorAll(`[data-e2e="task-new-line"]`)
+    expect(lines.length).toBe(1)
+    const items = [...root.querySelectorAll(`li`)]
+    expect(items[1].contains(lines[0] as never)).toBe(true)
+  })
 })

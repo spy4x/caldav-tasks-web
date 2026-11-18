@@ -41,7 +41,7 @@ export interface TaskTreeProps {
   /** Renames a task in place; see TaskRow's `onRename`. */
   onRename?: (task: Task, title: string) => void
   /** Adds a task beside one, from the line Enter opens while renaming. */
-  onAddSibling?: (task: Task, title: string) => void
+  onAddSibling?: (task: Task, title: string) => void | Promise<string | undefined>
   /** Deletes a task from its row's hover "Delete". */
   onDelete?: (task: Task) => void
 }
