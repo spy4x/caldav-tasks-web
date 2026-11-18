@@ -121,3 +121,51 @@ Deno.test("Tab fills the picked main task in without adding; Enter then adds und
     },
   )
 })
+
+Deno.test("each list, not a view, has a menu that acts on it; the default list offers no Make default", async () => {
+  const calls: string[] = []
+  const act = (name: string) => (link: { label: string }) => calls.push(`${name} ${link.label}`)
+  await mount(
+    <Sidebar
+      {...props({
+        links: [
+          { label: `Today`, href: `/today`, count: 2 },
+          { label: `Daily`, href: `/lists/daily`, count: 16, home: true, list: true },
+          { label: `Midterm`, href: `/lists/midterm`, count: 12, list: true },
+        ],
+        listActions: {
+          onMakeHome: act(`home`),
+          onRename: act(`rename`),
+          onChangeColor: act(`colour`),
+          onDelete: act(`delete`),
+        },
+      })}
+    />,
+    async ({ root, act: run }) => {
+      const menus = [...root.querySelectorAll<HTMLButtonElement>(`[data-e2e="sidebar-list-menu"]`)]
+      expect(menus.map((menu) => menu.getAttribute(`aria-label`))).toEqual([
+        `More actions for Daily`,
+        `More actions for Midterm`,
+      ])
+      const items = async (menu: HTMLButtonElement) => {
+        await run(() => menu.click())
+        return [...menu.parentElement!.querySelectorAll<HTMLElement>(`[role="menuitem"]`)]
+      }
+      expect((await items(menus[0])).map((item) => item.textContent)).toEqual([
+        `Rename list`,
+        `Change colour`,
+        `Delete list`,
+      ])
+      await run(() => menus[0].click())
+      const midterm = await items(menus[1])
+      expect(midterm.map((item) => item.textContent)).toEqual([
+        `Make default list`,
+        `Rename list`,
+        `Change colour`,
+        `Delete list`,
+      ])
+      await run(() => midterm[3].click())
+      expect(calls).toEqual([`delete Midterm`])
+    },
+  )
+})

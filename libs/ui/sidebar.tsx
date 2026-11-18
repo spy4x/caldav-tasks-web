@@ -5,12 +5,14 @@ import {
   IconCalendar,
   IconChevronDown,
   IconChevronRight,
+  IconEllipsisVertical,
   IconFlag,
   IconHome,
   IconList,
   IconPlus,
   IconWrench,
 } from "@spy4x/preact-icons"
+import { Dropdown, DropdownItem } from "@spy4x/preact-ui/dropdown"
 import { AppLink } from "./frame.tsx"
 
 /** What the New task form hands over. */
@@ -36,6 +38,16 @@ export interface SidebarLink {
   count?: number
   /** The default list, the one the app opens on: a home icon marks it. */
   home?: boolean
+  /** Set on a list, not a view: the list gets a "More actions" menu, shown on hover. */
+  list?: boolean
+}
+
+/** What a list's menu in the sidebar does, each with the list's link. */
+export interface SidebarListActions {
+  onMakeHome: (link: SidebarLink) => void
+  onRename: (link: SidebarLink) => void
+  onChangeColor: (link: SidebarLink) => void
+  onDelete: (link: SidebarLink) => void
 }
 
 /** Props of {@link Sidebar}. */
@@ -58,6 +70,8 @@ export interface SidebarProps {
   focusKey?: string
   /** The Task field's placeholder, such as which list it adds to. */
   placeholder?: string
+  /** Given, each list has the menu of its page: make default, rename, colour and delete. */
+  listActions?: SidebarListActions
 }
 
 const PRIORITIES = [
@@ -66,6 +80,13 @@ const PRIORITIES = [
   { value: 5, label: `Medium` },
   { value: 1, label: `High` },
 ]
+
+/** A list's menu shows while its row is hovered or focused, or the menu is open. */
+const SHOWN_WHILE_MENU =
+  `opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-has-[[aria-expanded=true]]:opacity-100`
+/** The count gives the menu its place at those times. */
+const HIDDEN_WHILE_MENU =
+  `group-hover:invisible group-focus-within:invisible group-has-[[aria-expanded=true]]:invisible`
 
 const CONTROL =
   `h-9 w-full rounded-lg border border-subtle bg-surface text-sm text-foreground hover:border-control focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-ring)]`
@@ -428,8 +449,9 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         <ul class="-mx-2 flex flex-col gap-px" data-e2e="sidebar-lists">
           {props.links.map((link) => {
             const current = link.href === props.currentPath
+            const actions = link.list ? props.listActions : undefined
             return (
-              <li key={link.href}>
+              <li key={link.href} class="group relative">
                 <AppLink
                   href={link.href}
                   navigate={props.navigate}
@@ -451,12 +473,41 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                     </span>
                   )}
                   {link.count !== undefined && (
-                    <span class="min-w-6 rounded-md bg-chip px-1 text-center text-xs text-muted">
+                    <span
+                      class={`min-w-6 rounded-md bg-chip px-1 text-center text-xs text-muted ${
+                        actions ? HIDDEN_WHILE_MENU : ``
+                      }`}
+                    >
                       {link.count}
                       <span class="sr-only">{link.count === 1 ? ` open task` : ` open tasks`}</span>
                     </span>
                   )}
                 </AppLink>
+                {actions && (
+                  // Beside the link, not in it: a button cannot sit inside a link. It takes the
+                  // count's place while the row is hovered or holds the focus, or the menu is open.
+                  <Dropdown
+                    trigger={<IconEllipsisVertical class="size-4" aria-hidden="true" />}
+                    triggerLabel={`More actions for ${link.label}`}
+                    menuLabel={`${link.label} actions`}
+                    triggerClasses="inline-flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-foreground"
+                    containerClasses={`absolute end-1 top-1/2 -translate-y-1/2 ${SHOWN_WHILE_MENU}`}
+                    triggerDataE2E="sidebar-list-menu"
+                  >
+                    {!link.home && (
+                      <DropdownItem onClick={() => actions.onMakeHome(link)}>
+                        Make default list
+                      </DropdownItem>
+                    )}
+                    <DropdownItem onClick={() => actions.onRename(link)}>Rename list</DropdownItem>
+                    <DropdownItem onClick={() => actions.onChangeColor(link)}>
+                      Change colour
+                    </DropdownItem>
+                    <DropdownItem danger onClick={() => actions.onDelete(link)}>
+                      Delete list
+                    </DropdownItem>
+                  </Dropdown>
+                )}
               </li>
             )
           })}

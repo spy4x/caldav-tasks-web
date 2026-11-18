@@ -5,14 +5,20 @@ import { IcalDateKind } from "@spy4x/time/ical"
 import { isOpen, type Task } from "@spy4x/time/ical-tasks-model"
 import { todayView } from "@spy4x/platform/universal/ical-tasks-view"
 import { PATHS } from "@ui/frame.tsx"
-import { type NewTaskInput, Sidebar, type SidebarLink } from "@ui/sidebar.tsx"
+import {
+  type NewTaskInput,
+  Sidebar,
+  type SidebarLink,
+  type SidebarListActions,
+} from "@ui/sidebar.tsx"
 import { findListBySlug, listPath, ROUTES } from "../routes.ts"
+import { ASK_DELETE } from "./ListSettingsView.tsx"
 import { taskLists } from "../state/task-lists.ts"
 import { addTask } from "../state/task-writes.ts"
 import { tasks, WriteKind } from "../state/tasks.ts"
 import { toasts } from "../state/toasts.ts"
 import { browserZone } from "./clock.ts"
-import { homeHref, homeList } from "../state/home-list.ts"
+import { homeHref, homeList, setHomeList } from "../state/home-list.ts"
 import { namedParent, newTaskFromQuickAdd } from "./use-quick-add.ts"
 
 /**
@@ -57,8 +63,21 @@ export function SidebarView(
       color: list.color,
       count: list.openCount,
       home: list.href === homeHref.value,
+      list: true,
     })),
   ]
+  // The same actions as the menu on a list's page.
+  const listActions: SidebarListActions = {
+    onMakeHome: (link) => {
+      const list = lists.find((each) => listPath(each) === link.href)
+      if (!list) return
+      setHomeList(list.href)
+      toasts.success({ title: ``, body: `${list.name} is now the default list` })
+    },
+    onRename: (link) => navigate(`${link.href}/settings`),
+    onChangeColor: (link) => navigate(`${link.href}/settings`),
+    onDelete: (link) => navigate(`${link.href}/settings?${ASK_DELETE}`),
+  }
 
   async function add(input: NewTaskInput): Promise<boolean> {
     if (!target) {
@@ -112,6 +131,7 @@ export function SidebarView(
       busy={busy.value}
       onAdd={add}
       navigate={navigate}
+      listActions={listActions}
       compact={compact}
       placeholder={onToday
         ? `Add a task for today…`
