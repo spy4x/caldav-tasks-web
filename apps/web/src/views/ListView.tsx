@@ -6,6 +6,7 @@ import { IconChevronDown } from "@spy4x/preact-icons"
 import type { TaskList } from "@spy4x/time/ical-tasks-model"
 import { useLocation, useParams, useSearch } from "wouter-preact"
 import { useUrlFilters } from "@spy4x/preact-signals/use-url-filters"
+import { mentionLists } from "../state/mention-lists.ts"
 import { CompletedRange, ListScreen } from "@ui/list-screen.tsx"
 import { LoadingBody } from "@ui/task-screen.tsx"
 import { clampShare, TwoLists } from "@ui/two-lists.tsx"
@@ -257,6 +258,7 @@ function ListPane(
       onHideCompletedChange={setHideDone}
       simple={simple}
       onSimpleChange={setSimple}
+      mentionLists={mentionLists(taskLists.value)}
       isHome={homeHref.value === list.href}
       onMakeHome={() => {
         setHomeList(list.href)

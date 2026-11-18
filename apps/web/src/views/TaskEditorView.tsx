@@ -5,6 +5,7 @@ import { type TaskDraft, type TaskEditorErrors, TaskEditorScreen } from "@ui/tas
 import { leaveGuard } from "../leave-guard.ts"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { allTags, taskLists } from "../state/task-lists.ts"
+import { mentionLists } from "../state/mention-lists.ts"
 import {
   keepMineAfterConflict,
   saveTask,
@@ -86,6 +87,7 @@ export function TaskEditorView() {
     <TaskEditorScreen
       task={task}
       lists={taskLists.value}
+      mentionLists={mentionLists(taskLists.value)}
       tagSuggestions={allTags.value}
       subtasks={tasks.value.filter((candidate) =>
         candidate.parentUid === task.uid && candidate.listHref === task.listHref

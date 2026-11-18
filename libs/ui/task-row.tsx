@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks"
 import { IconArrowPath, IconBell, IconChevronDown, IconFlag } from "@spy4x/preact-icons"
 import { Checkbox } from "@spy4x/preact-ui/checkbox"
 import { dueLabel, DueTone } from "./due-label.ts"
+import { mentionedLists, type MentionList, useMentions, withoutMentions } from "./mentions.tsx"
 import {
   isOpen,
   PriorityBand,
@@ -68,6 +69,13 @@ export interface TaskRowProps {
    * next line, and with `null` once this row has taken the line `lineHere` gave it.
    */
   onLineMoves?: (uid: string | null) => void
+  /**
+   * The lists a task can mention as `@Name`. Given, the lists its title or notes mention show as
+   * links beside its tags (the title drops them), and `@` in the rename field offers them.
+   */
+  mentionLists?: readonly MentionList[]
+  /** Follows a mention's link without a page load. */
+  navigate?: (href: string) => void
 }
 
 const INDENT = [`ps-2`, `ps-12`, `ps-16`, `ps-16`] as const
@@ -120,6 +128,14 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   }, [props.lineHere])
   const field = useRef<HTMLInputElement>(null)
   const finished = useRef(false)
+  const lists = props.mentionLists ?? []
+  const mentioned = mentionedLists(
+    `${task.title}
+${task.notes}`,
+    lists,
+  )
+  const shownTitle = (mentioned.length > 0 && withoutMentions(task.title, lists)) || task.title
+  const mentions = useMentions(lists, `mention-${task.uid}`)
   useEffect(() => {
     if (!renaming) return
     finished.current = false
@@ -227,25 +243,35 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
       <div class={`min-w-0 flex-1 ${quiet ? `py-1` : `py-2`}`}>
         {renaming
           ? (
-            <input
-              ref={field}
-              class={`-ms-2 w-full rounded-md border border-accent bg-surface px-2 outline-none ${
-                quiet ? `text-sm` : `text-[15px]`
-              }`}
-              defaultValue={task.title}
-              aria-label={`Rename ${task.title}`}
-              onKeyDown={(event) => {
-                if (event.key === `Enter`) {
-                  event.preventDefault()
-                  finishRename(event.currentTarget.value, true)
-                } else if (event.key === `Escape`) {
-                  event.preventDefault()
-                  finishRename(null)
-                }
-              }}
-              onBlur={(event) => finishRename(event.currentTarget.value)}
-              data-e2e="task-rename"
-            />
+            <span class="relative z-20 block">
+              <input
+                ref={field}
+                class={`-ms-2 w-full rounded-md border border-accent bg-surface px-2 outline-none ${
+                  quiet ? `text-sm` : `text-[15px]`
+                }`}
+                defaultValue={task.title}
+                aria-label={`Rename ${task.title}`}
+                {...(lists.length > 0 ? mentions.comboProps : {})}
+                onInput={(event) => mentions.track(event.currentTarget)}
+                onClick={(event) => mentions.track(event.currentTarget)}
+                onKeyDown={(event) => {
+                  if (mentions.onKeyDown(event)) return
+                  if (event.key === `Enter`) {
+                    event.preventDefault()
+                    finishRename(event.currentTarget.value, true)
+                  } else if (event.key === `Escape`) {
+                    event.preventDefault()
+                    finishRename(null)
+                  }
+                }}
+                onBlur={(event) => {
+                  mentions.close()
+                  finishRename(event.currentTarget.value)
+                }}
+                data-e2e="task-rename"
+              />
+              {mentions.menu}
+            </span>
           )
           : (
             <button
@@ -257,7 +283,7 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
               data-e2e="task-open"
             >
               <span class={`break-words ${open ? `` : `text-muted line-through`}`}>
-                {task.title}
+                {shownTitle}
               </span>
             </button>
           )}
@@ -291,6 +317,26 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
             <span class="max-w-32 truncate">{list.name}</span>
           </span>
         )}
+        {mentioned.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            class="relative z-10 inline-flex min-w-0 items-center gap-1 rounded-md px-1 text-accent-text hover:bg-hover hover:underline focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
+            onClick={(event) => {
+              if (!props.navigate || event.button !== 0 || event.ctrlKey || event.metaKey) return
+              event.preventDefault()
+              props.navigate(link.href)
+            }}
+            data-e2e="task-mention"
+          >
+            <span
+              class="size-2 shrink-0 rounded-full bg-accent"
+              style={link.color ? { backgroundColor: link.color } : undefined}
+              aria-hidden="true"
+            />
+            <span class="max-w-32 truncate">{link.name}</span>
+          </a>
+        ))}
         {flag && (
           <span class={`inline-flex items-center ${flag.class}`}>
             <IconFlag class="size-4" aria-hidden="true" />

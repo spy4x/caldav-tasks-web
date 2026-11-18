@@ -1,6 +1,5 @@
 import { useSignal } from "@preact/signals"
 import { focusNewTask } from "../state/focus-new-task.ts"
-import { parseQuickAdd } from "@spy4x/platform"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { isOpen, type Task } from "@spy4x/time/ical-tasks-model"
 import { todayView } from "@spy4x/platform/universal/ical-tasks-view"
@@ -20,6 +19,7 @@ import { toasts } from "../state/toasts.ts"
 import { browserZone } from "./clock.ts"
 import { homeHref, homeList, setHomeList } from "../state/home-list.ts"
 import { namedParent, newTaskFromQuickAdd } from "./use-quick-add.ts"
+import { mentionLists, parseKeepingMentions } from "../state/mention-lists.ts"
 
 /**
  * The sidebar, wired: a new task goes into the list on screen, or the default list (Settings) anywhere
@@ -53,6 +53,7 @@ export function SidebarView(
     : []
   const zone = browserZone()
   const { overdue, today } = todayView(tasks.value, new Date(), zone)
+  const mentionable = mentionLists(lists)
 
   const links: SidebarLink[] = [
     { label: `Today`, href: PATHS.today, count: overdue.length + today.length },
@@ -86,7 +87,8 @@ export function SidebarView(
     }
     const now = new Date()
     // On Today, a task with no date is due today, so it shows where it was added.
-    const read = newTaskFromQuickAdd(parseQuickAdd(input.text, { now, timeZone: zone }), {
+    const parsed = parseKeepingMentions(input.text, mentionable, { now, timeZone: zone })
+    const read = newTaskFromQuickAdd(parsed, {
       now,
       zone,
       dueToday: onToday,
@@ -132,6 +134,7 @@ export function SidebarView(
       onAdd={add}
       navigate={navigate}
       listActions={listActions}
+      mentionLists={mentionable}
       compact={compact}
       placeholder={onToday
         ? `Add a task for today…`

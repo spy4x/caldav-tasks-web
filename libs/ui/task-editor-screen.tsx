@@ -30,6 +30,7 @@ import {
   TaskStatus,
 } from "@spy4x/time/ical-tasks-model"
 import { ConflictDialog } from "./conflict-dialog.tsx"
+import { type MentionList, useMentions } from "./mentions.tsx"
 import { RemindersField } from "./reminders-field.tsx"
 import { repeatAnchor, RepeatField } from "./repeat-field.tsx"
 
@@ -74,6 +75,8 @@ export interface TaskEditorScreenProps {
    * the form stays on the version it started from until a save or "Use theirs".
    */
   task: Task
+  /** The lists `@` offers in the title and the notes, to mention one. */
+  mentionLists?: readonly MentionList[]
   /** Every list, for the list choice. */
   lists: readonly TaskList[]
   /** Tags used elsewhere, offered while typing. */
@@ -294,6 +297,8 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
   const { task, navigate, saving = false } = props
   const backHref = props.backHref ?? "/"
   const zone = props.timeZone ?? `UTC`
+  const titleMentions = useMentions(props.mentionLists ?? [], `task-title-mentions`)
+  const notesMentions = useMentions(props.mentionLists ?? [], `task-notes-mentions`)
   // The version the form started from. It trails `task` while the form holds something typed that
   // the newer stored version lacks.
   const [base, setBase] = useState(task)
@@ -440,7 +445,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
         class="space-y-0!"
       >
         <div class="flex flex-col gap-6" ref={form} data-e2e="task-form">
-          <div class="flex flex-col gap-2">
+          <div class="relative flex flex-col gap-2">
             <input
               id="task-title"
               name="title"
@@ -451,9 +456,17 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
               aria-describedby={errors.title ? "task-title-error" : undefined}
               class={`${BIG} h-11 w-full px-3 text-base font-medium`}
               value={fields.title}
-              onInput={(event) => set({ title: event.currentTarget.value })}
+              {...(titleMentions.open ? titleMentions.comboProps : {})}
+              onInput={(event) => {
+                set({ title: event.currentTarget.value })
+                titleMentions.track(event.currentTarget)
+              }}
+              onClick={(event) => titleMentions.track(event.currentTarget)}
+              onKeyDown={(event) => titleMentions.onKeyDown(event)}
+              onBlur={titleMentions.close}
               data-e2e="task-title"
             />
+            {titleMentions.menu}
             {errors.title && <p id="task-title-error" class="text-sm text-danger">{errors.title}
             </p>}
           </div>
@@ -538,7 +551,7 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
             </div>
           </div>
 
-          <div class="flex flex-col gap-2">
+          <div class="relative flex flex-col gap-2">
             <label for="task-notes" class={LABEL}>Notes</label>
             <textarea
               id="task-notes"
@@ -547,9 +560,17 @@ export function TaskEditorScreen(props: TaskEditorScreenProps): JSX.Element {
               placeholder="Add details"
               class={`${BIG} block w-full resize-y px-3 py-2`}
               value={fields.notes}
-              onInput={(event) => set({ notes: event.currentTarget.value })}
+              {...(notesMentions.open ? notesMentions.comboProps : {})}
+              onInput={(event) => {
+                set({ notes: event.currentTarget.value })
+                notesMentions.track(event.currentTarget)
+              }}
+              onClick={(event) => notesMentions.track(event.currentTarget)}
+              onKeyDown={(event) => notesMentions.onKeyDown(event)}
+              onBlur={notesMentions.close}
               data-e2e="task-notes"
             />
+            {notesMentions.menu}
           </div>
 
           <div class="flex flex-col gap-2 border-y border-subtle py-3">

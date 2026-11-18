@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks"
 import { flattenTree } from "@spy4x/platform/universal/ical-tasks-view"
 import { isOpen, type Task, type TaskNode } from "@spy4x/time/ical-tasks-model"
 import { type RowList, TaskRow } from "./task-row.tsx"
+import type { MentionList } from "./mentions.tsx"
 
 /** Props of {@link TaskTree}. */
 export interface TaskTreeProps {
@@ -36,6 +37,10 @@ export interface TaskTreeProps {
     siblings: readonly Task[],
     toIndex: number,
   ) => void
+  /** The lists a task can mention; see TaskRow's `mentionLists`. */
+  mentionLists?: readonly MentionList[]
+  /** Follows a mention's link without a page load. */
+  navigate?: (href: string) => void
   /** Rows of a simple list: a dot where each check would be. */
   noChecks?: boolean
   /** Leaves finished subtasks out of the rows; a parent's "2/4" still counts them. */
@@ -207,6 +212,8 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
             depth={depth}
             list={props.listOf?.(task)}
             noCheck={props.noChecks}
+            mentionLists={props.mentionLists}
+            navigate={props.navigate}
             subtaskCount={counts.get(task.uid)}
             doneSubtaskCount={dones.get(task.uid)}
             expanded={!collapsed.has(task.uid)}
@@ -406,6 +413,8 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
             depth={depth}
             list={props.listOf?.(task)}
             noCheck={props.noChecks}
+            mentionLists={props.mentionLists}
+            navigate={props.navigate}
             subtaskCount={counts.get(task.uid)}
             doneSubtaskCount={dones.get(task.uid)}
             expanded={!hidden.has(task.uid)}

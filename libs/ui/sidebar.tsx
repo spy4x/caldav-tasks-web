@@ -14,6 +14,7 @@ import {
 } from "@spy4x/preact-icons"
 import { Dropdown, DropdownItem } from "@spy4x/preact-ui/dropdown"
 import { AppLink } from "./frame.tsx"
+import { type MentionList, useMentions } from "./mentions.tsx"
 
 /** What the New task form hands over. */
 export interface NewTaskInput {
@@ -72,6 +73,8 @@ export interface SidebarProps {
   placeholder?: string
   /** Given, each list has the menu of its page: make default, rename, colour and delete. */
   listActions?: SidebarListActions
+  /** The lists `@` offers in the task field, to mention one; see TaskRow's `mentionLists`. */
+  mentionLists?: readonly MentionList[]
 }
 
 const PRIORITIES = [
@@ -212,7 +215,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       .map((p) => ({ kind: `pick` as const, uid: p.uid, title: p.title })),
     ...(query && !named ? [{ kind: `create` as const, title: query }] : []),
   ]
-  const menuOpen = focused && !menuOff && items.length > 0
+  const mentions = useMentions(props.mentionLists ?? [], `new-task-mentions`)
+  const menuOpen = focused && !menuOff && items.length > 0 && !mentions.open
   const current = Math.min(active, items.length - 1)
 
   const parsed = split.child
@@ -258,6 +262,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   }
 
   const onKeyDown = (event: JSX.TargetedKeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentions.onKeyDown(event)) return
     if (menuOpen) {
       if (event.key === `ArrowDown` || event.key === `ArrowUp`) {
         event.preventDefault()
@@ -312,17 +317,24 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           aria-controls="new-task-parents"
           aria-autocomplete="list"
           aria-activedescendant={menuOpen ? `new-task-parent-${current}` : undefined}
+          {...(mentions.open ? mentions.comboProps : {})}
           aria-invalid={error ? true : undefined}
           onInput={(event) => {
             setTitle(event.currentTarget.value)
             setMenuOff(false)
             setActive(0)
+            mentions.track(event.currentTarget)
           }}
+          onClick={(event) => mentions.track(event.currentTarget)}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={() => {
+            setFocused(false)
+            mentions.close()
+          }}
           onKeyDown={onKeyDown}
           data-e2e="new-task-title"
         />
+        {mentions.menu}
         {menuOpen && (
           <ul
             id="new-task-parents"

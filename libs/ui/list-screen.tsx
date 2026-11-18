@@ -16,6 +16,7 @@ import { QuickAdd } from "@spy4x/preact-ui/quick-add"
 import { FocusKeeper } from "./task-focus.tsx"
 import { EmptyBody, LoadingBody } from "./task-screen.tsx"
 import { flatNodes, TaskTree } from "./task-tree.tsx"
+import type { MentionList } from "./mentions.tsx"
 
 /** Props of {@link ListScreen}. */
 export interface ListScreenProps {
@@ -78,6 +79,8 @@ export interface ListScreenProps {
    */
   simple?: boolean
   onSimpleChange?: (simple: boolean) => void
+  /** The lists a task can mention as `@Name`, with their pages; see TaskRow's `mentionLists`. */
+  mentionLists?: readonly MentionList[]
   /** The default list, the one the app opens on: a home icon beside the name says so. */
   isHome?: boolean
   /** Makes this the default list; offered in "More actions" while it is not. */
@@ -382,6 +385,8 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                         now={props.now}
                         hideDone={hideDone}
                         noChecks={props.simple}
+                        mentionLists={props.mentionLists}
+                        navigate={props.navigate}
                         onComplete={props.onComplete}
                         onOpen={props.onOpen}
                         onRename={props.onRenameTask}
