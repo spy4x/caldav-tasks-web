@@ -43,8 +43,8 @@ export interface TaskTreeProps {
   navigate?: (href: string) => void
   /** Rows of a simple list: a dot where each check would be. */
   noChecks?: boolean
-  /** Leaves finished subtasks out of the rows; a parent's "2/4" still counts them. */
-  hideDone?: boolean
+  /** The finished tasks to keep as rows; the rest are left out, and a parent's "2/4" still counts them. */
+  showDone?: (task: Task) => boolean
   /** Quiet rows with no lines between them, as in the Completed section. */
   plain?: boolean
   /** Renames a task in place; see TaskRow's `onRename`. */
@@ -60,10 +60,10 @@ export function flatNodes(tasks: readonly Task[]): TaskNode[] {
   return tasks.map((task) => ({ task, children: [] }))
 }
 
-/** The open tasks only, at any depth: a finished task goes with everything under it. */
-function openOnly(nodes: readonly TaskNode[]): TaskNode[] {
-  return nodes.filter((node) => isOpen(node.task))
-    .map((node) => ({ ...node, children: openOnly(node.children) }))
+/** The open tasks and the finished ones `keep` takes, at any depth: a dropped task goes with everything under it. */
+function shownOnly(nodes: readonly TaskNode[], keep: (task: Task) => boolean): TaskNode[] {
+  return nodes.filter((node) => isOpen(node.task) || keep(node.task))
+    .map((node) => ({ ...node, children: shownOnly(node.children, keep) }))
 }
 
 /** How many tasks sit below a node, at any depth. */
@@ -141,7 +141,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
   const dragRef = useRef<Drag | null>(null)
   const list = useRef<HTMLUListElement>(null)
   const tops = useRef(new Map<string, number>())
-  const nodes = props.hideDone ? openOnly(props.nodes) : props.nodes
+  const nodes = props.showDone ? shownOnly(props.nodes, props.showDone) : props.nodes
   const counts = new Map<string, number>()
   const dones = new Map<string, number>()
   const byUid = new Map<string, TaskNode>()

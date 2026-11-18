@@ -281,6 +281,7 @@ Deno.test("Hide completed tasks leaves out finished subtasks and the Completed s
       parentUid: `p`,
       sortOrder: 2,
       status: TaskStatus.Completed,
+      ics: `BEGIN:VTODO\r\nUID:c2\r\nCOMPLETED:20261008T070000Z\r\nEND:VTODO\r\n`,
     }),
   ]
   const turned: boolean[] = []
@@ -306,6 +307,45 @@ Deno.test("Hide completed tasks leaves out finished subtasks and the Completed s
     expect(root.querySelector(`[data-e2e="completed-section"]`)).toBeNull()
     // The hidden subtask still counts: one of two done.
     expect(root.querySelector(`[aria-label^="Hide 2 subtasks"]`)).not.toBeNull()
+  })
+})
+
+Deno.test("finished subtasks follow the Completed period, which the menu sets and un-hides", async () => {
+  const subtask = (uid: string, title: string, stamp: string) =>
+    makeTask(uid, title, {
+      parentUid: `p`,
+      status: TaskStatus.Completed,
+      ics: `BEGIN:VTODO\r\nUID:${uid}\r\nCOMPLETED:${stamp}\r\nEND:VTODO\r\n`,
+    })
+  const tasks = [
+    ...TASKS,
+    subtask(`t`, `Sand today`, `20261008T070000Z`),
+    subtask(`w`, `Tape on Monday`, `20261005T070000Z`),
+  ]
+  const ranges: CompletedRange[] = []
+  const hides: boolean[] = []
+  const shown = (range: CompletedRange) => (
+    <ListScreen
+      {...props({
+        tasks,
+        completedRange: range,
+        hideCompleted: true,
+        onHideCompletedChange: (hide) => hides.push(hide),
+        onCompletedRangeChange: (r) => ranges.push(r),
+      })}
+    />
+  )
+  expect(mount_titles(props({ tasks }))).toContain(`Sand today`)
+  expect(mount_titles(props({ tasks }))).not.toContain(`Tape on Monday`)
+  expect(mount_titles(props({ tasks, completedRange: CompletedRange.Week }))).toContain(
+    `Tape on Monday`,
+  )
+  await mount(shown(CompletedRange.Today), async ({ root, act }) => {
+    await act(() => must<HTMLButtonElement>(root, `[aria-label="More actions"]`).click())
+    expect(must(root, `[data-e2e="hide-completed"]`).getAttribute(`aria-checked`)).toBe(`true`)
+    await act(() => must<HTMLElement>(root, `[data-e2e="show-completed-week"]`).click())
+    expect(ranges).toEqual([CompletedRange.Week])
+    expect(hides).toEqual([false])
   })
 })
 

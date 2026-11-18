@@ -68,7 +68,8 @@ export interface ListScreenProps {
   onDelete?: () => void
   /**
    * Whether finished tasks are hidden: the subtasks under open tasks and the Completed section.
-   * With `onHideCompletedChange`, "More actions" has a tick item that turns it.
+   * Otherwise both show the tasks finished in `completedRange`. With `onHideCompletedChange`,
+   * "More actions" offers each period and Hide.
    */
   hideCompleted?: boolean
   onHideCompletedChange?: (hide: boolean) => void
@@ -113,6 +114,14 @@ const COMPLETED_OPTIONS = [
   { value: CompletedRange.Week, label: `Past 7 days` },
   { value: CompletedRange.Month, label: `Past month` },
   { value: CompletedRange.All, label: `Forever` },
+]
+
+/** The same periods in the list's menu, worded so they read as when a task was finished. */
+const SHOW_COMPLETED_OPTIONS = [
+  { value: CompletedRange.Today, label: `Show tasks completed today` },
+  { value: CompletedRange.Week, label: `Show tasks completed this week` },
+  { value: CompletedRange.Month, label: `Show tasks completed this month` },
+  { value: CompletedRange.All, label: `Show all completed tasks` },
 ]
 
 const DAYS_BACK: Record<CompletedRange, number> = {
@@ -202,7 +211,12 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   const inTree = (task: Task) =>
     props.simple || isOpen(task) ||
     (task.parentUid !== undefined && openUids.has(task.parentUid))
-  const hideDone = props.hideCompleted && !props.simple
+  // The finished subtasks under open tasks follow the Completed section: its period, or none.
+  const showDone = props.simple
+    ? undefined
+    : props.hideCompleted
+    ? () => false
+    : (task: Task) => inCompletedRange(task, props.completedRange, props.now, zone)
   const tagged = (task: Task) =>
     props.activeTags.length === 0 || task.tags.some((tag) => props.activeTags.includes(tag))
   const finished = tasks
@@ -318,13 +332,28 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                   </DropdownItem>
                 )}
                 {props.onHideCompletedChange && !props.simple && (
-                  <DropdownItem
-                    checked={props.hideCompleted === true}
-                    onClick={() => props.onHideCompletedChange!(!props.hideCompleted)}
-                    dataE2E="hide-completed"
-                  >
-                    Hide completed tasks
-                  </DropdownItem>
+                  <>
+                    {SHOW_COMPLETED_OPTIONS.map((o) => (
+                      <DropdownItem
+                        key={o.value}
+                        checked={!props.hideCompleted && props.completedRange === o.value}
+                        onClick={() => {
+                          props.onHideCompletedChange!(false)
+                          props.onCompletedRangeChange(o.value)
+                        }}
+                        dataE2E={`show-completed-${o.value}`}
+                      >
+                        {o.label}
+                      </DropdownItem>
+                    ))}
+                    <DropdownItem
+                      checked={props.hideCompleted === true}
+                      onClick={() => props.onHideCompletedChange!(true)}
+                      dataE2E="hide-completed"
+                    >
+                      Hide completed tasks
+                    </DropdownItem>
+                  </>
                 )}
                 {props.onRename && (
                   <DropdownItem onClick={props.onRename}>Rename list</DropdownItem>
@@ -383,7 +412,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                         nodes={nodes}
                         zone={zone}
                         now={props.now}
-                        hideDone={hideDone}
+                        showDone={showDone}
                         noChecks={props.simple}
                         mentionLists={props.mentionLists}
                         navigate={props.navigate}
