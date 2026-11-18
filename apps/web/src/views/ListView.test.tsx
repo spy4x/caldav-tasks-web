@@ -66,3 +66,48 @@ Deno.test(`"2 lists" shows a second list beside the first, and its menu picks an
     )
   })
 })
+
+Deno.test(`the main list's menu goes to another list, and picking the second list swaps the two`, async () => {
+  try {
+    localStorage.clear()
+  } catch { /* no storage here */ }
+  await withApp(async (server) => {
+    server.calendarList = [
+      { href: `/dav/tasks/errands/`, displayName: `Errands`, changeMarker: `c1` },
+      { href: `/dav/tasks/work/`, displayName: `Work`, changeMarker: `c1` },
+      { href: `/dav/tasks/home/`, displayName: `Home`, changeMarker: `c1` },
+    ]
+    await refresh()
+    const { hook, history } = memoryLocation({ path: `/lists/errands`, record: true })
+    await onPage(
+      <Router hook={hook}>
+        <Route path={ROUTES.list}>
+          <ListView />
+        </Route>
+      </Router>,
+      async ({ root }) => {
+        await act(() => root.querySelector<HTMLButtonElement>(`#two-lists-switch`)?.click())
+        const pick = async (e2e: string, value: string) => {
+          const select = root.querySelector<HTMLSelectElement>(`[data-e2e="${e2e}"]`)!
+          await act(() => {
+            select.value = value
+            const view = select.ownerDocument.defaultView as unknown as typeof globalThis
+            select.dispatchEvent(new view.Event(`change`, { bubbles: true }))
+          })
+        }
+        const secondName = () =>
+          root.querySelector<HTMLSelectElement>(`[data-e2e="second-list-select"]`)
+            ?.selectedOptions[0]
+            ?.text
+        expect(secondName()).toBe(`Home`)
+        await pick(`main-list-select`, `/dav/tasks/work/`)
+        expect(history.at(-1)).toBe(`/lists/work`)
+        expect(secondName()).toBe(`Home`)
+        // Work is now the main list; picking Home, the second, puts Work on the right.
+        await pick(`main-list-select`, `/dav/tasks/home/`)
+        expect(history.at(-1)).toBe(`/lists/home`)
+        expect(secondName()).toBe(`Work`)
+      },
+    )
+  })
+})

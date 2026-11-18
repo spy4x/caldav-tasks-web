@@ -75,11 +75,30 @@ export function ListView() {
   const [secondHref, setSecondHref] = useState(() => stored(SECOND_LIST))
   const [share, setShare] = useState(() => clampShare(Number(stored(SHARE) ?? 50) || 50))
 
+  const [, navigate] = useLocation()
+
   if (!list) return calendarsLoaded.value ? <NotFoundView /> : <LoadingBody label="Loading list" />
   const others = taskLists.value.filter((other) => other.href !== list.href)
   const second = others.find((other) => other.href === secondHref) ?? others[0]
   const main = { sort, tags, done: doneParam }
   if (!second) return <ListPane list={list} filters={main} />
+  const chooseSecond = (href: string) => {
+    setSecondHref(href)
+    store(SECOND_LIST, href)
+  }
+  const mainTitle = (
+    <ListPicker
+      label="List"
+      current={list}
+      options={taskLists.value}
+      e2e={MAIN_LIST_SELECT}
+      onPick={(picked) => {
+        // The second list stays as it shows, unless it is the one picked: then the two swap.
+        chooseSecond(picked.href === second.href ? list.href : second.href)
+        navigate(listPath(picked))
+      }}
+    />
+  )
 
   return (
     <TwoLists
@@ -93,7 +112,7 @@ export function ListView() {
         setShare(next)
         store(SHARE, String(next))
       }}
-      left={<ListPane list={list} filters={main} pane />}
+      left={<ListPane list={list} filters={main} pane title={mainTitle} />}
       right={
         <ListPane
           key={second.href}
@@ -102,33 +121,53 @@ export function ListView() {
           pane
           addHere
           title={
-            // The name shows as text with the menu laid invisibly over it: a native menu is as
-            // wide as its longest option.
-
-
-              <label class="relative inline-flex min-w-0 items-center gap-1 rounded-md hover:bg-hover focus-within:outline-2 focus-within:outline-[var(--color-ring)]">
-                <span class="truncate">{second.name}</span>
-                <IconChevronDown class="size-4 shrink-0" aria-hidden="true" />
-                <select
-                  aria-label="Second list"
-                  class="absolute inset-0 cursor-pointer text-sm font-normal tracking-normal opacity-0"
-                  value={second.href}
-                  onChange={(event) => {
-                    setSecondHref(event.currentTarget.value)
-                    store(SECOND_LIST, event.currentTarget.value)
-                  }}
-                  data-e2e="second-list-select"
-                >
-                  {others.map((other) => (
-                    <option key={other.href} value={other.href}>{other.name}</option>
-                  ))}
-                </select>
-              </label>
-
+            <ListPicker
+              label="Second list"
+              current={second}
+              options={others}
+              e2e="second-list-select"
+              onPick={(picked) => chooseSecond(picked.href)}
+            />
           }
         />
       }
     />
+  )
+}
+
+/** The main list's menu, which Alt+L opens. */
+export const MAIN_LIST_SELECT = `main-list-select`
+
+/**
+ * A list's name as a menu of lists. The name shows as text with a native menu laid invisibly over
+ * it: a native menu is as wide as its longest option.
+ */
+function ListPicker(
+  { label, current, options, e2e, onPick }: {
+    label: string
+    current: TaskList
+    options: readonly TaskList[]
+    e2e: string
+    onPick: (list: TaskList) => void
+  },
+) {
+  return (
+    <label class="relative inline-flex min-w-0 items-center gap-1 rounded-md hover:bg-hover focus-within:outline-2 focus-within:outline-[var(--color-ring)]">
+      <span class="truncate">{current.name}</span>
+      <IconChevronDown class="size-4 shrink-0" aria-hidden="true" />
+      <select
+        aria-label={label}
+        class="absolute inset-0 cursor-pointer text-sm font-normal tracking-normal opacity-0"
+        value={current.href}
+        onChange={(event) => {
+          const picked = options.find((list) => list.href === event.currentTarget.value)
+          if (picked) onPick(picked)
+        }}
+        data-e2e={e2e}
+      >
+        {options.map((list) => <option key={list.href} value={list.href}>{list.name}</option>)}
+      </select>
+    </label>
   )
 }
 

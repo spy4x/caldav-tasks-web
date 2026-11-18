@@ -16,6 +16,8 @@ export enum ShortcutId {
   GoToday,
   GoUpcoming,
   GoLists,
+  GoHome,
+  ChooseList,
   NextTask,
   PreviousTask,
   CompleteTask,
@@ -60,6 +62,19 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   { id: ShortcutId.GoToday, description: `Go to Today`, group: `Go to`, keys: [[`g`, `t`]] },
   { id: ShortcutId.GoUpcoming, description: `Go to Upcoming`, group: `Go to`, keys: [[`g`, `u`]] },
   { id: ShortcutId.GoLists, description: `Go to Lists`, group: `Go to`, keys: [[`g`, `l`]] },
+  // Alt chords type nothing, so they also work from the New task field, which has the focus.
+  {
+    id: ShortcutId.GoHome,
+    description: `Go to the default list (g h works too)`,
+    group: `Go to`,
+    keys: [[`alt+h`], [`g`, `h`]],
+  },
+  {
+    id: ShortcutId.ChooseList,
+    description: `Choose the main list`,
+    group: `Go to`,
+    keys: [[`alt+l`]],
+  },
   { id: ShortcutId.Help, description: `Show keyboard shortcuts`, group: `Help`, keys: [[`?`]] },
 ]
 
@@ -134,9 +149,12 @@ export type ShortcutPress = HotkeySequenceEvent
 export function createShortcutMatcher(
   enabled: () => boolean = () => shortcutsEnabled.value,
 ): (press: ShortcutPress) => ShortcutId | undefined {
-  const bindings: HotkeyBinding<ShortcutId>[] = SHORTCUTS.flatMap((def) =>
+  const all: HotkeyBinding<ShortcutId>[] = SHORTCUTS.flatMap((def) =>
     def.keys.map((keys) => ({ id: def.id, keys }))
   )
+  const chords = all.filter(({ keys }) => keys.length === 1 && isChord(keys[0]))
+    .map(({ id, keys }) => ({ id, hotkey: parseHotkey(keys[0]) }))
+  const bindings = all.filter(({ keys }) => !(keys.length === 1 && isChord(keys[0])))
   const apple = isApplePlatform()
   const inModal = (press: ShortcutPress) =>
     (press.target as Element | null)?.closest?.(MODAL) != null
@@ -145,12 +163,19 @@ export function createShortcutMatcher(
     apple,
     ignore: (press) => inModal(press) || (press.key.length === 1 && !enabled()),
   })
-  const search = parseHotkey(`mod+k`)
   return (press) => {
-    // Search's chord types nothing, so unlike the single keys it also works from a text field.
-    if (matchesHotkey(search, press, apple) && !inModal(press)) return ShortcutId.Search
+    // A chord types nothing, so unlike the single keys it also works from a text field.
+    if (!inModal(press) && !press.isComposing) {
+      const chord = chords.find(({ hotkey }) => matchesHotkey(hotkey, press, apple))
+      if (chord) return chord.id
+    }
     return matcher(press)
   }
+}
+
+/** Whether a key is a chord: a key with Control, Alt, Command or `mod` held, such as `alt+h`. */
+function isChord(key: string): boolean {
+  return /^(mod|ctrl|alt|meta)\+/.test(key)
 }
 
 /**
@@ -160,10 +185,23 @@ export function createShortcutMatcher(
  */
 export function listShortcuts(): Shortcut[] {
   return SHORTCUTS.map(({ description, group, keys }) => ({
-    keys: keys[0].map((key) => key === `mod+k` ? searchKeyLabel() : key).join(` `),
+    keys: keys[0].map(keyLabel).join(` `),
     description,
     group,
   }))
+}
+
+/**
+ * How one key of the table is written for this device: `alt+h` as `Alt+H`, or `⌥H` on a Mac, and
+ * Search's chord as {@link searchKeyLabel} writes it. A plain key is itself.
+ */
+export function keyLabel(key: string): string {
+  if (key === `mod+k`) return searchKeyLabel()
+  if (key.startsWith(`alt+`)) {
+    const letter = key.slice(4).toUpperCase()
+    return isApplePlatform() ? `⌥${letter}` : `Alt+${letter}`
+  }
+  return key
 }
 
 /** How Search's shortcut is written for this device: `⌘K` on a Mac, `Ctrl+K` elsewhere. */

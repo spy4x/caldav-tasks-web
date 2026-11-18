@@ -9,7 +9,8 @@ import { AppFrame } from "@ui/frame.tsx"
 import { APP_TITLE, pageTitle } from "./page-title.ts"
 import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
-import { listShortcuts, searchKeyLabel, shortcutsOpen } from "./shortcuts.ts"
+import { keyLabel, listShortcuts, searchKeyLabel, shortcutsOpen } from "./shortcuts.ts"
+import { homePath } from "./state/home-list.ts"
 import { ShortcutsDialog } from "@spy4x/preact-ui/shortcuts-dialog"
 import { leaveGuard } from "./leave-guard.ts"
 import { useShortcuts } from "./views/use-shortcuts.ts"
@@ -129,6 +130,8 @@ function SignedInApp() {
       currentPath={location}
       navigate={guarded}
       searchKey={searchKeyLabel()}
+      homeHref={homePath(taskLists.value)}
+      homeKey={keyLabel(`alt+h`)}
       sidebarHidden={sidebarHidden}
       onSidebarHiddenChange={(hidden) => {
         setSidebarHidden(hidden)

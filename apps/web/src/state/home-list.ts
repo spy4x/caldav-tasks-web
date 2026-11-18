@@ -1,4 +1,7 @@
 import { signal } from "@preact/signals"
+import type { TaskList } from "@spy4x/time/ical-tasks-model"
+import { PATHS } from "@ui/frame.tsx"
+import { listPath } from "../routes.ts"
 
 /** Where this device keeps the list the app opens on. */
 export const HOME_LIST_KEY = `caldav-tasks-home-list`
@@ -29,4 +32,10 @@ export function setHomeList(href: string | null): void {
 export function homeList<T extends { href: string }>(lists: readonly T[]): T | undefined {
   const href = homeHref.value
   return href === null ? undefined : lists.find((list) => list.href === href)
+}
+
+/** Where Home goes: the default list's page, or Today when none is chosen. */
+export function homePath(lists: readonly TaskList[]): string {
+  const home = homeList(lists)
+  return home ? listPath(home) : PATHS.today
 }

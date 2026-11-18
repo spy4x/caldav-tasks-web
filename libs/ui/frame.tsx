@@ -6,6 +6,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconEllipsisVertical,
+  IconHome,
   IconLens,
   IconList,
   type IconProps,
@@ -89,6 +90,8 @@ export function AppFrame(
     navigate,
     sidebar,
     newTask,
+    homeHref,
+    homeKey = `Alt+H`,
     sidebarHidden,
     onSidebarHiddenChange,
     searchKey = `Ctrl+K`,
@@ -100,6 +103,10 @@ export function AppFrame(
     sidebar?: ComponentChildren
     /** The New task field drawn atop the page while the sidebar is hidden. */
     newTask?: ComponentChildren
+    /** Where the Home button goes (the default list); left out, there is no Home button. */
+    homeHref?: string
+    /** Home's keyboard shortcut as its tooltip names it, such as `Alt+H` or `⌥H`. */
+    homeKey?: string
     /** Search's keyboard shortcut as shown beside it, such as `Ctrl+K` or `⌘K`. */
     searchKey?: string
     /** Whether the sidebar is hidden, when the caller keeps it; left out, the frame does. */
@@ -133,6 +140,18 @@ export function AppFrame(
         <IconCheck class="size-4" aria-hidden="true" />
       </span>
       {withName ? `To do` : <span class="sr-only">To do</span>}
+    </AppLink>
+  )
+  const home = homeHref !== undefined && (
+    <AppLink
+      href={homeHref}
+      navigate={navigate}
+      aria-label="Home"
+      title={`Home: the default list (${homeKey})`}
+      class="flex size-8 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-foreground"
+      data-e2e="header-home"
+    >
+      <IconHome class="size-4" aria-hidden="true" />
     </AppLink>
   )
   const search = (wide: boolean) => (
@@ -174,6 +193,7 @@ export function AppFrame(
               <div class="mb-8 flex items-center gap-1">
                 {logo(true)}
                 <span class="ms-auto" />
+                {home}
                 {search(false)}
                 <button
                   type="button"
@@ -217,7 +237,7 @@ export function AppFrame(
         <main id="main" tabindex={-1} class="min-w-0 flex-1 pb-16 outline-none md:pb-0">
           {sidebar && hidden && (
             <div class="hidden flex-col gap-1 px-12 pt-2 md:flex">
-              <div class="flex justify-end">{search(true)}</div>
+              <div class="flex justify-end gap-1">{home}{search(true)}</div>
               {newTask}
             </div>
           )}
