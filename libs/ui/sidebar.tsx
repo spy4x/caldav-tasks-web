@@ -451,7 +451,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             const current = link.href === props.currentPath
             const actions = link.list ? props.listActions : undefined
             return (
-              <li key={link.href} class="group relative">
+              // The row with its menu open stays above the rows after it, which would cover it.
+              <li key={link.href} class="group relative has-[[aria-expanded=true]]:z-20">
                 <AppLink
                   href={link.href}
                   navigate={props.navigate}
