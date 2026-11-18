@@ -36,6 +36,8 @@ export interface TaskTreeProps {
     siblings: readonly Task[],
     toIndex: number,
   ) => void
+  /** Leaves finished subtasks out of the rows; a parent's "2/4" still counts them. */
+  hideDone?: boolean
   /** Quiet rows with no lines between them, as in the Completed section. */
   plain?: boolean
   /** Renames a task in place; see TaskRow's `onRename`. */
@@ -49,6 +51,12 @@ export interface TaskTreeProps {
 /** Wraps tasks as a tree with no subtasks, for a view that lists tasks flat. */
 export function flatNodes(tasks: readonly Task[]): TaskNode[] {
   return tasks.map((task) => ({ task, children: [] }))
+}
+
+/** The open tasks only, at any depth: a finished task goes with everything under it. */
+function openOnly(nodes: readonly TaskNode[]): TaskNode[] {
+  return nodes.filter((node) => isOpen(node.task))
+    .map((node) => ({ ...node, children: openOnly(node.children) }))
 }
 
 /** How many tasks sit below a node, at any depth. */
@@ -126,18 +134,25 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
   const dragRef = useRef<Drag | null>(null)
   const list = useRef<HTMLUListElement>(null)
   const tops = useRef(new Map<string, number>())
+  const nodes = props.hideDone ? openOnly(props.nodes) : props.nodes
   const counts = new Map<string, number>()
   const dones = new Map<string, number>()
   const byUid = new Map<string, TaskNode>()
-  const index = (nodes: readonly TaskNode[]) => {
-    for (const node of nodes) {
-      counts.set(node.task.uid, descendants(node))
-      dones.set(node.task.uid, doneDescendants(node))
-      byUid.set(node.task.uid, node)
-      index(node.children)
+  const all = new Map<string, TaskNode>()
+  const index = (shown: readonly TaskNode[], into: Map<string, TaskNode>) => {
+    for (const node of shown) {
+      into.set(node.task.uid, node)
+      index(node.children, into)
     }
   }
-  index(props.nodes)
+  index(props.nodes, all)
+  index(nodes, byUid)
+  for (const [uid, node] of byUid) {
+    // Hidden finished subtasks still count, so "2/4" stays true; a row with none shown has no count.
+    if (node.children.length === 0) continue
+    counts.set(uid, descendants(all.get(uid)!))
+    dones.set(uid, doneDescendants(all.get(uid)!))
+  }
 
   const setExpanded = (task: Task, expanded: boolean) => {
     setCollapsed((current) => {
@@ -178,7 +193,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
   })
 
   if (!props.onReorder) {
-    const rows = flattenTree(props.nodes, collapsed)
+    const rows = flattenTree(nodes, collapsed)
     return (
       <ul aria-label={props.label} class="flex flex-col" data-e2e="task-tree">
         {rows.map(({ task, depth }) => (
@@ -209,12 +224,12 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
 
   /** The tasks under `parent` (the top level when absent), less the one being dragged. */
   const childrenOf = (parent: string | undefined, without?: string) =>
-    (parent ? byUid.get(parent)?.children ?? [] : props.nodes)
+    (parent ? byUid.get(parent)?.children ?? [] : nodes)
       .map((node) => node.task)
       .filter((task) => task.uid !== without)
 
   const hidden = drag ? new Set([...collapsed, drag.uid]) : collapsed
-  const base = rowsOf(props.nodes, hidden, drag?.uid)
+  const base = rowsOf(nodes, hidden, drag?.uid)
   const rows = drag ? withDragged(base, drag) : base
 
   /** `base` with the dragged task put where its place says. */
@@ -251,7 +266,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
     const current = dragRef.current
     const ul = list.current
     if (!current || !ul) return
-    const shown = rowsOf(props.nodes, new Set([...collapsed, current.uid]), current.uid)
+    const shown = rowsOf(nodes, new Set([...collapsed, current.uid]), current.uid)
     const where = new Map(shown.map((row) => [row.task.uid, row]))
     const items = [...ul.querySelectorAll<HTMLElement>(`:scope > li[data-task-uid]`)]
     const others = items.filter((li) => li.dataset.taskUid !== current.uid)
@@ -324,7 +339,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
       const above = siblings[index - 1].uid
       next = { parent: above, index: childrenOf(above, task.uid).length }
     } else if (event.key === `ArrowLeft` && parent) {
-      const up = rowsOf(props.nodes, new Set(), task.uid).find((row) => row.task.uid === parent)
+      const up = rowsOf(nodes, new Set(), task.uid).find((row) => row.task.uid === parent)
       const outer = childrenOf(up?.parent, task.uid)
       next = { parent: up?.parent, index: outer.findIndex((each) => each.uid === parent) + 1 }
     }

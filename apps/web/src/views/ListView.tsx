@@ -35,6 +35,17 @@ import { useQuickAdd } from "./use-quick-add.ts"
 const TWO_LISTS = `two-lists`
 const SECOND_LIST = `second-list`
 const SHARE = `two-lists-share`
+/** The lists whose finished tasks are hidden, as a JSON array of their addresses. */
+const HIDE_COMPLETED = `hide-completed`
+
+function hiddenDone(): string[] {
+  try {
+    const parsed = JSON.parse(stored(HIDE_COMPLETED) ?? `[]`)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 function stored(key: string): string | null {
   try {
@@ -190,6 +201,8 @@ function ListPane(
   const quickAdd = useQuickAdd({ listHref: list.href })
   const now = useNow({ zone: browserZone() }).value
   useEffect(() => void loadCompleted(list.href), [list.href])
+  const [hideDone, setHideDone] = useState(() => hiddenDone().includes(list.href))
+  useEffect(() => setHideDone(hiddenDone().includes(list.href)), [list.href])
 
   return (
     <ListScreen
@@ -225,6 +238,12 @@ function ListPane(
       onRename={() => navigate(listSettingsPath(list))}
       onChangeColor={() => navigate(listSettingsPath(list))}
       onDelete={() => navigate(`${listSettingsPath(list)}?${ASK_DELETE}`)}
+      hideCompleted={hideDone}
+      onHideCompletedChange={(hide) => {
+        setHideDone(hide)
+        const others = hiddenDone().filter((href) => href !== list.href)
+        store(HIDE_COMPLETED, JSON.stringify(hide ? [...others, list.href] : others))
+      }}
       isHome={homeHref.value === list.href}
       onMakeHome={() => {
         setHomeList(list.href)

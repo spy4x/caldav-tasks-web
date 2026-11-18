@@ -65,6 +65,12 @@ export interface ListScreenProps {
   onRename?: () => void
   onChangeColor?: () => void
   onDelete?: () => void
+  /**
+   * Whether finished tasks are hidden: the subtasks under open tasks and the Completed section.
+   * With `onHideCompletedChange`, "More actions" has a tick item that turns it.
+   */
+  hideCompleted?: boolean
+  onHideCompletedChange?: (hide: boolean) => void
   /** The default list, the one the app opens on: a home icon beside the name says so. */
   isHome?: boolean
   /** Makes this the default list; offered in "More actions" while it is not. */
@@ -200,7 +206,8 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   const done = finished.filter(tagged)
   const openShown = nodes.filter((node) => isOpen(node.task)).length
   const canMakeHome = props.onMakeHome && !props.isHome
-  const hasMenu = props.onRename || props.onChangeColor || props.onDelete || canMakeHome
+  const hasMenu = props.onRename || props.onChangeColor || props.onDelete || canMakeHome ||
+    props.onHideCompletedChange
   // Two lists can share the page, so their headings' ids carry the list.
   const id = list.href.replace(/[^\w-]/g, `_`)
   const today = props.now.toLocaleDateString(undefined, {
@@ -285,6 +292,15 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 {canMakeHome && (
                   <DropdownItem onClick={props.onMakeHome}>Make default list</DropdownItem>
                 )}
+                {props.onHideCompletedChange && (
+                  <DropdownItem
+                    checked={props.hideCompleted === true}
+                    onClick={() => props.onHideCompletedChange!(!props.hideCompleted)}
+                    dataE2E="hide-completed"
+                  >
+                    Hide completed tasks
+                  </DropdownItem>
+                )}
                 {props.onRename && (
                   <DropdownItem onClick={props.onRename}>Rename list</DropdownItem>
                 )}
@@ -342,6 +358,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                         nodes={nodes}
                         zone={zone}
                         now={props.now}
+                        hideDone={props.hideCompleted}
                         onComplete={props.onComplete}
                         onOpen={props.onOpen}
                         onRename={props.onRenameTask}
@@ -355,44 +372,49 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 )}
             </section>
 
-            <section
-              class="flex flex-col gap-2 pt-4"
-              aria-labelledby={`completed-${id}`}
-              data-e2e="completed-section"
-            >
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 id={`completed-${id}`} class="flex items-center gap-2 text-base font-semibold">
-                  Completed <Count n={done.length} />
-                </h2>
-                <MenuSelect
-                  label="Completed"
-                  value={props.completedRange}
-                  options={COMPLETED_OPTIONS}
-                  onChange={(range) => props.onCompletedRangeChange(range as CompletedRange)}
-                  e2e="completed-range"
-                />
-              </div>
-              {done.length === 0
-                ? <p class="text-sm text-muted">Nothing completed in this period.</p>
-                : (
-                  <div class="@container">
-                    <FocusKeeper label="Completed tasks">
-                      <TaskTree
-                        label={`${list.name} completed tasks`}
-                        nodes={flatNodes(done)}
-                        plain
-                        zone={zone}
-                        now={props.now}
-                        onComplete={props.onComplete}
-                        onOpen={props.onOpen}
-                        onRename={props.onRenameTask}
-                        onAddSibling={props.onAddSibling}
-                        onDelete={props.onDeleteTask}
-                      />
-                    </FocusKeeper>
-                  </div>
-                )}
-            </section>
+            {!props.hideCompleted && (
+              <section
+                class="flex flex-col gap-2 pt-4"
+                aria-labelledby={`completed-${id}`}
+                data-e2e="completed-section"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <h2
+                    id={`completed-${id}`}
+                    class="flex items-center gap-2 text-base font-semibold"
+                  >
+                    Completed <Count n={done.length} />
+                  </h2>
+                  <MenuSelect
+                    label="Completed"
+                    value={props.completedRange}
+                    options={COMPLETED_OPTIONS}
+                    onChange={(range) => props.onCompletedRangeChange(range as CompletedRange)}
+                    e2e="completed-range"
+                  />
+                </div>
+                {done.length === 0
+                  ? <p class="text-sm text-muted">Nothing completed in this period.</p>
+                  : (
+                    <div class="@container">
+                      <FocusKeeper label="Completed tasks">
+                        <TaskTree
+                          label={`${list.name} completed tasks`}
+                          nodes={flatNodes(done)}
+                          plain
+                          zone={zone}
+                          now={props.now}
+                          onComplete={props.onComplete}
+                          onOpen={props.onOpen}
+                          onRename={props.onRenameTask}
+                          onAddSibling={props.onAddSibling}
+                          onDelete={props.onDeleteTask}
+                        />
+                      </FocusKeeper>
+                    </div>
+                  )}
+              </section>
+            )}
           </>
         )}
     </div>

@@ -273,3 +273,38 @@ Deno.test("quick add on a list is held while a send is in flight", async () => {
     expect(must<HTMLButtonElement>(root, `[data-e2e="quick-add-submit"]`).disabled).toBe(true)
   })
 })
+
+Deno.test("Hide completed tasks leaves out finished subtasks and the Completed section, and keeps the count", async () => {
+  const tasks = [
+    ...TASKS,
+    makeTask(`c2`, `Buy brushes`, {
+      parentUid: `p`,
+      sortOrder: 2,
+      status: TaskStatus.Completed,
+    }),
+  ]
+  const turned: boolean[] = []
+  const shown = (hide: boolean) => (
+    <ListScreen
+      {...props({
+        tasks,
+        hideCompleted: hide,
+        onHideCompletedChange: (next) => turned.push(next),
+      })}
+    />
+  )
+  await mount(shown(false), async ({ root, rerender, act }) => {
+    expect(titles(root)).toContain(`Buy brushes`)
+    await act(() => must<HTMLButtonElement>(root, `[aria-label="More actions"]`).click())
+    const item = must<HTMLElement>(root, `[data-e2e="hide-completed"]`)
+    expect(item.getAttribute(`aria-checked`)).toBe(`false`)
+    await act(() => item.click())
+    expect(turned).toEqual([true])
+
+    await rerender(shown(true))
+    expect(titles(root)).toEqual([`Paint the room`, `Buy paint`, `Zebra`, `Apple`])
+    expect(root.querySelector(`[data-e2e="completed-section"]`)).toBeNull()
+    // The hidden subtask still counts: one of two done.
+    expect(root.querySelector(`[aria-label^="Hide 2 subtasks"]`)).not.toBeNull()
+  })
+})
