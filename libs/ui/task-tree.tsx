@@ -121,6 +121,8 @@ const reducedMotion = () => globalThis.matchMedia?.(`(prefers-reduced-motion: re
 export function TaskTree(props: TaskTreeProps): JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(props.collapsed ?? new Set())
   const [drag, setDragState] = useState<Drag | null>(null)
+  // The row that opens the next new-task line: the task just added from the line above it.
+  const [lineAt, setLineAt] = useState<string | null>(null)
   const dragRef = useRef<Drag | null>(null)
   const list = useRef<HTMLUListElement>(null)
   const tops = useRef(new Map<string, number>())
@@ -196,6 +198,8 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
             plain={props.plain}
             onRename={props.onRename}
             onAddSibling={props.onAddSibling}
+            lineHere={lineAt === task.uid}
+            onLineMoves={setLineAt}
             onDelete={props.onDelete}
           />
         ))}
@@ -392,6 +396,8 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
             plain={props.plain}
             onRename={props.onRename}
             onAddSibling={props.onAddSibling}
+            lineHere={lineAt === task.uid}
+            onLineMoves={setLineAt}
             onDelete={props.onDelete}
             lifted={drag?.uid === task.uid}
             dropInto={drag?.into === task.uid}

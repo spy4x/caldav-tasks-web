@@ -1,6 +1,5 @@
 import type { JSX } from "preact"
 import { useEffect, useRef, useState } from "preact/hooks"
-import { signal } from "@preact/signals"
 import { IconArrowPath, IconBell, IconChevronDown, IconFlag } from "@spy4x/preact-icons"
 import { Checkbox } from "@spy4x/preact-ui/checkbox"
 import { dueLabel, DueTone } from "./due-label.ts"
@@ -49,7 +48,7 @@ export interface TaskRowProps {
   /**
    * Given, Enter while renaming opens a new line under the row: a title typed there and Enter
    * creates a task beside this one (a subtask of the same parent), and opens the next line. When
-   * it resolves to the new task's UID, that line opens under the new task.
+   * it resolves to the new task's UID, that line moves under the new task (see `onLineMoves`).
    */
   onAddSibling?: (task: Task, title: string) => void | Promise<string | undefined>
   /** Given, a "Delete" button shows on hover, right of "Edit". */
@@ -60,10 +59,14 @@ export interface TaskRowProps {
   lifted?: boolean
   /** A dragged task would go under this row. */
   dropInto?: boolean
+  /** The new line moves to this row: the task was just added from the line above it. */
+  lineHere?: boolean
+  /**
+   * Called with the UID of a task just added from this row's new line, whose row should open the
+   * next line, and with `null` once this row has taken the line `lineHere` gave it.
+   */
+  onLineMoves?: (uid: string | null) => void
 }
-
-/** The task just added from a new line: its row opens the next line, so the line stays below it. */
-const lineMovesTo = signal<string | null>(null)
 
 const INDENT = [`ps-2`, `ps-12`, `ps-16`, `ps-16`] as const
 const MAX_TAGS = 3
@@ -108,12 +111,11 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   useEffect(() => {
     if (adding) newLine.current?.focus()
   }, [adding])
-  const lineComesHere = lineMovesTo.value === task.uid
   useEffect(() => {
-    if (!lineComesHere) return
-    lineMovesTo.value = null
+    if (!props.lineHere) return
     setAdding(true)
-  }, [lineComesHere])
+    props.onLineMoves?.(null)
+  }, [props.lineHere])
   const field = useRef<HTMLInputElement>(null)
   const finished = useRef(false)
   useEffect(() => {
@@ -142,8 +144,9 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
       void Promise.resolve(added).then((uid) => {
         // Something typed here meanwhile keeps the line where it is.
         if (!uid || newLine.current?.value) return
+        if (!props.onLineMoves) return
         setAdding(false)
-        lineMovesTo.value = uid
+        props.onLineMoves(uid)
       })
     }
   }

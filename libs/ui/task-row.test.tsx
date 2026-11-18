@@ -1,5 +1,6 @@
 /// <reference lib="deno.ns" />
 import { expect } from "@std/expect"
+import { useState } from "preact/hooks"
 import { renderToString } from "preact-render-to-string"
 import { dateOnly, dateTime, makeTask, reminder } from "./task-fixtures.ts"
 import { mount, must } from "./mount.test.tsx"
@@ -255,25 +256,32 @@ Deno.test("with onRename, the title renames in place, Enter saves and opens a ne
 
 Deno.test("after a task is added from the new line, the next line opens under the new task", async () => {
   const added: string[] = []
-  const rows = (titles: string[]) => (
-    <ul>
-      {titles.map((title, at) => (
-        <TaskRow
-          key={`${at}`}
-          task={makeTask(`${at}`, title)}
-          zone="UTC"
-          now={NOW}
-          onComplete={() => {}}
-          onOpen={() => {}}
-          onRename={() => {}}
-          onAddSibling={(_task, title) => {
-            added.push(title)
-            return Promise.resolve(`${titles.length}`)
-          }}
-        />
-      ))}
-    </ul>
-  )
+  // Holds which row has the line, as the task tree does.
+  function Rows({ titles }: { titles: string[] }) {
+    const [lineAt, setLineAt] = useState<string | null>(null)
+    return (
+      <ul>
+        {titles.map((title, at) => (
+          <TaskRow
+            key={`${at}`}
+            task={makeTask(`${at}`, title)}
+            zone="UTC"
+            now={NOW}
+            onComplete={() => {}}
+            onOpen={() => {}}
+            onRename={() => {}}
+            onAddSibling={(_task, title) => {
+              added.push(title)
+              return Promise.resolve(`${titles.length}`)
+            }}
+            lineHere={lineAt === `${at}`}
+            onLineMoves={setLineAt}
+          />
+        ))}
+      </ul>
+    )
+  }
+  const rows = (titles: string[]) => <Rows titles={titles} />
   await mount(rows([`Eggs`]), async ({ root, window, act, rerender }) => {
     const key = (target: HTMLElement, k: string) =>
       act(() => {
