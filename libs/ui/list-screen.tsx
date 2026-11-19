@@ -2,6 +2,7 @@ import type { ComponentChildren, JSX } from "preact"
 import {
   IconArrowDown,
   IconArrowLeft,
+  IconCheckCircle,
   IconChevronDown,
   IconEllipsisVertical,
   IconFunnel,
@@ -162,25 +163,38 @@ function Count({ n }: { n: number }) {
   )
 }
 
-/** A native select drawn as a quiet button: an icon, a prefix and the chosen option. */
+/**
+ * A native select drawn as a quiet button: an icon, a prefix and the chosen option. In a heading
+ * narrower than 42rem it is the icon alone, the select laid invisibly over it, with a dot while
+ * `changed` (not the usual choice) and the choice in its tooltip.
+ */
 function MenuSelect<T extends string | number>(
   props: {
     label: string
     prefix?: string
-    icon?: ComponentChildren
+    icon: ComponentChildren
     value: T
     options: readonly { value: T; label: string }[]
     onChange: (value: string) => void
     e2e: string
+    changed?: boolean
+    /** The tooltip, when "label: choice" reads badly. */
+    tip?: string
   },
 ): JSX.Element {
+  const chosen = props.options.find((o) => String(o.value) === String(props.value))?.label
   return (
-    <label class="relative inline-flex h-9 items-center gap-2 rounded-lg border border-subtle bg-surface ps-3 pe-3 text-[13px] text-foreground hover:border-control focus-within:outline-2 focus-within:outline-[var(--color-ring)]">
+    <label
+      title={props.tip ?? `${props.prefix ?? `${props.label}:`} ${chosen ?? ``}`}
+      class="relative inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-subtle bg-surface ps-3 pe-3 text-[13px] text-foreground hover:border-control focus-within:outline-2 focus-within:outline-[var(--color-ring)] @max-2xl:w-9 @max-2xl:justify-center @max-2xl:p-0"
+    >
       {props.icon}
-      {props.prefix && <span class="text-muted" aria-hidden="true">{props.prefix}</span>}
+      {props.prefix && (
+        <span class="text-muted @max-2xl:hidden" aria-hidden="true">{props.prefix}</span>
+      )}
       <select
         aria-label={props.label}
-        class="cursor-pointer appearance-none bg-transparent pe-4 outline-none"
+        class="cursor-pointer appearance-none bg-transparent pe-4 outline-none @max-2xl:absolute @max-2xl:inset-0 @max-2xl:opacity-0"
         value={String(props.value)}
         onChange={(event) => props.onChange(event.currentTarget.value)}
         data-e2e={props.e2e}
@@ -189,7 +203,16 @@ function MenuSelect<T extends string | number>(
           <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
         ))}
       </select>
-      <IconChevronDown class="pointer-events-none absolute end-2 size-3" aria-hidden="true" />
+      {props.changed && (
+        <span
+          class="pointer-events-none absolute end-1 top-1 hidden size-2 rounded-full bg-accent @max-2xl:block"
+          aria-hidden="true"
+        />
+      )}
+      <IconChevronDown
+        class="pointer-events-none absolute end-2 size-3 @max-2xl:hidden"
+        aria-hidden="true"
+      />
     </label>
   )
 }
@@ -270,7 +293,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
         ? `flex w-full min-w-0 flex-col gap-4 pb-16`
         : `flex w-full max-w-6xl flex-col gap-4 px-4 py-4 md:px-12 md:pt-8 md:pb-16 md:group-data-[sidebar-hidden]/frame:max-w-none`}
     >
-      <header class="flex flex-col gap-1" data-e2e="page-header">
+      <header class="@container flex flex-col gap-1" data-e2e="page-header">
         <a
           href={PATHS.lists}
           aria-label="Lists"
@@ -284,14 +307,10 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
           <IconArrowLeft class="size-4" aria-hidden="true" />
           Lists
         </a>
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {/* The heading is the list's name alone; the home mark and the count sit beside it. */}
-          <div
-            class={`flex min-w-0 items-baseline gap-3 ${props.pane ? `grow basis-48` : ``}`}
-          >
-            <h1 class="min-w-0 break-words text-2xl font-bold tracking-tight">
-              {props.title ?? list.name}
-            </h1>
+        {/* One row: a narrow heading draws its controls as icons rather than wrapping them. */}
+        <div class="flex items-center gap-x-4">
+          <h1 class="flex min-w-0 grow items-baseline gap-3 text-2xl font-bold tracking-tight">
+            {props.title ?? <span class="break-words">{list.name}</span>}
             {props.isHome && (
               <span class="inline-flex self-center text-muted" title="Default list">
                 <IconHome class="size-5" aria-hidden="true" />
@@ -306,19 +325,17 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
               </span>
             )}
           </h1>
-          {/* A narrow pane keeps the menu on the name's line and puts the controls on their own. */}
-          {props.pane && menu}
-          <div
-            class={props.pane
-              ? `flex basis-full flex-wrap items-center gap-2`
-              : `ms-auto flex flex-wrap items-center gap-2`}
-          >
-            {!props.pane && <p class="pe-2 text-[13px] text-muted max-lg:hidden">{today}</p>}
+          <div class="flex shrink-0 items-center gap-2">
+            {!props.pane && (
+              <p class="pe-2 text-[13px] whitespace-nowrap text-muted @max-4xl:hidden">{today}</p>
+            )}
             {!props.loading && tasks.length > 0 && (
-              <div class="flex flex-wrap items-center gap-2" data-e2e="list-controls">
+              <div class="flex items-center gap-2" data-e2e="list-controls">
                 {allTags.length > 0 && (
                   <MenuSelect
                     label="Filter by tag"
+                    tip={props.activeTags[0] ? `Filter: #${props.activeTags[0]}` : `Filter by tag`}
+                    changed={props.activeTags.length > 0}
                     icon={<IconFunnel class="size-4 text-muted" aria-hidden="true" />}
                     value={props.activeTags[0] ?? ``}
                     options={[
@@ -331,6 +348,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 )}
                 <MenuSelect
                   label="Sort by"
+                  changed={props.sort !== SortMode.Manual}
                   icon={<IconArrowDown class="size-4 text-muted" aria-hidden="true" />}
                   value={props.sort}
                   options={SORT_OPTIONS}
@@ -342,6 +360,9 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                   <MenuSelect
                     label="Completed tasks shown"
                     prefix="Completed:"
+                    // The app's usual period is this week.
+                    changed={props.hideCompleted || props.completedRange !== CompletedRange.Week}
+                    icon={<IconCheckCircle class="size-4 text-muted" aria-hidden="true" />}
                     value={props.hideCompleted ? HIDDEN : props.completedRange}
                     options={props.onHideCompletedChange
                       ? [...COMPLETED_OPTIONS, { value: HIDDEN, label: `Hidden` }]
@@ -355,7 +376,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 )}
               </div>
             )}
-            {!props.pane && menu}
+            {menu}
           </div>
         </div>
       </header>
