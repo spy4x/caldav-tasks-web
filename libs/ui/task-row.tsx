@@ -134,6 +134,8 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
 ${task.notes}`,
     lists,
   )
+  // Shown beside the title, not while it is being renamed.
+  const links = mentioned.length > 0 && !renaming
   const shownTitle = (mentioned.length > 0 && withoutMentions(task.title, lists)) || task.title
   const mentions = useMentions(lists, `mention-${task.uid}`)
   useEffect(() => {
@@ -242,7 +244,12 @@ ${task.notes}`,
           )}
       </span>
       {/* The title keeps 8rem; a narrower row puts the details on a line of their own. */}
-      <div class={`min-w-0 grow basis-32 ${quiet ? `py-1` : `py-2`}`}>
+      {/* Mentions follow the title, where Edit and Delete never cover them on hover. */}
+      <div
+        class={`min-w-0 grow basis-32 ${quiet ? `py-1` : `py-2`} ${
+          links ? `flex flex-wrap items-center gap-x-2` : ``
+        }`}
+      >
         {renaming
           ? (
             <span class="relative z-20 block">
@@ -278,7 +285,9 @@ ${task.notes}`,
           : (
             <button
               type="button"
-              class={`block w-full cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-ring)] ${
+              class={`${
+                links ? `min-w-0` : `block w-full`
+              } cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-ring)] ${
                 props.onRename ? `cursor-text` : `after:absolute after:inset-0 after:content-['']`
               } ${quiet ? `text-sm` : `text-[15px]`}`}
               onClick={() => props.onRename ? setRenaming(true) : props.onOpen(task)}
@@ -289,6 +298,26 @@ ${task.notes}`,
               </span>
             </button>
           )}
+        {links && mentioned.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            class="relative z-10 inline-flex min-w-0 items-center gap-1 rounded-md px-1 text-[13px] text-accent-text hover:bg-hover hover:underline focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
+            onClick={(event) => {
+              if (!props.navigate || event.button !== 0 || event.ctrlKey || event.metaKey) return
+              event.preventDefault()
+              props.navigate(link.href)
+            }}
+            data-e2e="task-mention"
+          >
+            <span
+              class="size-2 shrink-0 rounded-full bg-accent"
+              style={link.color ? { backgroundColor: link.color } : undefined}
+              aria-hidden="true"
+            />
+            <span class="max-w-32 truncate">{link.name}</span>
+          </a>
+        ))}
       </div>
       <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[13px] text-muted empty:hidden">
         {expandable && (
@@ -319,26 +348,6 @@ ${task.notes}`,
             <span class="max-w-32 truncate">{list.name}</span>
           </span>
         )}
-        {mentioned.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            class="relative z-10 inline-flex min-w-0 items-center gap-1 rounded-md px-1 text-accent-text hover:bg-hover hover:underline focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
-            onClick={(event) => {
-              if (!props.navigate || event.button !== 0 || event.ctrlKey || event.metaKey) return
-              event.preventDefault()
-              props.navigate(link.href)
-            }}
-            data-e2e="task-mention"
-          >
-            <span
-              class="size-2 shrink-0 rounded-full bg-accent"
-              style={link.color ? { backgroundColor: link.color } : undefined}
-              aria-hidden="true"
-            />
-            <span class="max-w-32 truncate">{link.name}</span>
-          </a>
-        ))}
         {flag && (
           <span class={`inline-flex items-center ${flag.class}`}>
             <IconFlag class="size-4" aria-hidden="true" />
