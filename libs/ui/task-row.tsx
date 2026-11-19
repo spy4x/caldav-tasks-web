@@ -241,7 +241,8 @@ ${task.notes}`,
             />
           )}
       </span>
-      <div class={`min-w-0 flex-1 ${quiet ? `py-1` : `py-2`}`}>
+      {/* The title keeps 8rem; a narrower row puts the details on a line of their own. */}
+      <div class={`min-w-0 grow basis-32 ${quiet ? `py-1` : `py-2`}`}>
         {renaming
           ? (
             <span class="relative z-20 block">
@@ -289,7 +290,7 @@ ${task.notes}`,
             </button>
           )}
       </div>
-      <div class="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[13px] text-muted empty:hidden">
+      <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[13px] text-muted empty:hidden">
         {expandable && (
           <button
             type="button"
@@ -400,12 +401,9 @@ ${task.notes}`,
             {due ? due.text : `No date`}
           </span>
         )}
+        {/* With the details, so it never wraps onto a line of its own. */}
+        {props.handle && <span class="-ms-2">{props.handle}</span>}
       </div>
-      {props.handle && (
-        <span class="ms-2">
-          {props.handle}
-        </span>
-      )}
       {adding && (
         <div class="relative z-10 basis-full ps-12 pb-3">
           <input
