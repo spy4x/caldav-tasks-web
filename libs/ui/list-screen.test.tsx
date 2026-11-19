@@ -48,6 +48,8 @@ Deno.test("the list shows its name, a way back to Lists and quick add that says 
   expect(html).toContain(`href="/lists"`)
   expect(html).toContain(`aria-label="Lists"`)
   expect(html).toContain(`Added to Home`)
+  expect(html).not.toContain(`3 open`)
+  expect(renderToString(<ListScreen {...props({ showCount: true })} />)).toContain(`3 open`)
 })
 
 Deno.test("subtasks sit under their parent and completed tasks show below, in their own section", async () => {
@@ -294,23 +296,26 @@ Deno.test("Hide completed tasks leaves out finished subtasks and the Completed s
       })}
     />
   )
-  await mount(shown(false), async ({ root, rerender, act }) => {
+  await mount(shown(false), async ({ root, rerender, window, act }) => {
     expect(titles(root)).toContain(`Buy brushes`)
-    await act(() => must<HTMLButtonElement>(root, `[aria-label="More actions"]`).click())
-    const item = must<HTMLElement>(root, `[data-e2e="hide-completed"]`)
-    expect(item.getAttribute(`aria-checked`)).toBe(`false`)
-    await act(() => item.click())
+    const select = must<HTMLSelectElement>(root, `[data-e2e="completed-range"]`)
+    expect(select.value).toBe(CompletedRange.Today)
+    await act(() => {
+      select.value = `hidden`
+      select.dispatchEvent(new window.Event(`change`, { bubbles: true }) as never)
+    })
     expect(turned).toEqual([true])
 
     await rerender(shown(true))
     expect(titles(root)).toEqual([`Paint the room`, `Buy paint`, `Zebra`, `Apple`])
     expect(root.querySelector(`[data-e2e="completed-section"]`)).toBeNull()
+    expect(select.value).toBe(`hidden`)
     // The hidden subtask still counts: one of two done.
     expect(root.querySelector(`[aria-label^="Hide 2 subtasks"]`)).not.toBeNull()
   })
 })
 
-Deno.test("finished subtasks follow the Completed period, which the menu sets and un-hides", async () => {
+Deno.test("finished subtasks follow the Completed period, and picking a period un-hides them", async () => {
   const subtask = (uid: string, title: string, stamp: string) =>
     makeTask(uid, title, {
       parentUid: `p`,
@@ -340,10 +345,12 @@ Deno.test("finished subtasks follow the Completed period, which the menu sets an
   expect(mount_titles(props({ tasks, completedRange: CompletedRange.Week }))).toContain(
     `Tape on Monday`,
   )
-  await mount(shown(CompletedRange.Today), async ({ root, act }) => {
-    await act(() => must<HTMLButtonElement>(root, `[aria-label="More actions"]`).click())
-    expect(must(root, `[data-e2e="hide-completed"]`).getAttribute(`aria-checked`)).toBe(`true`)
-    await act(() => must<HTMLElement>(root, `[data-e2e="show-completed-week"]`).click())
+  await mount(shown(CompletedRange.Today), async ({ root, window, act }) => {
+    const select = must<HTMLSelectElement>(root, `[data-e2e="completed-range"]`)
+    await act(() => {
+      select.value = CompletedRange.Week
+      select.dispatchEvent(new window.Event(`change`, { bubbles: true }) as never)
+    })
     expect(ranges).toEqual([CompletedRange.Week])
     expect(hides).toEqual([false])
   })
@@ -352,7 +359,9 @@ Deno.test("finished subtasks follow the Completed period, which the menu sets an
 Deno.test("a simple list has no checks or Completed section, keeps finished items and counts items", async () => {
   const turned: boolean[] = []
   await mount(
-    <ListScreen {...props({ simple: true, onSimpleChange: (next) => turned.push(next) })} />,
+    <ListScreen
+      {...props({ simple: true, showCount: true, onSimpleChange: (next) => turned.push(next) })}
+    />,
     async ({ root, act }) => {
       expect(root.querySelector(`[data-e2e="task-check"]`)).toBeNull()
       expect(root.querySelectorAll(`[data-e2e="task-bullet"]`).length).toBe(5)

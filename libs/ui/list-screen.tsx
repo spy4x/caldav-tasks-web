@@ -69,7 +69,7 @@ export interface ListScreenProps {
   /**
    * Whether finished tasks are hidden: the subtasks under open tasks and the Completed section.
    * Otherwise both show the tasks finished in `completedRange`. With `onHideCompletedChange`,
-   * "More actions" offers each period and Hide.
+   * the Completed menu beside Sort offers Hidden after the periods.
    */
   hideCompleted?: boolean
   onHideCompletedChange?: (hide: boolean) => void
@@ -82,6 +82,8 @@ export interface ListScreenProps {
   onSimpleChange?: (simple: boolean) => void
   /** The lists a task can mention as `@Name`, with their pages; see TaskRow's `mentionLists`. */
   mentionLists?: readonly MentionList[]
+  /** Shows "4 open" (a simple list's "4 items") beside the name. */
+  showCount?: boolean
   /** The default list, the one the app opens on: a home icon beside the name says so. */
   isHome?: boolean
   /** Makes this the default list; offered in "More actions" while it is not. */
@@ -109,20 +111,14 @@ export enum CompletedRange {
   All = `all`,
 }
 
+/** Read after "Completed:", so each says when a shown task was finished. */
 const COMPLETED_OPTIONS = [
   { value: CompletedRange.Today, label: `Today` },
-  { value: CompletedRange.Week, label: `Past 7 days` },
-  { value: CompletedRange.Month, label: `Past month` },
-  { value: CompletedRange.All, label: `Forever` },
+  { value: CompletedRange.Week, label: `This week` },
+  { value: CompletedRange.Month, label: `This month` },
+  { value: CompletedRange.All, label: `All` },
 ]
-
-/** The same periods in the list's menu, worded so they read as when a task was finished. */
-const SHOW_COMPLETED_OPTIONS = [
-  { value: CompletedRange.Today, label: `Show tasks completed today` },
-  { value: CompletedRange.Week, label: `Show tasks completed this week` },
-  { value: CompletedRange.Month, label: `Show tasks completed this month` },
-  { value: CompletedRange.All, label: `Show all completed tasks` },
-]
+const HIDDEN = `hidden`
 
 const DAYS_BACK: Record<CompletedRange, number> = {
   [CompletedRange.Today]: 0,
@@ -233,7 +229,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   const openShown = nodes.filter((node) => isOpen(node.task)).length
   const canMakeHome = props.onMakeHome && !props.isHome
   const hasMenu = props.onRename || props.onChangeColor || props.onDelete || canMakeHome ||
-    props.onHideCompletedChange || props.onSimpleChange
+    props.onSimpleChange
   // Two lists can share the page, so their headings' ids carry the list.
   const id = list.href.replace(/[^\w-]/g, `_`)
   const today = props.now.toLocaleDateString(undefined, {
@@ -277,12 +273,14 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 <span class="sr-only">Default list</span>
               </span>
             )}
-            <span class="shrink-0 whitespace-nowrap text-[13px] text-muted">
-              {props.simple
-                ? `${nodes.length} ${nodes.length === 1 ? `item` : `items`}`
-                : `${openShown} open`}
-            </span>
-          </div>
+            {props.showCount && (
+              <span class="shrink-0 whitespace-nowrap text-[13px] font-normal tracking-normal text-muted">
+                {props.simple
+                  ? `${nodes.length} ${nodes.length === 1 ? `item` : `items`}`
+                  : `${openShown} open`}
+              </span>
+            )}
+          </h1>
           <div class="ms-auto flex flex-wrap items-center gap-2">
             {!props.pane && <p class="pe-2 text-[13px] text-muted max-lg:hidden">{today}</p>}
             {!props.loading && tasks.length > 0 && (
@@ -309,6 +307,21 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                     props.onSortChange(Number(mode) as SortMode)}
                   e2e="sort"
                 />
+                {!props.simple && (
+                  <MenuSelect
+                    label="Completed tasks shown"
+                    prefix="Completed:"
+                    value={props.hideCompleted ? HIDDEN : props.completedRange}
+                    options={props.onHideCompletedChange
+                      ? [...COMPLETED_OPTIONS, { value: HIDDEN, label: `Hidden` }]
+                      : COMPLETED_OPTIONS}
+                    onChange={(value) => {
+                      props.onHideCompletedChange?.(value === HIDDEN)
+                      if (value !== HIDDEN) props.onCompletedRangeChange(value as CompletedRange)
+                    }}
+                    e2e="completed-range"
+                  />
+                )}
               </div>
             )}
             {hasMenu && (
@@ -330,30 +343,6 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                   >
                     Simple list (no checkboxes)
                   </DropdownItem>
-                )}
-                {props.onHideCompletedChange && !props.simple && (
-                  <>
-                    {SHOW_COMPLETED_OPTIONS.map((o) => (
-                      <DropdownItem
-                        key={o.value}
-                        checked={!props.hideCompleted && props.completedRange === o.value}
-                        onClick={() => {
-                          props.onHideCompletedChange!(false)
-                          props.onCompletedRangeChange(o.value)
-                        }}
-                        dataE2E={`show-completed-${o.value}`}
-                      >
-                        {o.label}
-                      </DropdownItem>
-                    ))}
-                    <DropdownItem
-                      checked={props.hideCompleted === true}
-                      onClick={() => props.onHideCompletedChange!(true)}
-                      dataE2E="hide-completed"
-                    >
-                      Hide completed tasks
-                    </DropdownItem>
-                  </>
                 )}
                 {props.onRename && (
                   <DropdownItem onClick={props.onRename}>Rename list</DropdownItem>
@@ -435,21 +424,12 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 aria-labelledby={`completed-${id}`}
                 data-e2e="completed-section"
               >
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <h2
-                    id={`completed-${id}`}
-                    class="flex items-center gap-2 text-base font-semibold"
-                  >
-                    Completed <Count n={done.length} />
-                  </h2>
-                  <MenuSelect
-                    label="Completed"
-                    value={props.completedRange}
-                    options={COMPLETED_OPTIONS}
-                    onChange={(range) => props.onCompletedRangeChange(range as CompletedRange)}
-                    e2e="completed-range"
-                  />
-                </div>
+                <h2
+                  id={`completed-${id}`}
+                  class="flex items-center gap-2 text-base font-semibold"
+                >
+                  Completed <Count n={done.length} />
+                </h2>
                 {done.length === 0
                   ? <p class="text-sm text-muted">Nothing completed in this period.</p>
                   : (

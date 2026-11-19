@@ -15,6 +15,7 @@ import { loadCompleted } from "../state/sync.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { tasks } from "../state/tasks.ts"
 import { homeHref, setHomeList } from "../state/home-list.ts"
+import { showOpenCounts } from "../state/open-counts.ts"
 import { toasts } from "../state/toasts.ts"
 import { findListBySlug, listPath, listSettingsPath, taskPath } from "../routes.ts"
 import { browserZone } from "./clock.ts"
@@ -258,6 +259,7 @@ function ListPane(
       onHideCompletedChange={setHideDone}
       simple={simple}
       onSimpleChange={setSimple}
+      showCount={showOpenCounts.value}
       mentionLists={mentionLists(taskLists.value)}
       isHome={homeHref.value === list.href}
       onMakeHome={() => {

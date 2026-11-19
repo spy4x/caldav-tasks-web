@@ -11,7 +11,7 @@ import { install } from "../state/install.ts"
 import { push, PUSH_UNREACHABLE, pushKeyUnreachable } from "../state/push.ts"
 import { installFromSettings } from "./install-from-settings.ts"
 import { themeStore } from "../state/theme.ts"
-import { focusNewTask, setFocusNewTask } from "../state/focus-new-task.ts"
+import { setShowOpenCounts, showOpenCounts } from "../state/open-counts.ts"
 import { APP_VERSION } from "../version.ts"
 import { browserZone } from "./clock.ts"
 
@@ -64,8 +64,8 @@ export function SettingsView() {
       shortcutsEnabled={shortcutsEnabled.value}
       onToggleShortcuts={setShortcutsEnabled}
       onShowShortcuts={() => shortcutsOpen.value = true}
-      focusNewTask={focusNewTask.value}
-      onToggleFocusNewTask={setFocusNewTask}
+      showOpenCounts={showOpenCounts.value}
+      onToggleOpenCounts={setShowOpenCounts}
       onSignOut={async () => {
         busy.value = true
         // Read from the queue's store, so a press before the queue has loaded still asks.

@@ -48,12 +48,9 @@ export interface SettingsScreenProps {
   shortcutsEnabled: boolean
   /** The "Keyboard shortcuts" switch was turned; `on` is what it was turned to. */
   onToggleShortcuts: (on: boolean) => void
-  /**
-   * Whether a page puts the cursor in its New task field as it opens, and its switch. Left out,
-   * there is no switch.
-   */
-  focusNewTask?: boolean
-  onToggleFocusNewTask?: (on: boolean) => void
+  /** Whether a list's heading shows "4 open", and its switch; left out, there is no switch. */
+  showOpenCounts?: boolean
+  onToggleOpenCounts?: (on: boolean) => void
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
   /** "Sign out" was pressed. */
@@ -150,13 +147,13 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
               />
             </div>
           </Row>
-          {props.onToggleFocusNewTask && (
-            <Row term="Start in New task" termId={FOCUS_TERM} e2e="settings-focus-new-task">
+          {props.onToggleOpenCounts && (
+            <Row term="Open-task count on lists" termId={COUNTS_TERM} e2e="settings-counts">
               <ToggleSwitch
-                id="settings-focus-new-task-switch"
-                value={props.focusNewTask === true}
-                onToggle={props.onToggleFocusNewTask}
-                aria-labelledby={FOCUS_TERM}
+                id="settings-counts-switch"
+                value={props.showOpenCounts === true}
+                onToggle={props.onToggleOpenCounts}
+                aria-labelledby={COUNTS_TERM}
               />
             </Row>
           )}
@@ -219,8 +216,8 @@ const HOME_TERM = `settings-home-term`
 /** The id of the "Keyboard shortcuts" term, which names its switch. */
 const SHORTCUTS_TERM = `settings-shortcuts-term`
 
-/** The id of the "Start in New task" term, which names its switch. */
-const FOCUS_TERM = `settings-focus-new-task-term`
+/** The id of the open-count term, which names its switch. */
+const COUNTS_TERM = `settings-counts-term`
 
 function Row(
   { term, termId, e2e, children }: {
