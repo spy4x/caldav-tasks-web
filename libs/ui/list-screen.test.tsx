@@ -372,7 +372,7 @@ Deno.test("a simple list has no checks or Completed section, keeps finished item
       await act(() => must<HTMLButtonElement>(root, `[aria-label="More actions"]`).click())
       expect(root.querySelector(`[data-e2e="hide-completed"]`)).toBeNull()
       const item = must<HTMLElement>(root, `[data-e2e="simple-list"]`)
-      expect(item.getAttribute(`aria-checked`)).toBe(`true`)
+      expect(item.textContent).toBe(`Turn back into a to-do list`)
       await act(() => item.click())
       expect(turned).toEqual([false])
     },

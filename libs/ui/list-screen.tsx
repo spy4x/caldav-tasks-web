@@ -263,12 +263,9 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
     >
       {canMakeHome && <DropdownItem onClick={props.onMakeHome}>Make default list</DropdownItem>}
       {props.onSimpleChange && (
-        <DropdownItem
-          checked={props.simple === true}
-          onClick={() => props.onSimpleChange!(!props.simple)}
-          dataE2E="simple-list"
-        >
-          Simple list (no checkboxes)
+        // Named for what it does, so it lines up with the other items and still says which it is.
+        <DropdownItem onClick={() => props.onSimpleChange!(!props.simple)} dataE2E="simple-list">
+          {props.simple ? `Turn back into a to-do list` : `Turn into a simple list`}
         </DropdownItem>
       )}
       {props.onRename && <DropdownItem onClick={props.onRename}>Rename list</DropdownItem>}
