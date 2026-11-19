@@ -82,10 +82,10 @@ Deno.test("choosing a sort in the menu reports the mode", async () => {
     async ({ root, window, act }) => {
       const select = must<HTMLSelectElement>(root, `[data-e2e="sort"]`)
       expect(texts(select, `option`)).toEqual([
-        `Manual order`,
-        `By due date`,
-        `By priority`,
-        `By title`,
+        `Manual`,
+        `Due date`,
+        `Priority`,
+        `Title`,
       ])
       await act(() => {
         select.value = String(SortMode.Priority)

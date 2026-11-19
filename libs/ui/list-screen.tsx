@@ -97,10 +97,10 @@ export interface ListScreenProps {
 }
 
 const SORT_OPTIONS = [
-  { value: SortMode.Manual, label: `Manual order` },
-  { value: SortMode.Due, label: `By due date` },
-  { value: SortMode.Priority, label: `By priority` },
-  { value: SortMode.Title, label: `By title` },
+  { value: SortMode.Manual, label: `Manual` },
+  { value: SortMode.Due, label: `Due date` },
+  { value: SortMode.Priority, label: `Priority` },
+  { value: SortMode.Title, label: `Title` },
 ]
 
 /** Which finished tasks a list shows, by when they were completed. */
@@ -230,6 +230,31 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
   const canMakeHome = props.onMakeHome && !props.isHome
   const hasMenu = props.onRename || props.onChangeColor || props.onDelete || canMakeHome ||
     props.onSimpleChange
+  const menu = hasMenu && (
+    <Dropdown
+      trigger={<IconEllipsisVertical class="size-4" aria-hidden="true" />}
+      triggerClasses="inline-flex size-8 items-center justify-center rounded-md text-muted hover:bg-hover"
+      triggerLabel="More actions"
+      menuLabel="More actions"
+      horizontal="right"
+    >
+      {canMakeHome && <DropdownItem onClick={props.onMakeHome}>Make default list</DropdownItem>}
+      {props.onSimpleChange && (
+        <DropdownItem
+          checked={props.simple === true}
+          onClick={() => props.onSimpleChange!(!props.simple)}
+          dataE2E="simple-list"
+        >
+          Simple list (no checkboxes)
+        </DropdownItem>
+      )}
+      {props.onRename && <DropdownItem onClick={props.onRename}>Rename list</DropdownItem>}
+      {props.onChangeColor && (
+        <DropdownItem onClick={props.onChangeColor}>Change colour</DropdownItem>
+      )}
+      {props.onDelete && <DropdownItem danger onClick={props.onDelete}>Delete list</DropdownItem>}
+    </Dropdown>
+  )
   // Two lists can share the page, so their headings' ids carry the list.
   const id = list.href.replace(/[^\w-]/g, `_`)
   const today = props.now.toLocaleDateString(undefined, {
@@ -281,7 +306,13 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
               </span>
             )}
           </h1>
-          <div class="ms-auto flex flex-wrap items-center gap-2">
+          {/* A narrow pane keeps the menu on the name's line and puts the controls on their own. */}
+          {props.pane && menu}
+          <div
+            class={props.pane
+              ? `flex basis-full flex-wrap items-center gap-2`
+              : `ms-auto flex flex-wrap items-center gap-2`}
+          >
             {!props.pane && <p class="pe-2 text-[13px] text-muted max-lg:hidden">{today}</p>}
             {!props.loading && tasks.length > 0 && (
               <div class="flex flex-wrap items-center gap-2" data-e2e="list-controls">
@@ -324,37 +355,7 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
                 )}
               </div>
             )}
-            {hasMenu && (
-              <Dropdown
-                trigger={<IconEllipsisVertical class="size-4" aria-hidden="true" />}
-                triggerClasses="inline-flex size-8 items-center justify-center rounded-md text-muted hover:bg-hover"
-                triggerLabel="More actions"
-                menuLabel="More actions"
-                horizontal="right"
-              >
-                {canMakeHome && (
-                  <DropdownItem onClick={props.onMakeHome}>Make default list</DropdownItem>
-                )}
-                {props.onSimpleChange && (
-                  <DropdownItem
-                    checked={props.simple === true}
-                    onClick={() => props.onSimpleChange!(!props.simple)}
-                    dataE2E="simple-list"
-                  >
-                    Simple list (no checkboxes)
-                  </DropdownItem>
-                )}
-                {props.onRename && (
-                  <DropdownItem onClick={props.onRename}>Rename list</DropdownItem>
-                )}
-                {props.onChangeColor && (
-                  <DropdownItem onClick={props.onChangeColor}>Change colour</DropdownItem>
-                )}
-                {props.onDelete && (
-                  <DropdownItem danger onClick={props.onDelete}>Delete list</DropdownItem>
-                )}
-              </Dropdown>
-            )}
+            {!props.pane && menu}
           </div>
         </div>
       </header>
