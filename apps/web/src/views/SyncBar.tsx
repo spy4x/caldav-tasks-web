@@ -22,6 +22,8 @@ export function SyncBar() {
   const state = runnerState.value
   const waiting = pendingEntries.value.filter((entry) => entry.status === `pending`).length
   const list = conflicts.value
+  // Nothing to report: draw nothing, so the page starts right under the top bar.
+  if (!offline.value && waiting === 0 && state?.lastError == null && list.length === 0) return null
   return (
     <div class="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4 sm:px-6">
       <SyncStatus

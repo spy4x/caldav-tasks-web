@@ -32,8 +32,8 @@ Deno.test("marks only the current destination with aria-current", () => {
       <PlaceholderPage title="Lists" />
     </AppFrame>,
   )
-  // The rail and the tab bar each draw the current entry once.
-  expect(html.match(/aria-current="page"/g)).toHaveLength(2)
+  // The tab bar draws the current entry once; the sidebar is the caller's.
+  expect(html.match(/aria-current="page"/g)).toHaveLength(1)
 })
 
 Deno.test("maps a path to its destination, a sub-path to its parent and a stranger to none", () => {
@@ -63,8 +63,8 @@ Deno.test("every destination is a link to its page; a plain click goes to naviga
         root as unknown as HTMLElement,
       )
     )
-    const rail = root.querySelector(`[data-e2e="rail-shell-rail"]`)!
-    const entries = [...rail.querySelectorAll(`[data-e2e="rail-shell-entry"]`)]
+    const bar = root.querySelector(`[data-e2e="tab-bar"]`)!
+    const entries = [...bar.querySelectorAll(`[data-e2e="tab"]`)]
     expect(entries.map((entry) => `${entry.tagName} ${entry.getAttribute("href")}`)).toEqual(
       NAV_ITEMS.map((item) => `A ${item.path}`),
     )

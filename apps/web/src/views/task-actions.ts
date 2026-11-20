@@ -1,6 +1,6 @@
 import type { Task } from "@spy4x/time/ical-tasks-model"
 import { toasts } from "../state/toasts.ts"
-import { deleteTaskTree, restoreTask } from "../state/task-writes.ts"
+import { addTask, deleteTaskTree, restoreTask } from "../state/task-writes.ts"
 import { reorderWrites } from "@tasks/reorder.ts"
 import { findCalendar } from "../state/calendars.ts"
 import { loadCompleted } from "../state/sync.ts"
@@ -134,4 +134,25 @@ export async function reorderInList(
     if (!reportReorderFailure(await saveTask(write.task, write.edit))) return false
   }
   return true
+}
+
+/** Saves a title typed into a row, and says why when it could not be saved. */
+export async function renameTask(task: Task, title: string): Promise<void> {
+  const result = await saveTask(task, { title })
+  if (result.kind === WriteKind.Failed) toasts.error({ title: ``, body: result.message })
+  else if (result.kind === WriteKind.Conflict) {
+    toasts.warning({
+      title: ``,
+      body: `This task was changed elsewhere. Open it to choose which version to keep.`,
+    })
+  }
+}
+
+/** Adds a task beside `task`: in its list, under its parent when it is a subtask. */
+export async function addSiblingTask(task: Task, title: string): Promise<void> {
+  const parent = task.parentUid
+    ? tasks.value.find((candidate) => candidate.uid === task.parentUid)
+    : undefined
+  const result = await addTask({ title }, { listHref: task.listHref, parent })
+  if (result.kind === WriteKind.Failed) toasts.error({ title: ``, body: result.message })
 }

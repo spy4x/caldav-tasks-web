@@ -38,7 +38,7 @@ Deno.test("subtasks are listed under their parent, indented by depth", async () 
     const indent = [...root.querySelectorAll(`[data-e2e="task-row"]`)].map((row) =>
       row.className.match(/ps-\d+/)?.[0]
     )
-    expect(indent).toEqual([`ps-0`, `ps-6`, `ps-12`, `ps-6`, `ps-0`])
+    expect(indent).toEqual([`ps-2`, `ps-12`, `ps-16`, `ps-12`, `ps-2`])
   })
 })
 

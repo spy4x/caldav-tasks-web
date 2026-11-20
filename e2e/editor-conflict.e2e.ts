@@ -7,6 +7,7 @@ import {
   seedTaskList,
 } from "./fixtures/radicale.ts"
 import { signIn } from "./sign-in.ts"
+import { openTask } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -21,7 +22,7 @@ async function openEditor(page: Page): Promise<void> {
   await signIn(page)
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await expect(page.getByTestId(`task-title`)).toHaveValue(`Seeded errand`)
 }
 

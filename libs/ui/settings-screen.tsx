@@ -10,6 +10,10 @@ import { ScreenLayout } from "./task-screen.tsx"
 
 /** Props of {@link SettingsScreen}. */
 export interface SettingsScreenProps {
+  /** Where the back arrow goes; without it there is none. */
+  backHref?: string
+  /** Follows the back arrow without a page load. */
+  navigate?: (href: string) => void
   /** The app's theme store; the toggle reads and cycles it. */
   themeStore: ThemeToggleStore
   /** The CalDAV server this install talks to, or `null` while it is not known (no network yet). */
@@ -71,7 +75,15 @@ const UNKNOWN = `Not known yet. It loads when the server answers.`
 export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
   const question = props.unsentQuestion
   return (
-    <ScreenLayout header={<PageHeader title="Settings" />}>
+    <ScreenLayout
+      header={
+        <PageHeader
+          title="Settings"
+          back={props.backHref ? { href: props.backHref, label: "Back" } : undefined}
+          navigate={props.navigate}
+        />
+      }
+    >
       <div class="flex flex-col gap-6">
         <dl class="flex flex-col" data-e2e="settings">
           <Row term="Theme" e2e="settings-theme">

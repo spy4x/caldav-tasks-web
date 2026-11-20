@@ -31,6 +31,7 @@ import { SignInAgainView } from "./views/SignInAgainView.tsx"
 import { SignInView } from "./views/SignInView.tsx"
 import { TaskEditorView } from "./views/TaskEditorView.tsx"
 import { TodayView } from "./views/TodayView.tsx"
+import { SidebarView } from "./views/SidebarView.tsx"
 import { UpcomingView } from "./views/UpcomingView.tsx"
 
 const SHORTCUT_ROWS = listShortcuts()
@@ -44,7 +45,12 @@ export function App() {
   return (
     <>
       <Gate />
-      <Toastr toasts={toasts.list.value} onDismiss={toasts.remove} />
+      <Toastr
+        toasts={toasts.list.value}
+        onDismiss={toasts.remove}
+        corner="bottom-right"
+        class="app-toasts"
+      />
     </>
   )
 }
@@ -84,7 +90,11 @@ function SignedInApp() {
     }),
   })
   return (
-    <AppFrame currentPath={location} navigate={guarded}>
+    <AppFrame
+      currentPath={location}
+      navigate={guarded}
+      sidebar={<SidebarView currentPath={location} navigate={guarded} />}
+    >
       {notice.value && (
         <div class="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
           <Notice tone="warning">{notice.value}</Notice>

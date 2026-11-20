@@ -348,7 +348,6 @@ Deno.test(`the editor lists and counts only the subtasks in the task's own list`
     await onPage(editor(), async ({ root }) => {
       const listed = [...root.querySelectorAll(`[data-e2e="task-subtask"]`)]
       expect(listed.map((item) => item.textContent)).toEqual([`Near`])
-      await press(root, `task-menu`)
       await press(root, `task-delete`)
       const dialog = must(root.ownerDocument, `[data-e2e="task-delete-dialog"]`)
       expect(dialog.querySelector(`h2`)?.textContent).toBe(`Delete this task and its 1 subtask?`)

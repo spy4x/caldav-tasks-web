@@ -115,9 +115,14 @@ export function completeFocusedRow(doc: Document): boolean {
   return true
 }
 
-/** Opens the focused row's task, as pressing its title does. Returns whether there was a row. */
+/**
+ * Opens the focused row's task: its Edit button where pressing the title renames in place, else the
+ * title. Returns whether there was a row.
+ */
 export function editFocusedRow(doc: Document): boolean {
-  const open = currentRow(doc)?.querySelector<HTMLElement>(OPEN)
+  const row = currentRow(doc)
+  const open = row?.querySelector<HTMLElement>(`[data-e2e="task-edit"]`) ??
+    row?.querySelector<HTMLElement>(OPEN)
   if (!open) return false
   open.click()
   return true
