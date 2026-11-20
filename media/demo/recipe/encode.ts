@@ -205,7 +205,10 @@ export async function encodeDemo(options: EncodeOptions): Promise<EncodeSummary>
     const scale = width / 1280
     const px = (n: number) => Math.round(n * scale)
     const band = px(84)
-    const fit = `scale=${width}:${height}:force_original_aspect_ratio=decrease:flags=lanczos,` +
+    // out_range=tv: screencast JPEGs decode as full range, and Chromium refuses to play a
+    // full-range VP9 file ("video decode error"), so the take is converted to limited range.
+    const fit = `scale=${width}:${height}:force_original_aspect_ratio=decrease:flags=lanczos:` +
+      `out_range=tv,` +
       `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${INK},setsar=1,format=yuv420p`
     const card = (seconds: number) =>
       `color=c=${INK}:s=${width}x${height}:r=${FPS}:d=${seconds},setsar=1,format=yuv420p`
