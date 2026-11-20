@@ -2,7 +2,7 @@ import type { JSX } from "preact"
 import { useState } from "preact/hooks"
 import { flattenTree } from "@spy4x/platform/universal/ical-tasks-view"
 import { SortableList } from "@spy4x/preact-ui"
-import type { Task, TaskNode } from "@spy4x/time/ical-tasks-model"
+import { isOpen, type Task, type TaskNode } from "@spy4x/time/ical-tasks-model"
 import { type RowList, TaskRow } from "./task-row.tsx"
 
 /** Props of {@link TaskTree}. */
@@ -25,6 +25,14 @@ export interface TaskTreeProps {
    * the index it takes among the others. Tasks only move among their siblings.
    */
   onReorder?: (task: Task, siblings: readonly Task[], toIndex: number) => void
+  /** Quiet rows with no lines between them, as in the Completed section. */
+  plain?: boolean
+  /** Renames a task in place; see TaskRow's `onRename`. */
+  onRename?: (task: Task, title: string) => void
+  /** Adds a task beside one, from the line Enter opens while renaming. */
+  onAddSibling?: (task: Task, title: string) => void
+  /** Deletes a task from its row's hover "Delete". */
+  onDelete?: (task: Task) => void
 }
 
 /** Wraps tasks as a tree with no subtasks, for a view that lists tasks flat. */
@@ -37,6 +45,14 @@ function descendants(node: TaskNode): number {
   return node.children.reduce((sum, child) => sum + 1 + descendants(child), 0)
 }
 
+/** How many tasks below a node, at any depth, are finished. */
+function doneDescendants(node: TaskNode): number {
+  return node.children.reduce(
+    (sum, child) => sum + (isOpen(child.task) ? 0 : 1) + doneDescendants(child),
+    0,
+  )
+}
+
 /**
  * A list of {@link TaskRow}s with their subtasks indented underneath. A row with subtasks has an
  * expander; the hidden subtasks are the ones the viewer collapsed, so the state is theirs and
@@ -46,9 +62,11 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(props.collapsed ?? new Set())
   const rows = flattenTree(props.nodes, collapsed)
   const counts = new Map<string, number>()
+  const dones = new Map<string, number>()
   const index = (nodes: readonly TaskNode[]) => {
     for (const node of nodes) {
       counts.set(node.task.uid, descendants(node))
+      dones.set(node.task.uid, doneDescendants(node))
       index(node.children)
     }
   }
@@ -70,6 +88,7 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
           nodes={props.nodes}
           collapsed={collapsed}
           counts={counts}
+          dones={dones}
           setExpanded={setExpanded}
           tree={props}
         />
@@ -88,10 +107,15 @@ export function TaskTree(props: TaskTreeProps): JSX.Element {
           depth={depth}
           list={props.listOf?.(task)}
           subtaskCount={counts.get(task.uid)}
+          doneSubtaskCount={dones.get(task.uid)}
           expanded={!collapsed.has(task.uid)}
           onExpandedChange={setExpanded}
           onComplete={props.onComplete}
           onOpen={props.onOpen}
+          plain={props.plain}
+          onRename={props.onRename}
+          onAddSibling={props.onAddSibling}
+          onDelete={props.onDelete}
         />
       ))}
     </ul>
@@ -102,9 +126,11 @@ interface SortableGroupProps {
   nodes: readonly TaskNode[]
   collapsed: ReadonlySet<string>
   counts: ReadonlyMap<string, number>
+  dones: ReadonlyMap<string, number>
   setExpanded: (task: Task, expanded: boolean) => void
   tree: TaskTreeProps
-  nested?: boolean
+  /** How deep this group's tasks sit; 0 for the top level. */
+  depth?: number
 }
 
 /**
@@ -116,7 +142,7 @@ function SortableGroup(props: SortableGroupProps): JSX.Element {
   const siblings = nodes.map((node) => node.task)
   return (
     <SortableList
-      class={props.nested ? `ps-6` : undefined}
+      class={props.depth ? `task-sortable` : `task-sortable task-sortable-top`}
       items={nodes.map((node) => ({ id: node.task.uid, node }))}
       itemLabel={({ node }) => node.task.title}
       onMove={(from, to) => tree.onReorder?.(siblings[from], siblings, to)}
@@ -128,17 +154,22 @@ function SortableGroup(props: SortableGroupProps): JSX.Element {
             <TaskRow
               bare
               task={task}
+              depth={props.depth ?? 0}
               zone={tree.zone}
               now={tree.now}
               list={tree.listOf?.(task)}
               subtaskCount={props.counts.get(task.uid)}
+              doneSubtaskCount={props.dones.get(task.uid)}
               expanded={open}
               onExpandedChange={props.setExpanded}
               onComplete={tree.onComplete}
               onOpen={tree.onOpen}
+              onRename={tree.onRename}
+              onAddSibling={tree.onAddSibling}
+              onDelete={tree.onDelete}
             />
             {open && node.children.length > 0 && (
-              <SortableGroup {...props} nodes={node.children} nested />
+              <SortableGroup {...props} nodes={node.children} depth={(props.depth ?? 0) + 1} />
             )}
           </>
         )

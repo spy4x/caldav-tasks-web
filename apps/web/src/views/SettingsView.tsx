@@ -1,4 +1,8 @@
 import { useSignal } from "@preact/signals"
+import { useLocation } from "wouter-preact"
+import { listPath } from "../routes.ts"
+import { taskLists } from "../state/task-lists.ts"
+import { homeList } from "./TodayView.tsx"
 import { SettingsScreen } from "@ui/settings-screen.tsx"
 import { setShortcutsEnabled, shortcutsEnabled, shortcutsOpen } from "../shortcuts.ts"
 import { caldavAccount } from "../state/session.ts"
@@ -15,6 +19,8 @@ import { browserZone } from "./clock.ts"
  * refusal stays here as a message.
  */
 export function SettingsView() {
+  const [, navigate] = useLocation()
+  const home = homeList(taskLists.value)
   const busy = useSignal(false)
   const error = useSignal<string | null>(null)
   /** How many unsent changes the open question is about, or `null` when none is asked. */
@@ -26,6 +32,12 @@ export function SettingsView() {
   }
   return (
     <SettingsScreen
+      // Back returns to the page Settings was opened from; opened directly, it goes home.
+      backHref={home ? listPath(home) : "/"}
+      navigate={(href) => {
+        if (globalThis.history.length > 1) globalThis.history.back()
+        else navigate(href)
+      }}
       themeStore={themeStore}
       caldavUrl={caldavAccount.value?.url ?? null}
       caldavUsername={caldavAccount.value?.username ?? null}
