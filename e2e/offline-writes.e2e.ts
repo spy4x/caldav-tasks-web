@@ -12,6 +12,7 @@ import {
   seedTaskList,
 } from "./fixtures/radicale.ts"
 import { signIn, underWorker } from "./sign-in.ts"
+import { addTask, openTask } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -40,22 +41,23 @@ test("a task added, edited, completed and deleted offline reaches the server aft
 
   await context.setOffline(true)
 
-  await page.getByTestId(`quick-add-input`).fill(`Offline new`)
-  await page.getByTestId(`quick-add-submit`).click()
+  await addTask(page, `Offline new`)
   await expect(page.getByRole(`button`, { name: `Offline new`, exact: true })).toBeVisible()
 
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-title`).fill(`Seeded renamed`)
   await page.getByTestId(`task-save`).click()
   await expect(page.getByRole(`button`, { name: `Seeded renamed`, exact: true })).toBeVisible()
 
   await page.getByRole(`checkbox`, { name: /To complete/ }).click()
-  await expect(page.getByRole(`button`, { name: `To complete`, exact: true })).toHaveCount(0)
+  // A completed task moves to the Completed section.
+  await expect(
+    page.getByTestId(`completed-section`).getByRole(`button`, { name: `To complete`, exact: true }),
+  ).toBeVisible()
 
-  await page.getByRole(`button`, { name: `To delete`, exact: true }).click()
-  await page.getByRole(`button`, { name: `More actions` }).click()
-  await page.getByRole(`menuitem`, { name: `Delete` }).click()
-  await page.getByRole(`button`, { name: `Delete` }).last().click()
+  await openTask(page, `To delete`)
+  await page.getByTestId(`task-delete`).click()
+  await page.getByTestId(`task-delete-dialog`).getByRole(`button`, { name: `Delete` }).click()
   await expect(page.getByRole(`button`, { name: `To delete`, exact: true })).toHaveCount(0)
 
   await expect(waiting(page, 4)).toBeVisible()
@@ -81,7 +83,7 @@ test("a task added, edited, completed and deleted offline reaches the server aft
 test("a task changed on the server while offline offers Keep mine, which writes the offline edit over it", async ({ page, context }) => {
   await openList(page)
   await context.setOffline(true)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-title`).fill(`Mine`)
   await page.getByTestId(`task-save`).click()
   await expect(page.getByRole(`button`, { name: `Mine`, exact: true })).toBeVisible()
@@ -101,7 +103,7 @@ test("a task changed on the server while offline offers Keep mine, which writes 
 test("Keep mine after an offline notes edit leaves the title another device wrote and writes the notes", async ({ page, context }) => {
   await openList(page)
   await context.setOffline(true)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-notes`).fill(`My notes`)
   await page.getByTestId(`task-save`).click()
   await expect(waiting(page, 1)).toBeVisible()
@@ -121,7 +123,7 @@ test("Keep mine after an offline notes edit leaves the title another device wrot
 test("Keep mine when both changed the title writes the offline title and keeps the due date another device set", async ({ page, context }) => {
   await openList(page)
   await context.setOffline(true)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-title`).fill(`Mine`)
   await page.getByTestId(`task-save`).click()
   await expect(page.getByRole(`button`, { name: `Mine`, exact: true })).toBeVisible()
@@ -177,7 +179,7 @@ test("Keep mine that cannot complete the task as changed elsewhere says why, wri
 test("a task changed on the server while offline offers Use theirs, which drops the offline edit", async ({ page, context }) => {
   await openList(page)
   await context.setOffline(true)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-title`).fill(`Mine`)
   await page.getByTestId(`task-save`).click()
   await expect(page.getByRole(`button`, { name: `Mine`, exact: true })).toBeVisible()
@@ -197,7 +199,7 @@ test("a task changed on the server while offline offers Use theirs, which drops 
 test("a task deleted on the server while offline can only be discarded", async ({ page, context }) => {
   await openList(page)
   await context.setOffline(true)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-title`).fill(`Mine`)
   await page.getByTestId(`task-save`).click()
   await expect(page.getByRole(`button`, { name: `Mine`, exact: true })).toBeVisible()
@@ -216,8 +218,7 @@ test("a reload while offline keeps the queued writes, and they are sent when the
   await underWorker(page)
   await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
   await context.setOffline(true)
-  await page.getByTestId(`quick-add-input`).fill(`Kept offline`)
-  await page.getByTestId(`quick-add-submit`).click()
+  await addTask(page, `Kept offline`)
   await expect(page.getByRole(`button`, { name: `Kept offline`, exact: true })).toBeVisible()
 
   await page.reload()
@@ -243,9 +244,8 @@ test("a task with subtasks deleted offline takes them all, a reload keeps every 
   await expect(page.getByRole(`button`, { name: `Grandchild`, exact: true })).toBeVisible()
   await context.setOffline(true)
 
-  await page.getByRole(`button`, { name: `Parent`, exact: true }).click()
-  await page.getByRole(`button`, { name: `More actions` }).click()
-  await page.getByRole(`menuitem`, { name: `Delete` }).click()
+  await openTask(page, `Parent`)
+  await page.getByTestId(`task-delete`).click()
   const question = page.getByTestId(`task-delete-dialog`)
   await expect(question.getByRole(`heading`, { name: `Delete this task and its 2 subtasks?` }))
     .toBeVisible()
@@ -287,8 +287,7 @@ for (
   test(`a task added when ${name} and then deleted is gone from the server and the queue after reconnect, with no choice to make`, async ({ page, context }) => {
     await openList(page)
     await context.setOffline(true)
-    await page.getByTestId(`quick-add-input`).fill(`Short lived`)
-    await page.getByTestId(`quick-add-submit`).click()
+    await addTask(page, `Short lived`)
     await expect(page.getByRole(`button`, { name: `Short lived`, exact: true })).toBeVisible()
     await expect(waiting(page, 1)).toBeVisible()
 
@@ -308,10 +307,9 @@ for (
     await expect.poll(() => creates).toBeGreaterThan(0)
     if (arrives) await expect.poll(async () => await readList(list)).toContain(`Short lived`)
 
-    await page.getByRole(`button`, { name: `Short lived`, exact: true }).click()
-    await page.getByRole(`button`, { name: `More actions` }).click()
-    await page.getByRole(`menuitem`, { name: `Delete` }).click()
-    await page.getByRole(`button`, { name: `Delete` }).last().click()
+    await openTask(page, `Short lived`)
+    await page.getByTestId(`task-delete`).click()
+    await page.getByTestId(`task-delete-dialog`).getByRole(`button`, { name: `Delete` }).click()
     await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
     await expect(page.getByRole(`button`, { name: `Short lived`, exact: true })).toHaveCount(0)
     await expect(waiting(page, 1)).toBeVisible()
