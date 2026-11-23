@@ -29,7 +29,7 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= globalThis.innerWidth))
     .toBe(true)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
 
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(
     `RRULE:FREQ=WEEKLY;COUNT=10;INTERVAL=1;BYDAY=MO,TH`,

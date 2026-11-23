@@ -92,7 +92,7 @@ test("an edit keeps the reminder and the property this app does not know on the 
   await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-title`).fill(`Seeded errand edited`)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
 
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(
     `SUMMARY:Seeded errand edited`,
@@ -116,7 +116,7 @@ test("a weekly repeat and a reminder survive a reload, and removing them removes
   await page.getByRole(`button`, { name: `Add reminder` }).click()
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(2)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(
     `RRULE:FREQ=WEEKLY;INTERVAL=1`,
   )
@@ -133,7 +133,7 @@ test("a weekly repeat and a reminder survive a reload, and removing them removes
   await page.getByRole(`button`, { name: /^Remove reminder/ }).first().click()
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(0)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
   await expect.poll(async () => await readTask(list.taskUrl)).not.toContain(`RRULE`)
   const cleared = await readTask(list.taskUrl)
   expect(cleared).not.toContain(`VALARM`)
@@ -172,7 +172,7 @@ test("the sort and the tag filter of a list survive a reload", async ({ page }) 
   const titles = page.getByTestId(`task-tree`).getByRole(`button`)
   await expect(titles.first()).toBeVisible()
 
-  await page.getByTestId(`sort`).selectOption({ label: `Title` })
+  await page.getByTestId(`sort`).selectOption({ label: `By title` })
   await expect(page).toHaveURL(/sort=title/)
   await page.getByTestId(`tag-filter`).selectOption({ label: `#home` })
   await expect(page).toHaveURL(/tags=home/)
@@ -191,7 +191,7 @@ test("undoing a delete puts the task back on the server", async ({ page }) => {
   await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-delete`).click()
   await page.getByTestId(`task-delete-dialog`).getByRole(`button`, { name: `Delete` }).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
   await expect.poll(async () => await readList(list)).not.toContain(`SUMMARY:Seeded errand`)
 
   await page.getByRole(`button`, { name: `Undo` }).click()

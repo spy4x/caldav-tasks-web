@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test"
 import { deleteList, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
 import { pageTitle, signIn } from "./sign-in.ts"
-import { sidebarLink } from "./task-ui.ts"
+import { openTask, sidebarLink } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -14,7 +14,7 @@ test.afterEach(async () => await deleteList(list))
 /** Opens the seeded task in the editor and returns its title field. */
 async function openEditor(page: Page) {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Guarded errand`, exact: true }).click()
+  await openTask(page, `Guarded errand`)
   await expect(page).toHaveURL(/\/tasks\//)
   const title = page.getByTestId(`task-title`)
   await expect(title).toBeVisible()
@@ -71,8 +71,8 @@ for (
       title: `Upcoming`,
     },
     {
-      name: `/`,
-      go: (page) => page.keyboard.press(`/`),
+      name: `Control K`,
+      go: (page) => page.keyboard.press(`Control+k`),
       title: `Search`,
       field: `search-input`,
     },
