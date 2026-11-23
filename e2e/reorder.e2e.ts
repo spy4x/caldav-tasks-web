@@ -83,6 +83,6 @@ test("dragging a handle with the mouse moves the task below the next one", async
 test("a list in another sort order has no drag handles", async ({ page }) => {
   await openList(page)
   await expect(page.getByRole(`button`, { name: `Reorder First` })).toBeVisible()
-  await page.getByTestId(`sort`).selectOption({ label: `By title` })
+  await page.getByTestId(`sort`).selectOption({ label: `Title` })
   await expect(page.getByRole(`button`, { name: /^Reorder / })).toHaveCount(0)
 })

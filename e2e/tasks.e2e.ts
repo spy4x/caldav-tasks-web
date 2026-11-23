@@ -172,7 +172,7 @@ test("the sort and the tag filter of a list survive a reload", async ({ page }) 
   const titles = page.getByTestId(`task-tree`).getByRole(`button`)
   await expect(titles.first()).toBeVisible()
 
-  await page.getByTestId(`sort`).selectOption({ label: `By title` })
+  await page.getByTestId(`sort`).selectOption({ label: `Title` })
   await expect(page).toHaveURL(/sort=title/)
   await page.getByTestId(`tag-filter`).selectOption({ label: `#home` })
   await expect(page).toHaveURL(/tags=home/)
@@ -208,7 +208,7 @@ test("deleting a task with subtasks asks how many, removes them all from the ser
   await addSeededTask(list, `Parent`, [], parent)
   await addSeededTask(list, `Child`, [`RELATED-TO:${parent}`], child)
   await addSeededTask(list, `Grandchild`, [`RELATED-TO:${child}`])
-  // A completed subtask: the list shows it under its open parent, crossed out.
+  // A subtask completed weeks ago: the list's usual period (this week) leaves it out.
   const done = await addSeededTask(list, `Done child`, [`RELATED-TO:${parent}`])
   await editOnServer(
     done,
@@ -219,7 +219,7 @@ test("deleting a task with subtasks asks how many, removes them all from the ser
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
   await expect(page.getByRole(`button`, { name: `Grandchild`, exact: true })).toBeVisible()
-  await expect(page.getByRole(`button`, { name: `Done child`, exact: true })).toBeVisible()
+  await expect(page.getByRole(`button`, { name: `Done child`, exact: true })).toHaveCount(0)
 
   await openTask(page, `Parent`)
   await page.getByTestId(`task-delete`).click()

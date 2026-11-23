@@ -55,7 +55,7 @@ test("on a list in manual order the keys move through the rows, open one and com
   const first = page.getByRole(`button`, { name: `First`, exact: true })
   const second = page.getByRole(`button`, { name: `Second`, exact: true })
   await expect(first).toBeVisible()
-  await expect(page.getByTestId(`sort`).locator(`option:checked`)).toHaveText(`Manual order`)
+  await expect(page.getByTestId(`sort`).locator(`option:checked`)).toHaveText(`Manual`)
 
   await page.keyboard.press(`j`)
   await expect(first).toBeFocused()
