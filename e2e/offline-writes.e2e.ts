@@ -250,6 +250,8 @@ test("a task with subtasks deleted offline takes them all, a reload keeps every 
   await expect(question.getByRole(`heading`, { name: `Delete this task and its 2 subtasks?` }))
     .toBeVisible()
   await question.getByRole(`button`, { name: `Delete` }).click()
+  // The delete goes back to the list, a step later: wait for it, or the reload hits the old page.
+  await expect(page).not.toHaveURL(/\/tasks\//)
 
   for (const title of [`Parent`, `Child`, `Grandchild`]) {
     await expect(page.getByRole(`button`, { name: title, exact: true })).toHaveCount(0)
