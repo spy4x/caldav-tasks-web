@@ -148,7 +148,7 @@ export function focusOnArrival(field: () => HTMLElement | null | undefined): () 
     const el = field()
     if (!el || el.offsetParent === null) return
     if (!globalThis.matchMedia?.(`(min-width: 768px)`).matches) return
-    const active = document.activeElement
+    const active = el.ownerDocument.activeElement
     if (active?.closest(`input, textarea, select, [contenteditable="true"], dialog`)) return
     el.focus()
   })

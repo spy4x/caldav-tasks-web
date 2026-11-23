@@ -1,5 +1,5 @@
 import "./app.css"
-import { useCallback, useEffect } from "preact/hooks"
+import { useCallback, useEffect, useState } from "preact/hooks"
 import { Redirect, Route, Switch, useLocation, useSearch } from "wouter-preact"
 import { Notice } from "@spy4x/preact-ui/notice"
 import { signal } from "@preact/signals"
@@ -87,8 +87,18 @@ function Gate() {
   return <SignedInApp />
 }
 
+/** Where this browser remembers that the sidebar was hidden. */
+const SIDEBAR_HIDDEN = `sidebar-hidden`
+
 function SignedInApp() {
   const [location, navigate] = useLocation()
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_HIDDEN) === `1`
+    } catch {
+      return false
+    }
+  })
   useEffect(() => startSync(), [])
   // Here and not in Settings, so every page load saves this device's subscription again.
   useEffect(() => startPush(), [])
@@ -115,6 +125,15 @@ function SignedInApp() {
       currentPath={location}
       navigate={guarded}
       sidebar={<SidebarView currentPath={location} navigate={guarded} />}
+      sidebarHidden={sidebarHidden}
+      onSidebarHiddenChange={(hidden) => {
+        setSidebarHidden(hidden)
+        try {
+          localStorage.setItem(SIDEBAR_HIDDEN, hidden ? `1` : `0`)
+        } catch {
+          // Not remembered in a private window; it still toggles.
+        }
+      }}
       newTask={/^\/lists\/[^/]+$/.test(location)
         ? <SidebarView compact currentPath={location} navigate={guarded} />
         : undefined}

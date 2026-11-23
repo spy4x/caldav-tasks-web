@@ -1,5 +1,5 @@
 import type { JSX } from "preact"
-import { useEffect } from "preact/hooks"
+import { useEffect, useRef } from "preact/hooks"
 import { IconLens } from "@spy4x/preact-icons"
 import { Input } from "@spy4x/preact-ui/input"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
@@ -39,17 +39,19 @@ export function SearchScreen(props: SearchScreenProps): JSX.Element {
   const total = groups.reduce((sum, group) => sum + group.tasks.length, 0)
   const searching = props.query.trim() !== ``
   const { back, navigate } = props
+  const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!back) return
+    // The page this screen is on, reached through its own element: Escape anywhere goes back.
+    const page = box.current?.ownerDocument
+    if (!back || !navigate || !page) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== `Escape` || event.defaultPrevented) return
-      if (document.querySelector(`dialog[open], [role="dialog"]`)) return
+      if (page.querySelector(`dialog[open], [role="dialog"]`)) return
       event.preventDefault()
-      if (navigate) navigate(back)
-      else globalThis.location.assign(back)
+      navigate(back)
     }
-    document.addEventListener(`keydown`, onKeyDown)
-    return () => document.removeEventListener(`keydown`, onKeyDown)
+    page.addEventListener(`keydown`, onKeyDown)
+    return () => page.removeEventListener(`keydown`, onKeyDown)
   }, [back, navigate])
 
   return (
@@ -62,7 +64,7 @@ export function SearchScreen(props: SearchScreenProps): JSX.Element {
         />
       }
     >
-      <div class="flex flex-col gap-4">
+      <div ref={box} class="flex flex-col gap-4">
         <Input
           type="search"
           name="q"

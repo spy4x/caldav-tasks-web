@@ -76,44 +76,33 @@ export function AppLink(
   )
 }
 
-/** The `localStorage` key that remembers the sidebar was hidden. */
-const SIDEBAR_HIDDEN = `sidebar-hidden`
-
-function readHidden(): boolean {
-  try {
-    return localStorage.getItem(SIDEBAR_HIDDEN) === `1`
-  } catch {
-    return false
-  }
-}
-
 /**
  * The app's frame: the caller's `sidebar` on the left from `md` up, headed by the name and
  * Search, the page in `<main>`, and a tab bar of the five destinations on a phone. The sidebar
- can be hidden, and stays hidden on this browser; the frame then carries
+ can be hidden (the caller may remember it through `sidebarHidden`); the frame then carries
  `data-sidebar-hidden`, which a screen reads (`group-data-[sidebar-hidden]/frame:`) to show its
  own quick add.
  */
 export function AppFrame(
-  { currentPath, navigate, sidebar, newTask, children }: {
+  { currentPath, navigate, sidebar, newTask, sidebarHidden, onSidebarHiddenChange, children }: {
     currentPath?: string
     navigate?: (path: string) => void
     /** The desktop column: the new task form and the lists. Hidden on a phone. */
     sidebar?: ComponentChildren
     /** The New task field drawn atop the page while the sidebar is hidden. */
     newTask?: ComponentChildren
+    /** Whether the sidebar is hidden, when the caller keeps it; left out, the frame does. */
+    sidebarHidden?: boolean
+    onSidebarHiddenChange?: (hidden: boolean) => void
     children: ComponentChildren
   },
 ): JSX.Element {
   const current = navKey(currentPath)
-  const [hidden, setHidden] = useState(readHidden)
+  const [ownHidden, setOwnHidden] = useState(false)
+  const hidden = sidebarHidden ?? ownHidden
   const toggle = (next: boolean) => {
-    setHidden(next)
-    try {
-      localStorage.setItem(SIDEBAR_HIDDEN, next ? `1` : `0`)
-    } catch {
-      // Not remembered in a private window; it still toggles.
-    }
+    setOwnHidden(next)
+    onSidebarHiddenChange?.(next)
     toggled.current = true
   }
   // The button pressed goes away; keep the keyboard on the one that replaces it.
