@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 import { deleteList, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
 import { pageTitle, signIn } from "./sign-in.ts"
+import { openTask } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -19,7 +20,7 @@ test("opening a task and saving it each name the new page in the tab title and p
   const listName = `E2E ${slug}`
   await expect(page).toHaveTitle(`${listName} · Tasks`)
 
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await expect(page).toHaveURL(/\/tasks\//)
   await expect(page).toHaveTitle(`Seeded errand · Tasks`)
   await expect(pageTitle(page)).toHaveText(`Edit task`)
@@ -35,7 +36,7 @@ test("opening a task and saving it each name the new page in the tab title and p
 
 test("a middle click on a sidebar entry opens its page in a new tab", async ({ page, context }) => {
   await signIn(page)
-  const nav = page.getByRole(`navigation`, { name: `Main navigation` })
+  const nav = page.getByTestId(`sidebar`)
   const opened = context.waitForEvent(`page`)
   await nav.getByRole(`link`, { name: `Upcoming` }).click({ button: `middle` })
   const tab = await opened

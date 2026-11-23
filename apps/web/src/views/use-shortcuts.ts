@@ -4,8 +4,15 @@ import { completeFocusedRow, editFocusedRow, moveRowFocus } from "@ui/task-focus
 import { leaveGuard } from "../leave-guard.ts"
 import { createShortcutMatcher, ShortcutId, shortcutsOpen } from "../shortcuts.ts"
 
-const QUICK_ADD = `[data-e2e="quick-add-input"]`
+/** Today's phone field or, on a desktop, the sidebar's (or the one atop the page). */
+const NEW_TASK = `[data-e2e="quick-add-input"], [data-e2e="new-task-title"]`
 const SEARCH = `[data-e2e="search-input"]`
+
+/** The first match that is on screen, or the first match: one of the fields is hidden by size. */
+function shown(selector: string): HTMLElement | undefined {
+  const all = [...document.querySelectorAll<HTMLElement>(selector)]
+  return all.find((el) => el.offsetParent !== null) ?? all[0]
+}
 
 /** Stops the watcher `focusWhenThere` left waiting, if there is one. */
 let stopWaiting = () => {}
@@ -20,10 +27,10 @@ let stopWaiting = () => {}
  */
 function focusWhenThere(selector: string, pressedOn = document.activeElement): void {
   stopWaiting()
-  const now = document.querySelector<HTMLElement>(selector)
+  const now = shown(selector)
   if (now) return now.focus()
   const watcher = new (document.defaultView?.MutationObserver ?? MutationObserver)(() => {
-    const field = document.querySelector<HTMLElement>(selector)
+    const field = shown(selector)
     if (!field) return
     stopWaiting()
     const active = document.activeElement
@@ -74,12 +81,12 @@ export function useShortcuts(navigate: (to: string) => void): void {
       if (event.repeat && id !== ShortcutId.NextTask && id !== ShortcutId.PreviousTask) return
       switch (id) {
         case ShortcutId.NewTask:
-          if (document.querySelector(QUICK_ADD)) focusWhenThere(QUICK_ADD)
+          if (document.querySelector(NEW_TASK)) focusWhenThere(NEW_TASK)
           else {
             const pressedOn = document.activeElement
             leaveGuard.navigate(() => {
               navigate(PATHS.today)
-              focusWhenThere(QUICK_ADD, pressedOn)
+              focusWhenThere(NEW_TASK, pressedOn)
             })
           }
           break

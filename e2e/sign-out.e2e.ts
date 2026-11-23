@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test"
 import { deleteList, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
 import { signIn } from "./sign-in.ts"
+import { addTask } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -65,8 +66,7 @@ test(`signing out with a change that was not sent asks first, and a yes removes 
     `**/api/caldav/objects`,
     (route) => route.request().method() === `POST` ? route.abort() : route.continue(),
   )
-  await page.getByTestId(`quick-add-input`).fill(`Not sent yet`)
-  await page.getByTestId(`quick-add-submit`).click()
+  await addTask(page, `Not sent yet`)
   await expect(page.getByRole(`button`, { name: `Not sent yet`, exact: true })).toBeVisible()
   await expect.poll(() => stored(page)).toContain(`Not sent yet`)
 

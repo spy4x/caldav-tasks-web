@@ -3,6 +3,9 @@ import {
   createHotkeyMatcher,
   type HotkeyBinding,
   type HotkeySequenceEvent,
+  isApplePlatform,
+  matchesHotkey,
+  parseHotkey,
 } from "@spy4x/platform/browser/hotkeys"
 import type { Shortcut } from "@spy4x/preact-ui/shortcuts-dialog"
 
@@ -52,7 +55,8 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
     group: `Tasks`,
     keys: [[`e`], [`enter`]],
   },
-  { id: ShortcutId.Search, description: `Search`, group: `Go to`, keys: [[`/`]] },
+  // Not `/`: Firefox opens its own Find bar on it. Control (Command) K also works in a field.
+  { id: ShortcutId.Search, description: `Search`, group: `Go to`, keys: [[`mod+k`]] },
   { id: ShortcutId.GoToday, description: `Go to Today`, group: `Go to`, keys: [[`g`, `t`]] },
   { id: ShortcutId.GoUpcoming, description: `Go to Upcoming`, group: `Go to`, keys: [[`g`, `u`]] },
   { id: ShortcutId.GoLists, description: `Go to Lists`, group: `Go to`, keys: [[`g`, `l`]] },
@@ -124,7 +128,7 @@ export type ShortcutPress = HotkeySequenceEvent
  * While `enabled` answers `false` (the switch in Settings is off), a key that types a character
  * does nothing: a letter, `/` or `?`, alone or as part of a sequence. That is what a resting hand
  * or dictation sends. Enter is not such a key and still opens the task whose check has the focus.
- * The table has no shortcut with Control, Alt or Meta, and the keys a dialog or a menu handles
+ * Search's Control K (Command K on a Mac) has a modifier, so it is no such key. The keys a dialog or a menu handles
  * itself (Escape, the arrows, Enter) never pass through here.
  */
 export function createShortcutMatcher(
@@ -133,12 +137,20 @@ export function createShortcutMatcher(
   const bindings: HotkeyBinding<ShortcutId>[] = SHORTCUTS.flatMap((def) =>
     def.keys.map((keys) => ({ id: def.id, keys }))
   )
-  return createHotkeyMatcher(bindings, {
+  const apple = isApplePlatform()
+  const inModal = (press: ShortcutPress) =>
+    (press.target as Element | null)?.closest?.(MODAL) != null
+  const matcher = createHotkeyMatcher(bindings, {
     timeoutMs: SEQUENCE_TIMEOUT_MS,
-    ignore: (press) =>
-      (press.target as Element | null)?.closest?.(MODAL) != null ||
-      (press.key.length === 1 && !enabled()),
+    apple,
+    ignore: (press) => inModal(press) || (press.key.length === 1 && !enabled()),
   })
+  const search = parseHotkey(`mod+k`)
+  return (press) => {
+    // Search's chord types nothing, so unlike the single keys it also works from a text field.
+    if (matchesHotkey(search, press, apple) && !inModal(press)) return ShortcutId.Search
+    return matcher(press)
+  }
 }
 
 /**
@@ -148,8 +160,13 @@ export function createShortcutMatcher(
  */
 export function listShortcuts(): Shortcut[] {
   return SHORTCUTS.map(({ description, group, keys }) => ({
-    keys: keys[0].join(` `),
+    keys: keys[0].map((key) => key === `mod+k` ? searchKeyLabel() : key).join(` `),
     description,
     group,
   }))
+}
+
+/** How Search's shortcut is written for this device: `⌘K` on a Mac, `Ctrl+K` elsewhere. */
+export function searchKeyLabel(): string {
+  return isApplePlatform() ? `⌘K` : `Ctrl+K`
 }

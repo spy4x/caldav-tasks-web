@@ -1,14 +1,15 @@
 import "./app.css"
-import { useCallback, useEffect } from "preact/hooks"
+import { useCallback, useEffect, useState } from "preact/hooks"
 import { Redirect, Route, Switch, useLocation, useSearch } from "wouter-preact"
 import { Notice } from "@spy4x/preact-ui/notice"
-import { Toastr } from "@spy4x/preact-ui/toastr"
+import { signal } from "@preact/signals"
+import { type ToastId, Toastr } from "@spy4x/preact-ui/toastr"
 import { useRouteAnnouncer } from "@spy4x/preact-system/route-announcer"
 import { AppFrame } from "@ui/frame.tsx"
 import { APP_TITLE, pageTitle } from "./page-title.ts"
 import { gateRedirect, ROUTES } from "./routes.ts"
 import { loadSession, SessionStatus, sessionStatus } from "./state/session.ts"
-import { listShortcuts, shortcutsOpen } from "./shortcuts.ts"
+import { listShortcuts, searchKeyLabel, shortcutsOpen } from "./shortcuts.ts"
 import { ShortcutsDialog } from "@spy4x/preact-ui/shortcuts-dialog"
 import { leaveGuard } from "./leave-guard.ts"
 import { useShortcuts } from "./views/use-shortcuts.ts"
@@ -25,12 +26,13 @@ import { ListsView } from "./views/ListsView.tsx"
 import { ListView } from "./views/ListView.tsx"
 import { ListSettingsView } from "./views/ListSettingsView.tsx"
 import { NotFoundView } from "./views/NotFoundView.tsx"
-import { SearchView } from "./views/SearchView.tsx"
+import { rememberPage, SearchView } from "./views/SearchView.tsx"
 import { SettingsView } from "./views/SettingsView.tsx"
 import { SignInAgainView } from "./views/SignInAgainView.tsx"
 import { SignInView } from "./views/SignInView.tsx"
-import { TaskEditorView } from "./views/TaskEditorView.tsx"
+import { rememberPageBeforeTask, TaskEditorView } from "./views/TaskEditorView.tsx"
 import { TodayView } from "./views/TodayView.tsx"
+import { SidebarView } from "./views/SidebarView.tsx"
 import { UpcomingView } from "./views/UpcomingView.tsx"
 
 const SHORTCUT_ROWS = listShortcuts()
@@ -39,12 +41,36 @@ const SHORTCUT_ROWS = listShortcuts()
  * The app: every address behind the sign-in gate. A signed-out visit to any page goes to Sign in
  * and, once signed in, back to where the person was going.
  */
+/** Toasts fading out: still drawn for {@link TOAST_EXIT_MS} so they leave softly, not at once. */
+const leaving = signal<ReadonlySet<ToastId>>(new Set())
+const TOAST_EXIT_MS = 200
+
+function dismissSoftly(id: ToastId): void {
+  if (leaving.value.has(id)) return
+  leaving.value = new Set(leaving.value).add(id)
+  setTimeout(() => {
+    toasts.remove(id)
+    const rest = new Set(leaving.value)
+    rest.delete(id)
+    leaving.value = rest
+  }, TOAST_EXIT_MS)
+}
+
 export function App() {
   useEffect(() => void loadSession(), [])
   return (
     <>
       <Gate />
-      <Toastr toasts={toasts.list.value} onDismiss={toasts.remove} />
+      <Toastr
+        toasts={toasts.list.value.map((toast) => ({
+          ...toast,
+          duration: toast.duration ?? (toast.action ? 6000 : 3000),
+          ...(leaving.value.has(toast.id) ? { dataE2E: `toast-leaving` } : {}),
+        }))}
+        onDismiss={dismissSoftly}
+        corner="bottom-right"
+        class="app-toasts"
+      />
     </>
   )
 }
@@ -61,8 +87,18 @@ function Gate() {
   return <SignedInApp />
 }
 
+/** Where this browser remembers that the sidebar was hidden. */
+const SIDEBAR_HIDDEN = `sidebar-hidden`
+
 function SignedInApp() {
   const [location, navigate] = useLocation()
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_HIDDEN) === `1`
+    } catch {
+      return false
+    }
+  })
   useEffect(() => startSync(), [])
   // Here and not in Settings, so every page load saves this device's subscription again.
   useEffect(() => startPush(), [])
@@ -70,9 +106,14 @@ function SignedInApp() {
   useEffect(() => () => void (document.title = APP_TITLE), [])
   const guarded = useCallback((to: string) => leaveGuard.navigate(() => navigate(to)), [navigate])
   useShortcuts(navigate)
+  useEffect(() => {
+    const page = `${location}${globalThis.location.search}`
+    rememberPage(page)
+    rememberPageBeforeTask(page)
+  }, [location])
   useRouteAnnouncer({
     path: location,
-    // `/` opens Search with the cursor in its field and `n` opens Today with it in the quick add:
+    // Control K opens Search with the cursor in its field and `n` opens Today with it in the quick add:
     // a page that focused its own control keeps it.
     keepPageFocus: true,
     // The address as the browser holds it: the router's own is half decoded, which loses a task
@@ -84,7 +125,25 @@ function SignedInApp() {
     }),
   })
   return (
-    <AppFrame currentPath={location} navigate={guarded}>
+    <AppFrame
+      currentPath={location}
+      navigate={guarded}
+      searchKey={searchKeyLabel()}
+      sidebarHidden={sidebarHidden}
+      onSidebarHiddenChange={(hidden) => {
+        setSidebarHidden(hidden)
+        try {
+          localStorage.setItem(SIDEBAR_HIDDEN, hidden ? `1` : `0`)
+        } catch {
+          // Not remembered in a private window; it still toggles.
+        }
+      }}
+      sidebar={<SidebarView currentPath={location} navigate={guarded} />}
+      newTask={/^\/lists\/[^/]+$/.test(location) || location === ROUTES.today ||
+          location === ROUTES.upcoming
+        ? <SidebarView compact currentPath={location} navigate={guarded} />
+        : undefined}
+    >
       {notice.value && (
         <div class="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
           <Notice tone="warning">{notice.value}</Notice>

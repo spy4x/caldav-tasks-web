@@ -32,8 +32,8 @@ Deno.test("marks only the current destination with aria-current", () => {
       <PlaceholderPage title="Lists" />
     </AppFrame>,
   )
-  // The rail and the tab bar each draw the current entry once.
-  expect(html.match(/aria-current="page"/g)).toHaveLength(2)
+  // The tab bar draws the current entry once; the sidebar is the caller's.
+  expect(html.match(/aria-current="page"/g)).toHaveLength(1)
 })
 
 Deno.test("maps a path to its destination, a sub-path to its parent and a stranger to none", () => {
@@ -63,8 +63,8 @@ Deno.test("every destination is a link to its page; a plain click goes to naviga
         root as unknown as HTMLElement,
       )
     )
-    const rail = root.querySelector(`[data-e2e="rail-shell-rail"]`)!
-    const entries = [...rail.querySelectorAll(`[data-e2e="rail-shell-entry"]`)]
+    const bar = root.querySelector(`[data-e2e="tab-bar"]`)!
+    const entries = [...bar.querySelectorAll(`[data-e2e="tab"]`)]
     expect(entries.map((entry) => `${entry.tagName} ${entry.getAttribute("href")}`)).toEqual(
       NAV_ITEMS.map((item) => `A ${item.path}`),
     )
@@ -90,6 +90,36 @@ Deno.test("every destination is a link to its page; a plain click goes to naviga
     Object.assign(globalThis, { document: own })
     if (ownLocation) Object.defineProperty(globalThis, "location", ownLocation)
     else Reflect.deleteProperty(globalThis, "location")
+    await window.happyDOM.close()
+  }
+})
+
+Deno.test("the sidebar hides and comes back, and the frame says so for the screens", async () => {
+  const window = new Window({ url: "http://app.localhost/" })
+  const own = globalThis.document
+  Object.assign(globalThis, { document: window.document })
+  const root = window.document.createElement("div")
+  window.document.body.append(root)
+  try {
+    await act(() => render(<AppFrame sidebar={<p>Lists</p>}>page</AppFrame>, root as never))
+    const frame = () => root.firstElementChild!
+    const aside = () => root.querySelector(`[data-e2e="sidebar"]`)
+    expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(false)
+    expect(aside()).not.toBeNull()
+    await act(() =>
+      (root.querySelector(`[data-e2e="sidebar-hide"]`) as unknown as HTMLElement).click()
+    )
+    expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(true)
+    expect(aside()).toBeNull()
+    expect(root.querySelector(`[data-e2e="sidebar-rail"]`)).not.toBeNull()
+    await act(() =>
+      (root.querySelector(`[data-e2e="sidebar-show"]`) as unknown as HTMLElement).click()
+    )
+    expect(frame().hasAttribute(`data-sidebar-hidden`)).toBe(false)
+    expect(root.querySelector(`[data-e2e="sidebar-show"]`)).toBeNull()
+  } finally {
+    render(null, root as never)
+    Object.assign(globalThis, { document: own })
     await window.happyDOM.close()
   }
 })

@@ -7,8 +7,17 @@ import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { tasks } from "../state/tasks.ts"
 import { taskPath } from "../routes.ts"
+import { PATHS } from "@ui/frame.tsx"
 import { browserZone } from "./clock.ts"
 import { completeWithUndo } from "./task-actions.ts"
+
+/** The page open before Search, where its Back arrow and Escape return. Today at first. */
+let pageBefore: string = PATHS.today
+
+/** Notes the page on screen, unless it is Search itself. */
+export function rememberPage(path: string): void {
+  if (!path.startsWith(PATHS.search)) pageBefore = path
+}
 
 /** Search, wired. The query lives in the address (`?q=`), so a reload keeps the search. */
 export function SearchView() {
@@ -29,6 +38,8 @@ export function SearchView() {
       autoFocus={globalThis.matchMedia?.(`(min-width: 768px)`).matches ?? false}
       onComplete={(task, done) => void completeWithUndo(task, done)}
       onOpen={(task) => navigate(taskPath(task))}
+      back={pageBefore}
+      navigate={navigate}
     />
   )
 }

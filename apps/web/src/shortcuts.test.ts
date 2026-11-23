@@ -4,6 +4,7 @@ import {
   createShortcutMatcher,
   listShortcuts,
   loadShortcutsPreference,
+  searchKeyLabel,
   SEQUENCE_TIMEOUT_MS,
   setShortcutsEnabled,
   ShortcutId,
@@ -44,9 +45,8 @@ function run(keys: string[], gap = 100) {
 const input = { tagName: `INPUT`, type: `text`, isContentEditable: false }
 
 Deno.test("each single-key shortcut fires its action", () => {
-  expect(run([`n`, `/`, `j`, `k`, `x`, `e`, `enter`, `?`])).toEqual([
+  expect(run([`n`, `j`, `k`, `x`, `e`, `enter`, `?`])).toEqual([
     ShortcutId.NewTask,
-    ShortcutId.Search,
     ShortcutId.NextTask,
     ShortcutId.PreviousTask,
     ShortcutId.CompleteTask,
@@ -150,12 +150,15 @@ Deno.test("each dialog row shows exactly the keys that trigger its shortcut", ()
     clock = 1000
     const fired = rows[at].keys.split(` `).map((key) => {
       clock += 100
+      if (key === searchKeyLabel()) return match(press(`k`, { ctrlKey: true }))
       return match(press(key === `enter` ? `Enter` : key))
     })
     expect(fired.at(-1)).toBe(def.id)
     expect(fired.slice(0, -1).every((id) => id === undefined)).toBe(true)
     // It is the first way of the table, the one the description does not already name.
-    expect(rows[at].keys).toBe(def.keys[0].join(` `))
+    expect(rows[at].keys).toBe(
+      def.keys[0].map((key) => key === `mod+k` ? searchKeyLabel() : key).join(` `),
+    )
   })
 })
 
@@ -171,7 +174,7 @@ function runOff(keys: string[]) {
 
 Deno.test("with the switch off no key that types a character fires, alone or in a sequence", () => {
   const keys = SHORTCUTS.flatMap((def) => def.keys.flat()).filter((key) => key.length === 1)
-  expect(keys).toEqual([`n`, `j`, `k`, `x`, `e`, `/`, `g`, `t`, `g`, `u`, `g`, `l`, `?`])
+  expect(keys).toEqual([`n`, `j`, `k`, `x`, `e`, `g`, `t`, `g`, `u`, `g`, `l`, `?`])
   expect(runOff(keys)).toEqual(keys.map(() => undefined))
 })
 
@@ -246,4 +249,16 @@ Deno.test("a device whose storage is blocked keeps shortcuts on and the switch s
   setShortcutsEnabled(false, blocked)
   expect(shortcutsEnabled.value).toBe(false)
   shortcutsEnabled.value = true
+})
+
+Deno.test("Control K opens Search, from a text field too; a plain / no longer does", () => {
+  const match = createShortcutMatcher()
+  clock = 1000
+  expect(match(press(`k`, { ctrlKey: true }))).toBe(ShortcutId.Search)
+  clock += 100
+  expect(match(press(`k`, { ctrlKey: true, target: input as unknown as Element }))).toBe(
+    ShortcutId.Search,
+  )
+  clock += 100
+  expect(match(press(`/`))).toBeUndefined()
 })
