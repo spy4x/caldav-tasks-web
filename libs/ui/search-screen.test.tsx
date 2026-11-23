@@ -97,3 +97,19 @@ Deno.test("completing a result reports the task and the state the check asks for
     },
   )
 })
+
+Deno.test("the arrow and Escape go back to the page before Search", async () => {
+  const went: string[] = []
+  await mount(
+    <SearchScreen {...props({ back: `/lists/daily`, navigate: (to) => went.push(to) })} />,
+    async ({ root, window, act }) => {
+      expect(must(root, `[data-e2e="page-back"]`).getAttribute(`href`)).toBe(`/lists/daily`)
+      await act(() => {
+        must(root, `[data-e2e="search-input"]`).dispatchEvent(
+          new window.KeyboardEvent(`keydown`, { key: `Escape`, bubbles: true }) as never,
+        )
+      })
+      expect(went).toEqual([`/lists/daily`])
+    },
+  )
+})

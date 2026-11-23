@@ -14,39 +14,42 @@
  * colour the app draws comes from a token below; never a raw Tailwind palette colour.
  */
 @theme {
-  --color-ink: #f7f2e8; /* page background */
-  --color-desk: #efe8d9; /* rail, bar */
-  --color-paper: #fffdf8; /* cards, inputs */
-  --color-lamp: #e9e2d1; /* hover, active nav item */
-  --color-rule: #ddd4c1; /* hairlines */
-  --color-rule-strong: #7d7568; /* control borders */
-  --color-parchment: #1d1914; /* primary text */
-  --color-graphite: #5a5348; /* secondary text */
-  --color-accent: #f97316; /* the one filled action; ink text on it */
-  --color-accent-text: #a7470a; /* the accent as text on the page */
-  --color-sage: #1e7a3c; /* done */
+  --color-ink: #f6f7f9; /* page background */
+  --color-desk: #ffffff; /* top bar, sidebar */
+  --color-paper: #ffffff; /* cards, inputs */
+  --color-lamp: #edf3fe; /* hover, the current list */
+  --color-rule: #e5e7eb; /* hairlines */
+  --color-rule-strong: #c4c9d1; /* control borders */
+  --color-parchment: #1f2328; /* primary text */
+  --color-graphite: #6b7280; /* secondary text */
+  --color-accent: #1a6ff0; /* the one filled action; white text on it */
+  --color-accent-text: #1a5fd0; /* the accent as text on the page */
+  --color-amber: #d9730d; /* due today, medium priority */
+  --color-chip: #f0f1f3; /* counts and tags */
+  --color-sage: #2f9e5b; /* done */
   --color-mist: #1c6aa0; /* info */
-  --color-brick: #b3261e; /* overdue and errors */
+  --color-brick: #d0342c; /* overdue and errors */
 
-  --font-heading: "Literata", "Literata Fallback", serif;
-  --font-sans: "IBM Plex Sans", "IBM Plex Sans Fallback", sans-serif;
-  /* Plex Sans ships 400 and 600 only, so `font-medium` draws 600 instead of falling back to 400. */
-  --font-weight-medium: 600;
+  /* Work Sans has no Cyrillic: a Cyrillic heading falls through to Inter. */
+  --font-heading: "Work Sans", "Inter", "Inter Fallback", sans-serif;
+  --font-sans: "Inter", "Inter Fallback", sans-serif;
 }
 
 .dark {
-  --color-ink: #15120f;
-  --color-desk: #1c1916;
-  --color-paper: #25211d;
-  --color-lamp: #2f2a26;
-  --color-rule: #413c38;
-  --color-rule-strong: #857f79;
-  --color-parchment: #efebe2;
-  --color-graphite: #bcb7af;
-  --color-accent-text: #f97316;
-  --color-sage: #83d494;
+  --color-ink: #111315;
+  --color-desk: #17191c;
+  --color-paper: #1c1f23;
+  --color-lamp: #1f2a3d;
+  --color-rule: #2b2f35;
+  --color-rule-strong: #4b525c;
+  --color-parchment: #e8eaed;
+  --color-graphite: #9aa0a8;
+  --color-accent-text: #8ab4f8;
+  --color-amber: #f5a54a;
+  --color-chip: #2a2e34;
+  --color-sage: #6fcf97;
   --color-mist: #8ec5ec;
-  --color-brick: #f87e77;
+  --color-brick: #f28b82;
 }
 
 /*
@@ -63,14 +66,16 @@
   --color-placeholder: var(--color-graphite);
 
   --color-success: var(--color-sage);
-  --color-warning: var(--color-accent-text);
+  --color-warning: var(--color-amber);
   --color-danger: var(--color-brick);
   --color-info: var(--color-mist);
 
   /* The accent fills the one primary action. preact-theme derives its shades (600 to 900 and the
      hover step) from --color-accent. */
-  --color-accent-foreground: #15120f;
-  --color-ring: var(--color-parchment);
+  --color-accent-foreground: #ffffff;
+  --color-ring: var(--color-accent);
+  /* The library's fields (quick add, search) light up in the accent too, not the preset's colour. */
+  --color-focus-ring: var(--color-accent);
 
   /* What is chosen or current. Lamp and parchment, because the accent stays for the primary action. */
   --color-selected: var(--color-parchment);
@@ -104,87 +109,301 @@ input[type="checkbox"] {
   accent-color: var(--color-sage);
 }
 
-/* Page titles are the one place the serif is used. */
-header[data-e2e="page-header"] h1 {
-  font-family: var(--font-heading);
+/*
+ * A list in manual order draws through the library's SortableList, which boxes every row and
+ * shows its handle. Here the rows sit in the list's card like any other, and the handle shows on
+ * the right when the pointer is over the row (always, on a touch screen).
+ */
+/*
+ * Notifications: a quiet card in the corner instead of the library's solid fill. The kind shows
+ * only in the icon's colour, and the action (Undo) is a blue text button on the same line.
+ */
+/* A toast rises and fades in, and fades and sinks out (see dismissSoftly in app.tsx). */
+@media (prefers-reduced-motion: no-preference) {
+  .app-toasts > * {
+    transition: opacity 0.2s ease-out, translate 0.2s ease-out;
+  }
+  @starting-style {
+    .app-toasts > * {
+      opacity: 0;
+      translate: 0 0.5rem;
+    }
+  }
+}
+.app-toasts > [data-e2e="toast-leaving"] {
+  opacity: 0;
+  translate: 0 0.5rem;
+  pointer-events: none;
+}
+/* Drag: the lifted row, the row it would go under, and indents that slide. */
+.task-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+.task-dragging [data-e2e="task-row"] {
+  transition: padding-inline-start 0.16s ease-out;
+}
+.task-lifted {
+  z-index: 20;
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+}
+.task-drop-target {
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.task-handle {
+  margin-inline-start: -0.5rem;
+}
+.app-toasts > :not(:last-child) {
+  margin-block-end: 0.5rem;
+}
+.app-toasts > [role="status"],
+.app-toasts > [role="alert"] {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  padding: 0.625rem 0.75rem 0.625rem 1rem;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.08), 0 1px 3px rgb(15 23 42 / 0.06);
+}
+.app-toasts .min-w-0 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.75rem;
+}
+.app-toasts .min-w-0 > button {
+  margin: 0;
+  padding-block: 0;
+  color: var(--color-accent-text);
   font-weight: 600;
+  text-decoration: none;
+}
+.app-toasts .min-w-0 > button:hover {
+  text-decoration: underline;
+}
+@media (min-width: 640px) {
+  .app-toasts .min-w-0 > button {
+    min-height: 0;
+    min-width: 0;
+  }
+}
+.app-toasts [aria-label="Dismiss"] {
+  color: var(--color-muted-foreground);
+}
+.app-toasts [aria-label="Dismiss"]:hover {
+  color: var(--color-foreground);
+}
+.app-toasts svg.size-5 {
+  width: 1rem;
+  height: 1rem;
+  align-self: center;
+}
+.app-toasts .bg-success svg.size-5 {
+  color: var(--color-sage);
+}
+.app-toasts .bg-danger-fill svg.size-5 {
+  color: var(--color-brick);
+}
+.app-toasts .bg-warning svg.size-5 {
+  color: var(--color-amber);
+}
+.app-toasts .bg-blue-700 svg.size-5 {
+  color: var(--color-accent);
+}
+/* On a phone the stack sits above the tab bar. */
+@media (max-width: 767px) {
+  .app-toasts {
+    bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /*
- * Self-hosted type, so the app looks right offline: IBM Plex Sans (400, 600) and Literata (600, page
- * titles only), Latin and Cyrillic. The files are OFL; their licences sit beside them in fonts/. The
- * build hashes them into /assets/, which the service worker answers cache-first, so a second visit
- * needs no network. `font-display: swap` plus the size-adjusted fallbacks below keep the swap from
- * moving the layout.
+ * The edit page's library fields (start date, tags, repeat, reminders, new subtask) at the main
+ * screen's size: 36 px controls, 14 px text, 13 px labels.
+ */
+.task-editor :is(.pc-input, .pc-select) {
+  height: 2.25rem;
+  min-height: 2.25rem;
+  padding-block: 0;
+  border-radius: 0.5rem;
+  border-color: var(--color-border-subtle);
+  font-size: 0.875rem;
+}
+.task-editor .pc-textarea {
+  border-radius: 0.5rem;
+  border-color: var(--color-border-subtle);
+  font-size: 0.875rem;
+}
+.task-editor :is(.pc-label, legend) {
+  font-size: 13px;
+  font-weight: 500;
+}
+.task-editor div:has(> #task-tags) {
+  min-height: 2.25rem;
+  padding-block: 0.125rem;
+  border-radius: 0.5rem;
+  border-color: var(--color-border-subtle);
+  font-size: 0.875rem;
+}
+.task-editor [data-e2e="task-subtask"] {
+  font-size: 0.875rem;
+  line-height: 1.75rem;
+}
+
+/* A row's Edit button shows on hover or keyboard focus (always, on a touch screen). */
+@media (hover: hover) {
+  .row-edit {
+    opacity: 0;
+  }
+  [data-e2e="task-row"]:hover .row-edit,
+  .row-edit:focus-within {
+    opacity: 1;
+  }
+}
+
+/* A done task's check: a pale green circle with a green tick. */
+[data-e2e="task-check"]:checked {
+  border-color: transparent;
+  background-color: color-mix(in oklab, var(--color-sage) 16%, var(--color-surface));
+}
+[data-e2e="task-check"]:checked::after {
+  border-color: var(--color-sage);
+}
+@media (hover: hover) {
+  .task-handle {
+    opacity: 0;
+  }
+  [data-e2e="task-row"]:hover .task-handle,
+  .task-handle:focus-visible,
+  .task-handle[aria-pressed="true"] {
+    opacity: 1;
+  }
+}
+
+/*
+ * Self-hosted type, so the app looks right offline: Inter (400 to 700, Latin and Cyrillic) for
+ * text and Work Sans (500 to 700, Latin) for headings.
+ * The files are OFL; their licences sit beside them in fonts/. The build hashes them into /assets/,
+ * which the service worker answers cache-first, so a second visit needs no network.
+ * `font-display: swap` plus the size-adjusted fallback below keep the swap from moving the layout.
  */
 @font-face {
-  font-family: "IBM Plex Sans";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("./fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+  src: url("./fonts/inter-latin-400-normal.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "IBM Plex Sans";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("./fonts/ibm-plex-sans-cyrillic-400-normal.woff2") format("woff2");
+  src: url("./fonts/inter-cyrillic-400-normal.woff2") format("woff2");
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
 }
 @font-face {
-  font-family: "IBM Plex Sans";
+  font-family: "Inter";
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   font-display: swap;
-  src: url("./fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+  src: url("./fonts/inter-latin-500-normal.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "IBM Plex Sans";
+  font-family: "Inter";
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   font-display: swap;
-  src: url("./fonts/ibm-plex-sans-cyrillic-600-normal.woff2") format("woff2");
+  src: url("./fonts/inter-cyrillic-500-normal.woff2") format("woff2");
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
 }
 @font-face {
-  font-family: "Literata";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("./fonts/literata-latin-600-normal.woff2") format("woff2");
+  src: url("./fonts/inter-latin-600-normal.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "Literata";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("./fonts/literata-cyrillic-600-normal.woff2") format("woff2");
+  src: url("./fonts/inter-cyrillic-600-normal.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/inter-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/inter-cyrillic-700-normal.woff2") format("woff2");
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
 }
 
+/* Headings: Work Sans (OFL), Latin only, 500 to 700. */
 @font-face {
-  font-family: "Literata Fallback";
-  src: local("Georgia"), local("Times New Roman"), local("DejaVu Serif"), local("Liberation Serif"),
-    local("Noto Serif");
-  size-adjust: 112.16%;
-  ascent-override: 104.94%;
-  descent-override: 27.46%;
-  line-gap-override: 0%;
+  font-family: "Work Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/work-sans-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Work Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/work-sans-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Work Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/work-sans-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Headings are set in Work Sans; everything else in Inter. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+
+/* Arial scaled to Inter's average width, with Inter's ascent and descent (capsize metrics). */
 @font-face {
-  font-family: "IBM Plex Sans Fallback";
+  font-family: "Inter Fallback";
   src: local("Arial"), local("Helvetica"), local("Liberation Sans"), local("DejaVu Sans"),
     local("Noto Sans");
-  size-adjust: 101.17%;
-  ascent-override: 101.32%;
-  descent-override: 27.18%;
+  size-adjust: 107.12%;
+  ascent-override: 90.44%;
+  descent-override: 22.52%;
   line-gap-override: 0%;
 }

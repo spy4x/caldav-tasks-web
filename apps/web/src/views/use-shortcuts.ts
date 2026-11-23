@@ -3,9 +3,20 @@ import { PATHS } from "@ui/frame.tsx"
 import { completeFocusedRow, editFocusedRow, moveRowFocus } from "@ui/task-focus.tsx"
 import { leaveGuard } from "../leave-guard.ts"
 import { createShortcutMatcher, ShortcutId, shortcutsOpen } from "../shortcuts.ts"
+import { homePath } from "../state/home-list.ts"
+import { taskLists } from "../state/task-lists.ts"
+import { MAIN_LIST_SELECT } from "./ListView.tsx"
 
-const QUICK_ADD = `[data-e2e="quick-add-input"]`
+/** Today's phone field or, on a desktop, the sidebar's (or the one atop the page). */
+const NEW_TASK = `[data-e2e="quick-add-input"], [data-e2e="new-task-title"]`
 const SEARCH = `[data-e2e="search-input"]`
+const MAIN_LIST = `[data-e2e="${MAIN_LIST_SELECT}"]`
+
+/** The first match that is on screen, or the first match: one of the fields is hidden by size. */
+function shown(selector: string): HTMLElement | undefined {
+  const all = [...document.querySelectorAll<HTMLElement>(selector)]
+  return all.find((el) => el.offsetParent !== null) ?? all[0]
+}
 
 /** Stops the watcher `focusWhenThere` left waiting, if there is one. */
 let stopWaiting = () => {}
@@ -20,10 +31,10 @@ let stopWaiting = () => {}
  */
 function focusWhenThere(selector: string, pressedOn = document.activeElement): void {
   stopWaiting()
-  const now = document.querySelector<HTMLElement>(selector)
+  const now = shown(selector)
   if (now) return now.focus()
   const watcher = new (document.defaultView?.MutationObserver ?? MutationObserver)(() => {
-    const field = document.querySelector<HTMLElement>(selector)
+    const field = shown(selector)
     if (!field) return
     stopWaiting()
     const active = document.activeElement
@@ -40,7 +51,8 @@ function focusWhenThere(selector: string, pressedOn = document.activeElement): v
 
 /**
  * Page-wide keyboard shortcuts for the signed-in app: `n` new task, `/` search, `g t`, `g u` and
- * `g l` to go to Today, Upcoming and Lists, `j` and `k` to move through task rows, `x` to complete
+ * `g l` to go to Today, Upcoming and Lists, Alt+H or `g h` to the default list, Alt+L to
+ * open the main list's menu, `j` and `k` to move through task rows, `x` to complete
  * and `e` or Enter to edit the focused row, `?` for the list. See `shortcuts.ts` for the table.
  * A held key acts once, except `j` and `k`, which keep moving.
  *
@@ -74,12 +86,12 @@ export function useShortcuts(navigate: (to: string) => void): void {
       if (event.repeat && id !== ShortcutId.NextTask && id !== ShortcutId.PreviousTask) return
       switch (id) {
         case ShortcutId.NewTask:
-          if (document.querySelector(QUICK_ADD)) focusWhenThere(QUICK_ADD)
+          if (document.querySelector(NEW_TASK)) focusWhenThere(NEW_TASK)
           else {
             const pressedOn = document.activeElement
             leaveGuard.navigate(() => {
               navigate(PATHS.today)
-              focusWhenThere(QUICK_ADD, pressedOn)
+              focusWhenThere(NEW_TASK, pressedOn)
             })
           }
           break
@@ -103,6 +115,20 @@ export function useShortcuts(navigate: (to: string) => void): void {
         case ShortcutId.GoLists:
           leaveGuard.navigate(() => navigate(PATHS.lists))
           break
+        case ShortcutId.GoHome:
+          leaveGuard.navigate(() => navigate(homePath(taskLists.value)))
+          break
+        case ShortcutId.ChooseList: {
+          // Only a list page has the menu, and only with a second list to choose from.
+          const menu = shown(MAIN_LIST) as HTMLSelectElement | undefined
+          menu?.focus()
+          try {
+            menu?.showPicker?.()
+          } catch {
+            // A browser that will not open it from here: the focus is on it, and the arrows choose.
+          }
+          break
+        }
         case ShortcutId.NextTask:
           moveRowFocus(document, 1)
           break

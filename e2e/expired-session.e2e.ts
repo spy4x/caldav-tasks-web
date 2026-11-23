@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test"
 import { deleteList, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
 import { OWNER_PASSWORD } from "./env.ts"
 import { signIn } from "./sign-in.ts"
+import { openTask } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -13,7 +14,7 @@ test.afterEach(async () => await deleteList(list))
 
 test(`a session that ends during an edit asks for the password over the editor and keeps the text`, async ({ page, context }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Expiring errand`, exact: true }).click()
+  await openTask(page, `Expiring errand`)
   const title = page.getByTestId(`task-title`)
   await title.fill(`Typed before the session ended`)
 

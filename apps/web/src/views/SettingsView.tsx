@@ -1,4 +1,8 @@
 import { useSignal } from "@preact/signals"
+import { useLocation } from "wouter-preact"
+import { listPath } from "../routes.ts"
+import { taskLists } from "../state/task-lists.ts"
+import { homeHref, homeList, setHomeList } from "../state/home-list.ts"
 import { SettingsScreen } from "@ui/settings-screen.tsx"
 import { setShortcutsEnabled, shortcutsEnabled, shortcutsOpen } from "../shortcuts.ts"
 import { caldavAccount } from "../state/session.ts"
@@ -7,6 +11,7 @@ import { install } from "../state/install.ts"
 import { push, PUSH_UNREACHABLE, pushKeyUnreachable } from "../state/push.ts"
 import { installFromSettings } from "./install-from-settings.ts"
 import { themeStore } from "../state/theme.ts"
+import { setShowOpenCounts, showOpenCounts } from "../state/open-counts.ts"
 import { APP_VERSION } from "../version.ts"
 import { browserZone } from "./clock.ts"
 
@@ -15,6 +20,8 @@ import { browserZone } from "./clock.ts"
  * refusal stays here as a message.
  */
 export function SettingsView() {
+  const [, navigate] = useLocation()
+  const home = homeList(taskLists.value)
   const busy = useSignal(false)
   const error = useSignal<string | null>(null)
   /** How many unsent changes the open question is about, or `null` when none is asked. */
@@ -26,7 +33,16 @@ export function SettingsView() {
   }
   return (
     <SettingsScreen
+      // Back returns to the page Settings was opened from; opened directly, it goes home.
+      backHref={home ? listPath(home) : "/"}
+      navigate={(href) => {
+        if (globalThis.history.length > 1) globalThis.history.back()
+        else navigate(href)
+      }}
       themeStore={themeStore}
+      lists={taskLists.value}
+      homeHref={homeHref.value}
+      onHomeChange={setHomeList}
       caldavUrl={caldavAccount.value?.url ?? null}
       caldavUsername={caldavAccount.value?.username ?? null}
       timeZone={browserZone()}
@@ -48,6 +64,8 @@ export function SettingsView() {
       shortcutsEnabled={shortcutsEnabled.value}
       onToggleShortcuts={setShortcutsEnabled}
       onShowShortcuts={() => shortcutsOpen.value = true}
+      showOpenCounts={showOpenCounts.value}
+      onToggleOpenCounts={setShowOpenCounts}
       onSignOut={async () => {
         busy.value = true
         // Read from the queue's store, so a press before the queue has loaded still asks.

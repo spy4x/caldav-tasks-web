@@ -19,7 +19,7 @@ test.afterEach(async () => await deleteList(list))
 test("keys move through the tasks, complete one, open one and go to other pages", async ({ page }) => {
   await signIn(page)
   await expect(pageTitle(page)).toHaveText(`Today`)
-  const open = page.getByRole(`button`, { name: `Shortcut errand` })
+  const open = page.getByRole(`button`, { name: `Shortcut errand`, exact: true })
 
   // j lands on a row; the account may hold other lists' tasks, so then aim at this test's own.
   await expect(open).toBeVisible()
@@ -55,7 +55,7 @@ test("on a list in manual order the keys move through the rows, open one and com
   const first = page.getByRole(`button`, { name: `First`, exact: true })
   const second = page.getByRole(`button`, { name: `Second`, exact: true })
   await expect(first).toBeVisible()
-  await expect(page.getByTestId(`sort`).locator(`option:checked`)).toHaveText(`Manual order`)
+  await expect(page.getByTestId(`sort`).locator(`option:checked`)).toHaveText(`Manual`)
 
   await page.keyboard.press(`j`)
   await expect(first).toBeFocused()
@@ -70,17 +70,20 @@ test("on a list in manual order the keys move through the rows, open one and com
   await expect(first).toBeVisible()
 
   // An open menu keeps the keyboard: the letters neither move the focus nor complete a task.
-  await page.getByRole(`button`, { name: `More actions` }).click()
-  const rename = page.getByRole(`menuitem`, { name: `Rename list` })
-  await expect(rename).toBeFocused()
+  await page.getByRole(`button`, { name: `More actions`, exact: true }).click()
+  const item = page.getByRole(`menuitem`).first()
+  await expect(item).toBeFocused()
   for (const name of [`n`, `j`, `x`]) await page.keyboard.press(name)
-  await expect(rename).toBeFocused()
+  await expect(item).toBeFocused()
   await page.keyboard.press(`Escape`)
-  await expect(rename).toBeHidden()
+  await expect(item).toBeHidden()
 
   await first.focus()
   await page.keyboard.press(`x`)
-  await expect(first).toHaveCount(0)
+  // The completed task moves to the Completed section.
+  await expect(
+    page.getByTestId(`completed-section`).getByRole(`button`, { name: `First`, exact: true }),
+  ).toBeVisible()
   await expect.poll(async () => (await readTask(firstUrl)).includes(`STATUS:COMPLETED`)).toBe(true)
   await expect(second).toBeVisible()
   expect(await readTask(secondUrl)).not.toContain(`STATUS:COMPLETED`)
@@ -95,7 +98,7 @@ test("? lists the shortcuts and Escape closes the list, and typing in a field fi
   await page.keyboard.press(`Escape`)
   await expect(dialog).toBeHidden()
 
-  await page.keyboard.press(`/`)
+  await page.keyboard.press(`Control+k`)
   await expect(page.getByTestId(`search-input`)).toBeFocused()
   await page.keyboard.type(`jxn?g`)
   await expect(page.getByTestId(`search-input`)).toHaveValue(`jxn?g`)
@@ -133,7 +136,7 @@ test("with the Keyboard shortcuts switch off the keys do nothing, a reload keeps
 
   await page.goto(`/`)
   await expect(pageTitle(page)).toHaveText(`Today`)
-  const open = page.getByRole(`button`, { name: `Shortcut errand` })
+  const open = page.getByRole(`button`, { name: `Shortcut errand`, exact: true })
   await open.focus()
   for (const name of [`x`, `e`, `j`, `n`, `/`, `?`, `g`, `u`]) await page.keyboard.press(name)
   await expect(open).toBeFocused()
@@ -159,34 +162,34 @@ test("with the Keyboard shortcuts switch off the keys do nothing, a reload keeps
     .toBe(true)
 })
 
-test("n on Lists focuses the new-task field in time for the first letter", async ({ page }) => {
+test("n on Lists focuses the sidebar's New task field in time for the first letter", async ({ page }) => {
   await signIn(page)
   await page.goto(`/lists`)
   await expect(pageTitle(page)).toHaveText(`Lists`)
   await page.keyboard.press(`n`)
   // No wait for the field: a person starts typing right away.
   await page.keyboard.type(`hello`)
-  await expect(page.getByTestId(`quick-add-input`)).toHaveValue(`hello`)
+  await expect(page.getByTestId(`new-task-title`)).toHaveValue(`hello`)
 })
 
-test("/ on Today opens the search in time for the first letter", async ({ page }) => {
+test("Control K on Today opens the search in time for the first letter", async ({ page }) => {
   await signIn(page)
   // A fresh load, as when the app is opened: the search page then draws slowly enough for a letter
   // to arrive before it has read its address.
   await page.goto(`/`)
   await expect(pageTitle(page)).toHaveText(`Today`)
-  await page.keyboard.press(`/`)
+  await page.keyboard.press(`Control+k`)
   // No wait for the field: a person starts typing right away.
   await page.keyboard.type(`hello`)
   await expect(page.getByTestId(`search-input`)).toHaveValue(`hello`)
 })
 
-test("/ on a search with a query keeps the query", async ({ page }) => {
+test("Control K on a search with a query keeps the query", async ({ page }) => {
   await signIn(page)
   await page.goto(`/search?q=foo`)
   await expect(page.getByTestId(`search-input`)).toHaveValue(`foo`)
   await page.getByRole(`heading`).first().click()
-  await page.keyboard.press(`/`)
+  await page.keyboard.press(`Control+k`)
   await expect(page.getByTestId(`search-input`)).toBeFocused()
   await expect(page.getByTestId(`search-input`)).toHaveValue(`foo`)
   await expect(page).toHaveURL(/q=foo/)

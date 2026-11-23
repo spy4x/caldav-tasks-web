@@ -5,6 +5,7 @@ import { type TaskDraft, type TaskEditorErrors, TaskEditorScreen } from "@ui/tas
 import { leaveGuard } from "../leave-guard.ts"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { allTags, taskLists } from "../state/task-lists.ts"
+import { mentionLists } from "../state/mention-lists.ts"
 import {
   keepMineAfterConflict,
   saveTask,
@@ -21,6 +22,14 @@ import { browserZone } from "./clock.ts"
 import { NotFoundView } from "./NotFoundView.tsx"
 import { deleteWithUndo, loadHiddenSubtasks } from "./task-actions.ts"
 import { draftToEdit } from "./task-edit.ts"
+
+/** The page open before the editor, where Save, Delete and Back return; none on a direct visit. */
+let pageBefore: string | null = null
+
+/** Notes the page on screen, unless it is a task's editor. */
+export function rememberPageBeforeTask(path: string): void {
+  if (!path.startsWith(`/tasks/`)) pageBefore = path
+}
 
 const SAVED_BEHIND_CONFLICT =
   `Saved on this device only. This task waits for your choice at the top of the page.`
@@ -41,7 +50,7 @@ export function TaskEditorView() {
   const conflict = useSignal<TaskConflict | null>(null)
   const task = tasks.value.find((candidate) => candidate.uid === uid)
   if (!task) return calendarsLoaded.value ? <NotFoundView /> : <LoadingBody label="Loading task" />
-  const backHref = listPath(task.listHref)
+  const backHref = pageBefore ?? listPath(task.listHref)
 
   /** Shows the outcome of a save; resolves `true` when it went through. */
   function settle(result: WriteResult): boolean {
@@ -78,6 +87,7 @@ export function TaskEditorView() {
     <TaskEditorScreen
       task={task}
       lists={taskLists.value}
+      mentionLists={mentionLists(taskLists.value)}
       tagSuggestions={allTags.value}
       subtasks={tasks.value.filter((candidate) =>
         candidate.parentUid === task.uid && candidate.listHref === task.listHref

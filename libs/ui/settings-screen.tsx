@@ -10,8 +10,17 @@ import { ScreenLayout } from "./task-screen.tsx"
 
 /** Props of {@link SettingsScreen}. */
 export interface SettingsScreenProps {
+  /** Where the back arrow goes; without it there is none. */
+  backHref?: string
+  /** Follows the back arrow without a page load. */
+  navigate?: (href: string) => void
   /** The app's theme store; the toggle reads and cycles it. */
   themeStore: ThemeToggleStore
+  /** The lists to choose the default from. Left out, Settings has no "Default list". */
+  lists?: readonly { href: string; name: string }[]
+  /** The list the app opens on, on this device; `null` opens on Today. */
+  homeHref?: string | null
+  onHomeChange?: (href: string | null) => void
   /** The CalDAV server this install talks to, or `null` while it is not known (no network yet). */
   caldavUrl: string | null
   /** The CalDAV account in use, or `null` while it is not known. Never a password. */
@@ -39,6 +48,9 @@ export interface SettingsScreenProps {
   shortcutsEnabled: boolean
   /** The "Keyboard shortcuts" switch was turned; `on` is what it was turned to. */
   onToggleShortcuts: (on: boolean) => void
+  /** Whether a list's heading shows "4 open", and its switch; left out, there is no switch. */
+  showOpenCounts?: boolean
+  onToggleOpenCounts?: (on: boolean) => void
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
   /** "Sign out" was pressed. */
@@ -65,18 +77,44 @@ const UNKNOWN = `Not known yet. It loads when the server answers.`
 /**
  * Settings: the theme, the CalDAV server and account in use, the time zone, the version and
  * "Sign out", with one sentence on how to sign out everywhere, and reminder notifications for this
- * device. Nothing else here is edited except the theme and the "Keyboard shortcuts" switch: the
+ * device. Nothing else here is edited except the theme, the default list (the one the app opens
+ * on, on this device) and the "Keyboard shortcuts" switch: the
  * server and account come from the install's environment.
  */
 export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
   const question = props.unsentQuestion
   return (
-    <ScreenLayout header={<PageHeader title="Settings" />}>
+    <ScreenLayout
+      header={
+        <PageHeader
+          title="Settings"
+          back={props.backHref ? { href: props.backHref, label: "Back" } : undefined}
+          navigate={props.navigate}
+        />
+      }
+    >
       <div class="flex flex-col gap-6">
         <dl class="flex flex-col" data-e2e="settings">
           <Row term="Theme" e2e="settings-theme">
             <ThemeToggle store={props.themeStore} />
           </Row>
+          {props.lists && props.onHomeChange && (
+            <Row term="Default list" termId={HOME_TERM} e2e="settings-home">
+              <select
+                aria-labelledby={HOME_TERM}
+                class="h-9 max-w-64 cursor-pointer truncate rounded-lg border border-subtle bg-surface px-3 text-sm"
+                value={props.homeHref ?? ``}
+                onChange={(event) =>
+                  props.onHomeChange?.(event.currentTarget.value || null)}
+                data-e2e="home-list"
+              >
+                <option value="">None (open on Today)</option>
+                {props.lists.map((list) => (
+                  <option key={list.href} value={list.href}>{list.name}</option>
+                ))}
+              </select>
+            </Row>
+          )}
           <Row term="CalDAV server" e2e="settings-server">
             <span class="break-all">{props.caldavUrl ?? UNKNOWN}</span>
           </Row>
@@ -109,6 +147,16 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
               />
             </div>
           </Row>
+          {props.onToggleOpenCounts && (
+            <Row term="Open-task count on lists" termId={COUNTS_TERM} e2e="settings-counts">
+              <ToggleSwitch
+                id="settings-counts-switch"
+                value={props.showOpenCounts === true}
+                onToggle={props.onToggleOpenCounts}
+                aria-labelledby={COUNTS_TERM}
+              />
+            </Row>
+          )}
           <Row term="Time zone" e2e="settings-zone">{props.timeZone}</Row>
           <Row term="Version" e2e="settings-version">{props.version}</Row>
         </dl>
@@ -162,8 +210,14 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
   )
 }
 
+/** The id of the "Default list" term, which names its menu. */
+const HOME_TERM = `settings-home-term`
+
 /** The id of the "Keyboard shortcuts" term, which names its switch. */
 const SHORTCUTS_TERM = `settings-shortcuts-term`
+
+/** The id of the open-count term, which names its switch. */
+const COUNTS_TERM = `settings-counts-term`
 
 function Row(
   { term, termId, e2e, children }: {

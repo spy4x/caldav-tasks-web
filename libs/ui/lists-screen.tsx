@@ -1,11 +1,13 @@
 import type { JSX } from "preact"
-import { IconList, IconPlus } from "@spy4x/preact-icons"
+import { IconHome, IconList, IconPlus } from "@spy4x/preact-icons"
 import { PageAction, PageHeader } from "@spy4x/preact-ui/page-header"
 import type { TaskList } from "@spy4x/time/ical-tasks-model"
 import { EmptyBody, LoadingBody, ScreenLayout } from "./task-screen.tsx"
 
 /** Props of {@link ListsScreen}. */
 export interface ListsScreenProps {
+  /** The default list's address: a home icon marks it. */
+  homeHref?: string | null
   lists: readonly TaskList[]
   loading?: boolean
   onOpen: (list: TaskList) => void
@@ -48,6 +50,12 @@ export function ListsScreen(props: ListsScreenProps): JSX.Element {
                     aria-hidden="true"
                   />
                   <span class="min-w-0 flex-1 truncate text-base">{list.name}</span>
+                  {list.href === props.homeHref && (
+                    <span class="inline-flex text-muted" title="Default list">
+                      <IconHome class="size-4" aria-hidden="true" />
+                      <span class="sr-only">(default list)</span>
+                    </span>
+                  )}
                   <span class="shrink-0 text-sm text-muted">
                     {list.openCount}
                     <span class="sr-only">

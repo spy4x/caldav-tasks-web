@@ -38,7 +38,7 @@ test("creates a list with a colour Tasks.org reads, then renames and recolours i
   created.push({ calendarUrl, taskUrl: ``, uid: ``, title: `` })
   expect(await readCalendar(calendarUrl)).toEqual({ displayName: name, color: `#E07A5FFF` })
 
-  await page.getByRole(`button`, { name: `More actions` }).click()
+  await page.getByRole(`button`, { name: `More actions`, exact: true }).click()
   await page.getByRole(`menuitem`, { name: `Rename list` }).click()
   await page.getByTestId(`list-name`).fill(`${name} renamed`)
   await page.getByTestId(`list-color`).fill(`#3d405b`)

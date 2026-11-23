@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test"
 import { deleteList, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
 import { pageTitle, signIn } from "./sign-in.ts"
+import { openTask, sidebarLink } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -13,7 +14,7 @@ test.afterEach(async () => await deleteList(list))
 /** Opens the seeded task in the editor and returns its title field. */
 async function openEditor(page: Page) {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Guarded errand`, exact: true }).click()
+  await openTask(page, `Guarded errand`)
   await expect(page).toHaveURL(/\/tasks\//)
   const title = page.getByTestId(`task-title`)
   await expect(title).toBeVisible()
@@ -42,8 +43,8 @@ for (
   const way of <Way[]> [
     {
       name: `a sidebar link`,
-      go: (page) => page.getByRole(`link`, { name: `Lists`, exact: true }).click(),
-      title: `Lists`,
+      go: (page) => sidebarLink(page, `Settings`).click(),
+      title: `Settings`,
     },
     {
       name: `g t`,
@@ -70,14 +71,8 @@ for (
       title: `Upcoming`,
     },
     {
-      name: `n`,
-      go: (page) => page.keyboard.press(`n`),
-      title: `Today`,
-      field: `quick-add-input`,
-    },
-    {
-      name: `/`,
-      go: (page) => page.keyboard.press(`/`),
+      name: `Control K`,
+      go: (page) => page.keyboard.press(`Control+k`),
       title: `Search`,
       field: `search-input`,
     },
@@ -138,13 +133,13 @@ test(`a shortcut pressed while the question is open does not change where Leave 
   await openEditor(page)
   await editTitle(page, `Changed but not saved`)
 
-  await page.getByRole(`link`, { name: `Lists`, exact: true }).click()
+  await sidebarLink(page, `Settings`).click()
   await expect(question(page)).toBeVisible()
   await page.keyboard.press(`g`)
   await page.keyboard.press(`u`)
   await expect(question(page)).toBeVisible()
   await question(page).getByRole(`button`, { name: `Leave` }).click()
-  await expect(pageTitle(page)).toHaveText(`Lists`)
+  await expect(pageTitle(page)).toHaveText(`Settings`)
 })
 
 test(`the browser's Back asks before leaving the editor with unsaved changes: Stay keeps the text, Back asks again, Leave goes back`, async ({ page }) => {
@@ -169,22 +164,34 @@ test(`the browser's Back asks before leaving the editor with unsaved changes: St
   await expect(pageTitle(page)).toHaveText(`Today`)
 })
 
-/**
- * Opens the editor, leaves it for Lists with nothing unsaved and comes Back, so Lists is one step
- * forward. Then types an unsaved change and returns the title field.
- */
-async function editWithListsAhead(page: Page) {
+test(`n in the editor puts the cursor in the sidebar's New task field and keeps the unsaved edit`, async ({ page }) => {
+  // On a desktop the New task field is always in the sidebar, so n no longer leaves the page.
   await openEditor(page)
-  await page.getByRole(`link`, { name: `Lists`, exact: true }).click()
-  await expect(pageTitle(page)).toHaveText(`Lists`)
+  const title = await editTitle(page, `Changed but not saved`)
+
+  await page.keyboard.press(`n`)
+  await expect(page.getByTestId(`new-task-title`)).toBeFocused()
+  await expect(question(page)).toBeHidden()
+  await expect(page).toHaveURL(/\/tasks\//)
+  await expect(title).toHaveValue(`Changed but not saved`)
+})
+
+/**
+ * Opens the editor, leaves it for Settings with nothing unsaved and comes Back, so Settings is one
+ * step forward. Then types an unsaved change and returns the title field.
+ */
+async function editWithSettingsAhead(page: Page) {
+  await openEditor(page)
+  await sidebarLink(page, `Settings`).click()
+  await expect(pageTitle(page)).toHaveText(`Settings`)
   await page.goBack()
   await expect(page).toHaveURL(/\/tasks\//)
   await expect(question(page)).toBeHidden()
   return await editTitle(page, `Changed but not saved`)
 }
 
-test(`the browser's Forward asks before leaving the editor with unsaved changes: Stay keeps the text, then Back asks again and Leave goes to Lists`, async ({ page }) => {
-  const title = await editWithListsAhead(page)
+test(`the browser's Forward asks before leaving the editor with unsaved changes: Stay keeps the text, then Back asks again and Leave goes to Settings`, async ({ page }) => {
+  const title = await editWithSettingsAhead(page)
 
   await page.goForward()
   await expect(question(page)).toBeVisible()
@@ -195,21 +202,22 @@ test(`the browser's Forward asks before leaving the editor with unsaved changes:
   await expect(page).toHaveURL(/\/tasks\//)
   await expect(title).toHaveValue(`Changed but not saved`)
 
-  // Staying put the editor on a new history entry on top of Lists, so Lists is now one step back.
+  // Staying put the editor on a new history entry on top of Settings, so Settings is now one step
+  // back.
   await page.goBack()
   await expect(question(page)).toBeVisible()
   await expect(title).toHaveValue(`Changed but not saved`)
   await question(page).getByRole(`button`, { name: `Leave` }).click()
   await expect(page).not.toHaveURL(/\/tasks\//)
-  await expect(pageTitle(page)).toHaveText(`Lists`)
+  await expect(pageTitle(page)).toHaveText(`Settings`)
 })
 
 test(`the browser's Forward asks before leaving the editor with unsaved changes: Leave goes forward`, async ({ page }) => {
-  await editWithListsAhead(page)
+  await editWithSettingsAhead(page)
 
   await page.goForward()
   await expect(question(page)).toBeVisible()
   await question(page).getByRole(`button`, { name: `Leave` }).click()
   await expect(page).not.toHaveURL(/\/tasks\//)
-  await expect(pageTitle(page)).toHaveText(`Lists`)
+  await expect(pageTitle(page)).toHaveText(`Settings`)
 })

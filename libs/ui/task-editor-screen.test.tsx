@@ -120,29 +120,31 @@ Deno.test("every field has a visible label tied to its control", () => {
   const html = renderToString(<TaskEditorScreen {...props()} />)
   for (
     const [id, text] of [
-      ["task-title", "Title"],
       ["task-notes", "Notes"],
       ["task-due-date", "Due date"],
-      ["task-due-time", "Due time \\(optional\\)"],
+      ["task-priority", "Priority"],
       ["task-start-date", "Start date"],
       ["task-start-time", "Start time \\(optional\\)"],
-      ["task-list", "List"],
       ["task-tags", "Tags"],
     ]
   ) {
     expect(html).toMatch(new RegExp(`<label[^>]*for="${id}"[^>]*>${text}`))
     expect(html).toMatch(new RegExp(`<(input|textarea|select)[^>]*id="${id}"`))
   }
+  // The title is the page's big field, named for screen readers; the due time sits beside its date.
+  expect(html).toMatch(
+    /<input[^>]*id="task-title"[^>]*aria-label="Title"|<input[^>]*aria-label="Title"[^>]*id="task-title"/,
+  )
+  expect(html).toContain(`aria-label="Due time (optional)"`)
   expect(html).toMatch(/<h1[^>]*>.*Edit task.*<\/h1>/)
 })
 
-Deno.test("the form shows the task's values, with the high band checked for a priority of 3", () => {
+Deno.test("the form shows the task's values, with the high band chosen for a priority of 3", () => {
   const html = renderToString(<TaskEditorScreen {...props()} />)
   expect(html).toContain(`value="Water the plants"`)
   expect(html).toContain(`value="2026-10-12"`)
   expect(html).toContain(`value="09:30"`)
-  expect(html).toContain(`value="${PriorityBand.High}" checked`)
-  expect(html.match(/ checked /g)).toHaveLength(1)
+  expect(html).toMatch(new RegExp(`<option selected value="${PriorityBand.High}">High`))
 })
 
 Deno.test("Save hands over the whole form, and untouched dates and priority come back exactly as stored", async () => {
@@ -191,22 +193,26 @@ Deno.test("a new due time keeps the zone, a new date without a time becomes a pl
 
 Deno.test("picking a priority band saves its number: none 0, low 9, medium 5, high 1", async () => {
   const saved: TaskDraft[] = []
-  await mount(async (root) => {
-    const radio = (band: PriorityBand) =>
-      root.querySelector(`input[name="priority"][value="${band}"]`) as HTMLInputElement
-    await press(radio(PriorityBand.Low))
+  await mount(async (root, window) => {
+    const pick = (band: PriorityBand) =>
+      act(() => {
+        const select = e2e(root, "task-priority") as HTMLSelectElement
+        select.value = String(band)
+        select.dispatchEvent(new window.Event("change", { bubbles: true }) as never)
+      })
+    await pick(PriorityBand.Low)
     await press(e2e(root, "task-save"))
     expect(saved[0].priority).toBe(9)
 
-    await press(radio(PriorityBand.Medium))
+    await pick(PriorityBand.Medium)
     await press(e2e(root, "task-save"))
     expect(saved[1].priority).toBe(5)
 
-    await press(radio(PriorityBand.None))
+    await pick(PriorityBand.None)
     await press(e2e(root, "task-save"))
     expect(saved[2].priority).toBe(0)
 
-    await press(radio(PriorityBand.High))
+    await pick(PriorityBand.High)
     await press(e2e(root, "task-save"))
     expect(saved[3].priority).toBe(1)
   }, props({ onSave: (draft) => saved.push(draft) }))
@@ -302,12 +308,11 @@ Deno.test("a saved version (new etag) resets the form, so it no longer counts as
   }, base)
 })
 
-Deno.test("Delete is in More actions, asks first, and only the confirmed Delete calls onDelete", async () => {
+Deno.test("Delete sits beside Save at the top, asks first, and only the confirmed Delete calls onDelete", async () => {
   let deleted = 0
   await mount(async (root, window) => {
-    const more = root.querySelector(`[data-e2e="task-menu"]`) as HTMLElement
-    expect(more.getAttribute("aria-label") ?? more.textContent).toContain("More actions")
-    await press(more)
+    expect(e2e(root, "task-delete").textContent).toContain("Delete")
+    expect(e2e(root, "task-save-top").textContent).toBe("Save")
     await press(e2e(root, "task-delete"))
     expect(deleted).toBe(0)
     const dialog = window.document.querySelector(`[data-e2e="task-delete-dialog"]`)!
@@ -319,7 +324,6 @@ Deno.test("Delete is in More actions, asks first, and only the confirmed Delete 
     expect(deleted).toBe(0)
     expect(window.document.querySelector(`[data-e2e="task-delete-dialog"]`) === null).toBe(true)
 
-    await press(more)
     await press(e2e(root, "task-delete"))
     const again = window.document.querySelector(`[data-e2e="task-delete-dialog"]`)!
     await press(
@@ -331,7 +335,6 @@ Deno.test("Delete is in More actions, asks first, and only the confirmed Delete 
 
 /** Opens the delete question and returns its heading and its text. */
 async function askDelete(root: Element, window: Window) {
-  await press(root.querySelector(`[data-e2e="task-menu"]`) as HTMLElement)
   await press(e2e(root, "task-delete"))
   const dialog = window.document.querySelector(`[data-e2e="task-delete-dialog"]`)!
   return { heading: dialog.querySelector("h2")?.textContent, text: dialog.textContent ?? "" }
@@ -372,9 +375,9 @@ Deno.test("an open delete question follows the count when more subtasks are foun
   }, base)
 })
 
-Deno.test("without onDelete there is no More actions menu", () => {
+Deno.test("without onDelete there is no Delete button", () => {
   const html = renderToString(<TaskEditorScreen {...props()} />)
-  expect(html).not.toContain(`data-e2e="task-menu"`)
+  expect(html).not.toContain(`data-e2e="task-delete"`)
 })
 
 const THEIRS = () => task({ etag: `"v2"`, title: "Water" })
@@ -682,7 +685,6 @@ Deno.test("a new repeat on a task with no due date is refused on the due date fi
   const saved: TaskDraft[] = []
   await mount(async (root, window) => {
     await type(root, "task-due-date", "")
-    await type(root, "task-due-time", "")
     await type(root, "task-start-date", "2026-10-13")
     await choose(root, "task-repeat-freq", "1")
     await press(e2e(root, "task-save"))
@@ -704,7 +706,6 @@ Deno.test("clearing the due date of a repeating task is refused on the due date 
   await mount(
     async (root, window) => {
       await type(root, "task-due-date", "")
-      await type(root, "task-due-time", "")
       await press(e2e(root, "task-save"))
       expect(saved).toHaveLength(0)
       expect(dueDateMessage(root, window)).toBe(NEEDS_DUE)
@@ -1098,18 +1099,4 @@ Deno.test("a running save disables the form, shows the wait on Save and sends no
     })
     expect(saved).toEqual([])
   }, props({ saving: true, onSave: (draft) => saved.push(draft) }))
-})
-
-Deno.test("the list choice offers every list and saves the picked one", async () => {
-  const saved: TaskDraft[] = []
-  await mount(async (root, window) => {
-    const select = e2e(root, "task-list") as HTMLSelectElement
-    expect([...select.options].map((option) => option.textContent)).toEqual(["Home", "Work"])
-    await act(() => {
-      select.value = "/cal/work/"
-      select.dispatchEvent(new window.Event("change", { bubbles: true }) as never)
-    })
-    await press(e2e(root, "task-save"))
-    expect(saved[0].listHref).toBe("/cal/work/")
-  }, props({ onSave: (draft) => saved.push(draft) }))
 })

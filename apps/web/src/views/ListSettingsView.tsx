@@ -1,6 +1,6 @@
 import { useSignal } from "@preact/signals"
 import { useEffect } from "preact/hooks"
-import { useLocation, useParams } from "wouter-preact"
+import { useLocation, useParams, useSearch } from "wouter-preact"
 import { isTasksOnly } from "@api/caldav.ts"
 import { ListSettingsScreen } from "@ui/list-settings.tsx"
 import { LoadingBody } from "@ui/task-screen.tsx"
@@ -23,9 +23,13 @@ import { NotFoundView } from "./NotFoundView.tsx"
 /** Whether the delete question's count is still loading, complete, or could not be completed. */
 type CountState = `loading` | `ready` | `unknown`
 
+/** The query a list's "Delete list" adds to the settings address: the delete question opens. */
+export const ASK_DELETE = `delete`
+
 export function ListSettingsView() {
   const { slug } = useParams<{ slug?: string }>()
   const [, navigate] = useLocation()
+  const askDelete = new URLSearchParams(useSearch()).has(ASK_DELETE)
   const saving = useSignal(false)
   const deleting = useSignal(false)
   const error = useSignal<string | null>(null)
@@ -76,6 +80,7 @@ export function ListSettingsView() {
         ? null
         : tasks.value.filter((task) => task.listHref === listHref).length}
       counting={countState === `loading`}
+      askDelete={askDelete}
       holdsEvents={calendar ? !isTasksOnly(calendar.components) : false}
       offline={offline.value}
       saving={saving.value}
