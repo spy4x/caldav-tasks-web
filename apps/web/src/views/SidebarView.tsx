@@ -119,7 +119,8 @@ export function SidebarView(
         ? `Add a task to ${target.name}…`
         : undefined}
       // Where this is the page's New task field, when Settings asks for it ("Start in New task").
-      focusKey={focusNewTask.value && autoFocus && (slug || onToday || currentPath === PATHS.upcoming)
+      focusKey={focusNewTask.value && autoFocus &&
+          (slug || onToday || currentPath === PATHS.upcoming)
         ? currentPath
         : undefined}
     />
