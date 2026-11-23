@@ -41,7 +41,7 @@ Deno.test("an open task is unchecked and a completed one is checked, struck thro
   const done = html({ task: makeTask(`1`, `Buy oat milk`, { status: TaskStatus.Completed }) })
   expect(done).toMatch(/<input[^>]*\schecked(?=[\s=/>])/)
   expect(done).toContain(`line-through`)
-  expect(done).toMatch(/line-through opacity-60/)
+  expect(done).toMatch(/text-muted line-through/)
 })
 
 Deno.test("a done task fades only its title, so the meta line keeps its contrast", () => {
@@ -51,8 +51,8 @@ Deno.test("a done task fades only its title, so the meta line keeps its contrast
       due: dateOnly(`2026-10-09`),
     }),
   })
-  expect(done.match(/opacity-60/g)?.length).toBe(1)
-  expect(done).toMatch(/<span class="break-words line-through opacity-60">/)
+  expect(done.match(/line-through/g)?.length).toBe(1)
+  expect(done).toMatch(/<span class="break-words text-muted line-through">/)
 })
 
 Deno.test("a completed task with a past due date is not coloured as overdue", () => {
@@ -93,7 +93,7 @@ Deno.test("the meta line colours overdue and today's dates and says what a date-
   const overdue = html({ task: makeTask(`1`, `A`, { due: dateOnly(`2026-10-07`) }) })
   expect(overdue).toMatch(/text-danger[^>]*>Yesterday</)
   const today = html({ task: makeTask(`1`, `A`, { due: dateTime(`2026-10-08`, `14:00:00`) }) })
-  expect(today).toMatch(/text-accent-text[^>]*>Today 14:00</)
+  expect(today).toMatch(/text-warning[^>]*>Today 14:00</)
   const later = html({ task: makeTask(`1`, `A`, { due: dateOnly(`2026-10-15`) }) })
   expect(later).toMatch(/text-muted[^>]*>Thu 15 Oct</)
 })
@@ -105,8 +105,8 @@ Deno.test("the meta line names the list, shows up to three tags and counts the r
   })
   expect(out).toContain(`Errands`)
   expect(out).toContain(`#6aa84f`)
-  expect(out).toContain(`#one`)
-  expect(out).toContain(`#three`)
+  expect(out).toContain(`#</span>one`)
+  expect(out).toContain(`#</span>three`)
   expect(out).not.toContain(`#four`)
   expect(out).toContain(`+2`)
 })
@@ -204,6 +204,51 @@ Deno.test("a row without subtasks has no expander and ignores the arrow keys", a
         )
       })
       expect(calls).toEqual([])
+    },
+  )
+})
+
+Deno.test("with onRename, the title renames in place, Enter saves and opens a new line that adds a task beside it; Edit and Delete act on it", async () => {
+  const renamed: string[] = []
+  const added: string[] = []
+  const opened: string[] = []
+  const deleted: string[] = []
+  await mount(
+    <ul>
+      <TaskRow
+        task={makeTask(`1`, `Buy milk`)}
+        zone="UTC"
+        now={NOW}
+        onComplete={() => {}}
+        onOpen={(task) => opened.push(task.title)}
+        onRename={(_task, title) => renamed.push(title)}
+        onAddSibling={(_task, title) => added.push(title)}
+        onDelete={(task) => deleted.push(task.title)}
+      />
+    </ul>,
+    async ({ root, window, act }) => {
+      await act(() => must<HTMLButtonElement>(root, `[data-e2e="task-open"]`).click())
+      expect(opened).toEqual([])
+      const field = must<HTMLInputElement>(root, `[data-e2e="task-rename"]`)
+      const key = (target: HTMLElement, k: string) =>
+        act(() => {
+          target.dispatchEvent(
+            new window.KeyboardEvent(`keydown`, { key: k, bubbles: true }) as never,
+          )
+        })
+      field.value = `Buy oat milk`
+      await key(field, `Enter`)
+      expect(renamed).toEqual([`Buy oat milk`])
+      const line = must<HTMLInputElement>(root, `[data-e2e="task-new-line"]`)
+      line.value = `Buy bread`
+      await key(line, `Enter`)
+      expect(added).toEqual([`Buy bread`])
+      await key(must<HTMLInputElement>(root, `[data-e2e="task-new-line"]`), `Enter`)
+      expect(root.querySelector(`[data-e2e="task-new-line"]`)).toBeNull()
+      await act(() => must<HTMLButtonElement>(root, `[data-e2e="task-edit"]`).click())
+      expect(opened).toEqual([`Buy milk`])
+      await act(() => must<HTMLButtonElement>(root, `[data-e2e="task-row-delete"]`).click())
+      expect(deleted).toEqual([`Buy milk`])
     },
   )
 })

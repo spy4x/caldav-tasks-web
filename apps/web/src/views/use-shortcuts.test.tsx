@@ -90,8 +90,8 @@ const active = (window: { document: { activeElement: unknown } }) =>
 Deno.test("on a list in manual order j and k move between rows, x completes and e opens the row", async () => {
   const log: string[] = []
   await mount(<Page log={log} manual />, async ({ root, window }) => {
-    // The page under test is the one that draws no row as a list item.
-    expect(root.querySelectorAll(`li[data-task-uid]`)).toHaveLength(0)
+    // The page under test is the one with drag handles.
+    expect(root.querySelectorAll(`[data-sortable-handle]`)).toHaveLength(2)
     await key(window as never, window.document.body as never, `j`)
     expect(rowOf(window)).toBe(`a`)
     await key(window as never, active(window), `j`)

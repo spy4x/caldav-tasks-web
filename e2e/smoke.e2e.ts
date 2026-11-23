@@ -12,6 +12,8 @@ test("answers /health with 200", async ({ request }) => {
 })
 
 test("opens on Today and moves between the five destinations without a reload", async ({ page }) => {
+  // The five destinations are the phone's tab bar; a desktop has the sidebar instead.
+  await page.setViewportSize({ width: 375, height: 812 })
   await page.goto(`/`)
   const nav = page.getByRole(`navigation`, { name: `Main navigation` })
   // By accessible name: from `md` up each entry's text also holds its rail tooltip, a hidden copy

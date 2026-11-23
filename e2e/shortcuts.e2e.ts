@@ -80,7 +80,10 @@ test("on a list in manual order the keys move through the rows, open one and com
 
   await first.focus()
   await page.keyboard.press(`x`)
-  await expect(first).toHaveCount(0)
+  // The completed task moves to the Completed section.
+  await expect(
+    page.getByTestId(`completed-section`).getByRole(`button`, { name: `First`, exact: true }),
+  ).toBeVisible()
   await expect.poll(async () => (await readTask(firstUrl)).includes(`STATUS:COMPLETED`)).toBe(true)
   await expect(second).toBeVisible()
   expect(await readTask(secondUrl)).not.toContain(`STATUS:COMPLETED`)
@@ -159,14 +162,14 @@ test("with the Keyboard shortcuts switch off the keys do nothing, a reload keeps
     .toBe(true)
 })
 
-test("n on Lists focuses the new-task field in time for the first letter", async ({ page }) => {
+test("n on Lists focuses the sidebar's New task field in time for the first letter", async ({ page }) => {
   await signIn(page)
   await page.goto(`/lists`)
   await expect(pageTitle(page)).toHaveText(`Lists`)
   await page.keyboard.press(`n`)
   // No wait for the field: a person starts typing right away.
   await page.keyboard.type(`hello`)
-  await expect(page.getByTestId(`quick-add-input`)).toHaveValue(`hello`)
+  await expect(page.getByTestId(`new-task-title`)).toHaveValue(`hello`)
 })
 
 test("/ on Today opens the search in time for the first letter", async ({ page }) => {
