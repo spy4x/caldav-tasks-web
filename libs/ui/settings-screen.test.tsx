@@ -180,3 +180,31 @@ Deno.test("Settings shows the Notifications block only when push is given, and i
     },
   )
 })
+
+Deno.test("Default list offers Today and each list, and reports the choice", async () => {
+  const chosen: (string | null)[] = []
+  await mount(
+    <SettingsScreen
+      {...props({
+        lists: [{ href: `/a/`, name: `Daily` }, { href: `/b/`, name: `Work` }],
+        homeHref: `/a/`,
+        onHomeChange: (href) => chosen.push(href),
+      })}
+    />,
+    async ({ root, window, act }) => {
+      const select = must<HTMLSelectElement>(root, `[data-e2e="home-list"]`)
+      expect([...select.options].map((o) => o.text)).toEqual([
+        `None (open on Today)`,
+        `Daily`,
+        `Work`,
+      ])
+      for (const value of [`/b/`, ``]) {
+        await act(() => {
+          select.value = value
+          select.dispatchEvent(new window.Event(`change`, { bubbles: true }) as never)
+        })
+      }
+      expect(chosen).toEqual([`/b/`, null])
+    },
+  )
+})

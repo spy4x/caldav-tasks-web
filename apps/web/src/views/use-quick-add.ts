@@ -2,13 +2,14 @@ import { useSignal } from "@preact/signals"
 import { QuickAddPriority, type QuickAddResult } from "@spy4x/platform"
 import { IcalDateKind } from "@spy4x/time/ical"
 import type { NewTaskFields } from "@spy4x/time/ical-tasks-edit"
-import type { TaskDate } from "@spy4x/time/ical-tasks-model"
+import { isOpen, type Task, type TaskDate } from "@spy4x/time/ical-tasks-model"
+import { splitParent } from "@ui/sidebar.tsx"
 import { floatingDue } from "@ui/due-label.ts"
 import { calendarsLoaded } from "../state/calendars.ts"
 import { taskLists } from "../state/task-lists.ts"
 import { addTask } from "../state/task-writes.ts"
 import { toasts } from "../state/toasts.ts"
-import { WriteKind } from "../state/tasks.ts"
+import { tasks, WriteKind } from "../state/tasks.ts"
 import { isoDateInTz } from "@spy4x/time/tz"
 import { browserZone } from "./clock.ts"
 
@@ -60,8 +61,28 @@ export function newTaskFromQuickAdd(
 }
 
 /**
+ * The open top-level task of `listHref` called `title` (case and spaces aside), created first when
+ * there is none. No parent comes back when the new one is only queued, as offline.
+ */
+export async function namedParent(
+  listHref: string,
+  title: string,
+): Promise<{ parent?: Task } | { error: string }> {
+  const name = title.trim().toLowerCase()
+  const parent = tasks.value.find((task) =>
+    task.listHref === listHref && isOpen(task) && !task.parentUid &&
+    task.title.trim().toLowerCase() === name
+  )
+  if (parent) return { parent }
+  const made = await addTask({ title: title.trim() }, { listHref })
+  if (made.kind === WriteKind.Failed) return { error: made.message }
+  return made.kind === WriteKind.Saved ? { parent: made.task } : {}
+}
+
+/**
  * The quick add form's wiring: `add(parsed)` creates a task in `listHref` (the first list when none
- * is named) from a parsed line, due today when `dueToday` and the line names no date, and shows
+ * is named) from a parsed line, nested under the main task named after ` / ` (made when missing),
+ * due today when `dueToday` and the line names no date, and shows
  * why when it could not. `busy` is true while a request runs.
  */
 export function useQuickAdd(options: { listHref?: string; dueToday?: boolean } = {}) {
@@ -73,14 +94,24 @@ export function useQuickAdd(options: { listHref?: string; dueToday?: boolean } =
       return
     }
     const { listHref } = target
-    const fields = newTaskFromQuickAdd(parsed, {
+    const split = splitParent(parsed.title)
+    const fields = newTaskFromQuickAdd({ ...parsed, title: split.child }, {
       dueToday: options.dueToday,
       now: new Date(),
       zone: browserZone(),
     })
     busy.value = true
     try {
-      const result = await addTask(fields, { listHref })
+      let parent: Task | undefined
+      if (split.parent) {
+        const found = await namedParent(listHref, split.parent)
+        if (`error` in found) {
+          toasts.error({ title: ``, body: found.error })
+          return
+        }
+        parent = found.parent
+      }
+      const result = await addTask(fields, { listHref, parent })
       if (result.kind === WriteKind.Failed) toasts.error({ title: ``, body: result.message })
     } finally {
       busy.value = false

@@ -108,3 +108,30 @@ Deno.test(`a plain title carries no tags, due or priority`, () => {
 Deno.test(`an @context is kept as a tag so no typed word is lost`, () => {
   expect(fields(`Plan @work/meetings #q4`).tags).toEqual([`q4`, `work/meetings`])
 })
+
+Deno.test(`a quick add with " / Main task" nests under it, making it once when missing`, async () => {
+  await withApp(async (server) => {
+    server.calendarList = [{ href: LIST_HREF, displayName: `Errands`, changeMarker: `c1` }]
+    await refresh()
+    let add: (parsed: QuickAddResult) => Promise<void> = () => Promise.resolve()
+    function List() {
+      add = useQuickAdd({ listHref: LIST_HREF }).add
+      return null
+    }
+    await mount(<List />, async () => {
+      await act(() => add(parse(`Milk #shop / Groceries`)))
+      await act(() => add(parse(`Eggs / groceries`)))
+    })
+    const created = [...server.objects.values()].map((object) => object.ics)
+    expect(created).toHaveLength(3)
+    const uid = (ics: string) => /^UID:(.*)$/m.exec(ics)![1].trim()
+    const parent = created.find((ics) => ics.includes(`SUMMARY:Groceries`))!
+    for (const title of [`Milk`, `Eggs`]) {
+      const child = created.find((ics) =>
+        new RegExp(String.raw`^SUMMARY:${title}\s*$`, `m`).test(ics)
+      )
+      expect(child).toContain(`RELATED-TO`)
+      expect(child).toContain(uid(parent))
+    }
+  })
+})

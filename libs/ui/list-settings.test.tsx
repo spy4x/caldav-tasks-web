@@ -14,6 +14,7 @@ import {
   type ListSettingsScreenProps,
   pickerColor,
 } from "./list-settings.tsx"
+import { mount as mountUi } from "./mount.test.tsx"
 
 const SHOPPING = { href: `/cal/shopping/`, name: `Shopping`, color: `#E07A5FFF`, openCount: 9 }
 
@@ -198,4 +199,24 @@ Deno.test("a list that may hold events has no Delete and says to delete it in a 
   )
   expect(html).not.toContain(`data-e2e="list-menu"`)
   expect(html).toContain(LIST_HOLDS_EVENTS)
+})
+
+Deno.test("askDelete opens the delete question once the count is in, and only once", async () => {
+  const asked = props({
+    list: SHOPPING,
+    taskCount: 3,
+    counting: true,
+    askDelete: true,
+    onDelete: () => {},
+  })
+  await mountUi(<ListSettingsScreen {...asked} />, async ({ window, rerender, act }) => {
+    const dialog = () => window.document.querySelector(`[data-e2e="list-delete-dialog"]`)
+    expect(dialog()).toBeNull()
+    await rerender(<ListSettingsScreen {...asked} counting={false} />)
+    expect(dialog()?.textContent).toContain(`Delete Shopping and its 3 tasks?`)
+    const keep = [...dialog()!.querySelectorAll(`button`)].find((b) => b.textContent === `Keep it`)
+    await act(() => keep!.click())
+    await rerender(<ListSettingsScreen {...asked} counting={false} taskCount={4} />)
+    expect(dialog()).toBeNull()
+  })
 })

@@ -28,6 +28,8 @@ export interface ListSettingsScreenProps {
   taskCount?: number | null
   /** True while the completed tasks are still loading: Delete waits, so the count is never low. */
   counting?: boolean
+  /** Opens the delete question as soon as Delete is possible, as the list's own menu asks. */
+  askDelete?: boolean
   /** True when the list may also hold calendar events: it cannot be deleted here, and says why. */
   holdsEvents?: boolean
   /** True when the app cannot reach its server: nothing can be saved or deleted then. */
@@ -83,6 +85,14 @@ export function ListSettingsScreen(props: ListSettingsScreenProps): JSX.Element 
   const [attempt, setAttempt] = useState(0)
   const [asking, setAsking] = useState(false)
   const nameInput = useRef<HTMLInputElement>(null)
+  const canDelete = Boolean(list && props.onDelete && !holdsEvents)
+  const deleteReady = canDelete && !offline && !deleting && !counting
+  const asked = useRef(false)
+  useEffect(() => {
+    if (!props.askDelete || !deleteReady || asked.current) return
+    asked.current = true
+    setAsking(true)
+  }, [props.askDelete, deleteReady])
 
   // A refused save puts the cursor back in the name; `attempt` makes a repeated refusal count.
   useEffect(() => {
@@ -108,10 +118,10 @@ export function ListSettingsScreen(props: ListSettingsScreenProps): JSX.Element 
         subtitle={list?.name}
         back={{ href: backHref, label: `Back` }}
         navigate={navigate}
-        menu={list && props.onDelete && !holdsEvents && (
+        menu={canDelete && (
           <DropdownItem
             danger
-            disabled={offline || deleting || counting}
+            disabled={!deleteReady}
             onClick={() => setAsking(true)}
             dataE2E="list-delete"
           >
