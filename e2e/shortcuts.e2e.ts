@@ -70,7 +70,7 @@ test("on a list in manual order the keys move through the rows, open one and com
   await expect(first).toBeVisible()
 
   // An open menu keeps the keyboard: the letters neither move the focus nor complete a task.
-  await page.getByRole(`button`, { name: `More actions` }).click()
+  await page.getByRole(`button`, { name: `More actions`, exact: true }).click()
   const item = page.getByRole(`menuitem`).first()
   await expect(item).toBeFocused()
   for (const name of [`n`, `j`, `x`]) await page.keyboard.press(name)
