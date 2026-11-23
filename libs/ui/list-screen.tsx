@@ -231,22 +231,21 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
           Lists
         </a>
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <h1
-            class={`flex min-w-0 items-baseline gap-3 text-2xl font-bold tracking-tight ${
-              props.pane ? `grow basis-48` : ``
-            }`}
+          {/* The heading is the list's name alone; the home mark and the count sit beside it. */}
+          <div
+            class={`flex min-w-0 items-baseline gap-3 ${props.pane ? `grow basis-48` : ``}`}
           >
-            {props.title ?? <span class="break-words">{list.name}</span>}
+            <h1 class="min-w-0 break-words text-2xl font-bold tracking-tight">
+              {props.title ?? list.name}
+            </h1>
             {props.isHome && (
               <span class="inline-flex self-center text-muted" title="Default list">
                 <IconHome class="size-5" aria-hidden="true" />
-                <span class="sr-only">(default list)</span>
+                <span class="sr-only">Default list</span>
               </span>
             )}
-            <span class="shrink-0 whitespace-nowrap text-[13px] font-normal tracking-normal text-muted">
-              {openShown} open
-            </span>
-          </h1>
+            <span class="shrink-0 whitespace-nowrap text-[13px] text-muted">{openShown} open</span>
+          </div>
           <div class="ms-auto flex flex-wrap items-center gap-2">
             {!props.pane && <p class="pe-2 text-[13px] text-muted max-lg:hidden">{today}</p>}
             {!props.loading && tasks.length > 0 && (
