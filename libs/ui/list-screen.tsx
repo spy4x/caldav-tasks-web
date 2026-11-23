@@ -306,8 +306,11 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
         </a>
         {/* One row: a narrow heading draws its controls as icons rather than wrapping them. */}
         <div class="flex items-center gap-x-4">
-          <h1 class="flex min-w-0 grow items-baseline gap-3 text-2xl font-bold tracking-tight">
-            {props.title ?? <span class="break-words">{list.name}</span>}
+          {/* The heading is the list's name alone; the home mark and the count sit beside it. */}
+          <div class="flex min-w-0 grow items-baseline gap-3">
+            <h1 class="min-w-0 break-words text-2xl font-bold tracking-tight">
+              {props.title ?? list.name}
+            </h1>
             {props.isHome && (
               <span class="inline-flex self-center text-muted" title="Default list">
                 <IconHome class="size-5" aria-hidden="true" />
@@ -315,13 +318,13 @@ export function ListScreen(props: ListScreenProps): JSX.Element {
               </span>
             )}
             {props.showCount && (
-              <span class="shrink-0 whitespace-nowrap text-[13px] font-normal tracking-normal text-muted">
+              <span class="shrink-0 whitespace-nowrap text-[13px] text-muted">
                 {props.simple
                   ? `${nodes.length} ${nodes.length === 1 ? `item` : `items`}`
                   : `${openShown} open`}
               </span>
             )}
-          </h1>
+          </div>
           <div class="flex shrink-0 items-center gap-2">
             {!props.pane && (
               <p class="pe-2 text-[13px] whitespace-nowrap text-muted @max-4xl:hidden">{today}</p>
