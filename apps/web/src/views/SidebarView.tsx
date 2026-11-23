@@ -118,8 +118,8 @@ export function SidebarView(
         : compact && target
         ? `Add a task to ${target.name}…`
         : undefined}
-      // Where this is the page's only New task field. Today focuses its own quick add.
-      focusKey={autoFocus && (slug || onToday || currentPath === PATHS.upcoming)
+      // Where this is the page's New task field, when Settings asks for it ("Start in New task").
+      focusKey={focusNewTask.value && autoFocus && (slug || onToday || currentPath === PATHS.upcoming)
         ? currentPath
         : undefined}
     />

@@ -13,7 +13,6 @@ import { browserZone } from "./clock.ts"
 import { completeWithUndo, deleteWithUndo, moveUnder, renameTask } from "./task-actions.ts"
 import { toasts } from "../state/toasts.ts"
 import { useQuickAdd } from "./use-quick-add.ts"
-import { focusNewTask } from "../state/focus-new-task.ts"
 
 /**
  * True once the first visit has had its chance to open the default list (Settings), or when it
