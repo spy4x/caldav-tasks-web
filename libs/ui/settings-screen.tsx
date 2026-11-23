@@ -43,6 +43,12 @@ export interface SettingsScreenProps {
   shortcutsEnabled: boolean
   /** The "Keyboard shortcuts" switch was turned; `on` is what it was turned to. */
   onToggleShortcuts: (on: boolean) => void
+  /**
+   * Whether a page puts the cursor in its New task field as it opens, and its switch. Left out,
+   * there is no switch.
+   */
+  focusNewTask?: boolean
+  onToggleFocusNewTask?: (on: boolean) => void
   /** Opens the list of keyboard shortcuts. */
   onShowShortcuts: () => void
   /** "Sign out" was pressed. */
@@ -121,6 +127,16 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
               />
             </div>
           </Row>
+          {props.onToggleFocusNewTask && (
+            <Row term="Start in New task" termId={FOCUS_TERM} e2e="settings-focus-new-task">
+              <ToggleSwitch
+                id="settings-focus-new-task-switch"
+                value={props.focusNewTask === true}
+                onToggle={props.onToggleFocusNewTask}
+                aria-labelledby={FOCUS_TERM}
+              />
+            </Row>
+          )}
           <Row term="Time zone" e2e="settings-zone">{props.timeZone}</Row>
           <Row term="Version" e2e="settings-version">{props.version}</Row>
         </dl>
@@ -176,6 +192,9 @@ export function SettingsScreen(props: SettingsScreenProps): JSX.Element {
 
 /** The id of the "Keyboard shortcuts" term, which names its switch. */
 const SHORTCUTS_TERM = `settings-shortcuts-term`
+
+/** The id of the "Start in New task" term, which names its switch. */
+const FOCUS_TERM = `settings-focus-new-task-term`
 
 function Row(
   { term, termId, e2e, children }: {

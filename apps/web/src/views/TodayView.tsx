@@ -11,6 +11,7 @@ import { listPath, taskPath } from "../routes.ts"
 import { browserZone } from "./clock.ts"
 import { completeWithUndo } from "./task-actions.ts"
 import { useQuickAdd } from "./use-quick-add.ts"
+import { focusNewTask } from "../state/focus-new-task.ts"
 
 /** The list the app opens on, by name. The Today tab still shows Today once the app is open. */
 const HOME_LIST = `daily`
@@ -35,9 +36,12 @@ export function TodayView() {
     const home = homeList(taskLists.value)
     if (home) navigate(listPath(home), { replace: true })
   }, [calendarsLoaded.value])
-  // Today's own quick add is its New task field: the cursor waits in it.
+  // Today's own quick add is its New task field: the cursor waits in it, when Settings asks.
   useEffect(
-    () => focusOnArrival(() => document.querySelector<HTMLElement>(`[data-e2e="quick-add-input"]`)),
+    () =>
+      focusNewTask.value
+        ? focusOnArrival(() => document.querySelector<HTMLElement>(`[data-e2e="quick-add-input"]`))
+        : undefined,
     [],
   )
   return (

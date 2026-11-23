@@ -1,4 +1,5 @@
 import { useSignal } from "@preact/signals"
+import { focusNewTask } from "../state/focus-new-task.ts"
 import { parseQuickAdd } from "@spy4x/platform"
 import { IcalDateKind } from "@spy4x/time/ical"
 import { isOpen, type Task } from "@spy4x/time/ical-tasks-model"
@@ -106,8 +107,11 @@ export function SidebarView(
       onAdd={add}
       navigate={navigate}
       compact={compact}
-      // Where this is the page's only New task field. Today focuses its own quick add.
-      focusKey={slug || currentPath === PATHS.upcoming ? currentPath : undefined}
+      // Where this is the page's only New task field, when Settings asks for it. Today focuses its
+      // own quick add.
+      focusKey={focusNewTask.value && (slug || currentPath === PATHS.upcoming)
+        ? currentPath
+        : undefined}
     />
   )
 }
