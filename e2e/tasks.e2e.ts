@@ -10,6 +10,7 @@ import {
   seedTaskList,
 } from "./fixtures/radicale.ts"
 import { pageTitle, signIn, submitPassword } from "./sign-in.ts"
+import { addTask, moreOptions, openTask } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -36,12 +37,11 @@ test("adds a task to a list, edits its title, completes it and undoes the comple
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
   await expect(page.getByRole(`button`, { name: `Seeded errand`, exact: true })).toBeVisible()
-  await page.getByTestId(`quick-add-input`).fill(`Pay the rent`)
-  await page.getByTestId(`quick-add-submit`).click()
+  await addTask(page, `Pay the rent`)
   const row = page.getByRole(`button`, { name: `Pay the rent`, exact: true })
   await expect(row).toBeVisible()
 
-  await row.click()
+  await openTask(page, `Pay the rent`)
   await expect(page).toHaveURL(/\/tasks\//)
   await page.getByTestId(`task-title`).fill(`Pay the rent today`)
   await page.getByTestId(`task-save`).click()
@@ -49,13 +49,20 @@ test("adds a task to a list, edits its title, completes it and undoes the comple
   const renamed = page.getByRole(`button`, { name: `Pay the rent today`, exact: true })
   await expect(renamed).toBeVisible()
 
+  // A completed task moves to the Completed section; Undo brings it back to the open ones.
+  const done = page.getByTestId(`completed-section`)
   await page.getByRole(`checkbox`, { name: /Pay the rent today/ }).click()
-  await expect(renamed).toHaveCount(0)
+  await expect(done.getByRole(`button`, { name: `Pay the rent today`, exact: true }))
+    .toBeVisible()
   await page.getByRole(`button`, { name: `Undo` }).click()
+  await expect(done.getByRole(`button`, { name: `Pay the rent today`, exact: true }))
+    .toHaveCount(0)
   await expect(renamed).toBeVisible()
 })
 
 test("a quick-add line with a tag, a time and a priority shows chips and saves all three", async ({ page }) => {
+  // The quick add, with its chips, is the phone's New task field; a desktop uses the sidebar's.
+  await page.setViewportSize({ width: 375, height: 812 })
   await signIn(page)
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
@@ -82,10 +89,10 @@ test("a quick-add line with a tag, a time and a priority shows chips and saves a
 
 test("an edit keeps the reminder and the property this app does not know on the server", async ({ page }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await page.getByTestId(`task-title`).fill(`Seeded errand edited`)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
 
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(
     `SUMMARY:Seeded errand edited`,
@@ -98,9 +105,10 @@ test("an edit keeps the reminder and the property this app does not know on the 
 
 test("a weekly repeat and a reminder survive a reload, and removing them removes them on the server", async ({ page }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(1)
 
+  await moreOptions(page)
   await page.getByLabel(`Repeat`).selectOption({ label: `Weekly` })
   await page.getByLabel(`New reminder`).selectOption({ label: `Before due` })
   await page.getByLabel(`Amount`).fill(`1`)
@@ -108,14 +116,14 @@ test("a weekly repeat and a reminder survive a reload, and removing them removes
   await page.getByRole(`button`, { name: `Add reminder` }).click()
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(2)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(
     `RRULE:FREQ=WEEKLY;INTERVAL=1`,
   )
   expect(await readTask(list.taskUrl)).toContain(`-PT1H`)
 
   await page.reload()
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await expect(page.getByLabel(`Repeat`)).toHaveValue(`2`)
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(2)
   await expect(page.getByText(`1 hour before due`)).toBeVisible()
@@ -125,14 +133,14 @@ test("a weekly repeat and a reminder survive a reload, and removing them removes
   await page.getByRole(`button`, { name: /^Remove reminder/ }).first().click()
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(0)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
   await expect.poll(async () => await readTask(list.taskUrl)).not.toContain(`RRULE`)
   const cleared = await readTask(list.taskUrl)
   expect(cleared).not.toContain(`VALARM`)
   expect(cleared).toContain(`X-E2E-KEEP:still here`)
 
   await page.reload()
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await expect(page.getByLabel(`Repeat`)).toHaveValue(`none`)
   await expect(page.getByTestId(`task-reminder`)).toHaveCount(0)
 })
@@ -144,7 +152,7 @@ test("a task whose UID holds @ / ? # or + opens from the list and after a reload
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   for (const uid of uids) {
     await page.goto(`/lists/${encodeURIComponent(slug)}`)
-    await page.getByRole(`button`, { name: `Task ${uid}`, exact: true }).click()
+    await openTask(page, `Task ${uid}`)
     await expect(page).toHaveURL(`/tasks/${encodeURIComponent(uid)}`)
     await expect(page.getByTestId(`task-title`)).toHaveValue(`Task ${uid}`)
 
@@ -164,9 +172,9 @@ test("the sort and the tag filter of a list survive a reload", async ({ page }) 
   const titles = page.getByTestId(`task-tree`).getByRole(`button`)
   await expect(titles.first()).toBeVisible()
 
-  await page.getByTestId(`sort`).selectOption({ label: `Title` })
+  await page.getByTestId(`sort`).selectOption({ label: `By title` })
   await expect(page).toHaveURL(/sort=title/)
-  await page.getByRole(`button`, { name: `home` }).click()
+  await page.getByTestId(`tag-filter`).selectOption({ label: `#home` })
   await expect(page).toHaveURL(/tags=home/)
   await expect(page.getByRole(`button`, { name: `Apple`, exact: true })).toHaveCount(0)
 
@@ -180,11 +188,10 @@ test("the sort and the tag filter of a list survive a reload", async ({ page }) 
 
 test("undoing a delete puts the task back on the server", async ({ page }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
-  await page.getByRole(`button`, { name: `More actions` }).click()
-  await page.getByRole(`menuitem`, { name: `Delete` }).click()
-  await page.getByRole(`button`, { name: `Delete` }).last().click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await openTask(page, `Seeded errand`)
+  await page.getByTestId(`task-delete`).click()
+  await page.getByTestId(`task-delete-dialog`).getByRole(`button`, { name: `Delete` }).click()
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
   await expect.poll(async () => await readList(list)).not.toContain(`SUMMARY:Seeded errand`)
 
   await page.getByRole(`button`, { name: `Undo` }).click()
@@ -201,7 +208,7 @@ test("deleting a task with subtasks asks how many, removes them all from the ser
   await addSeededTask(list, `Parent`, [], parent)
   await addSeededTask(list, `Child`, [`RELATED-TO:${parent}`], child)
   await addSeededTask(list, `Grandchild`, [`RELATED-TO:${child}`])
-  // A completed subtask: the list hides it, and the app has not loaded it when the page opens.
+  // A completed subtask: the list shows it under its open parent, crossed out.
   const done = await addSeededTask(list, `Done child`, [`RELATED-TO:${parent}`])
   await editOnServer(
     done,
@@ -212,11 +219,10 @@ test("deleting a task with subtasks asks how many, removes them all from the ser
   const slug = new URL(list.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
   await page.goto(`/lists/${encodeURIComponent(slug)}`)
   await expect(page.getByRole(`button`, { name: `Grandchild`, exact: true })).toBeVisible()
-  await expect(page.getByRole(`button`, { name: `Done child`, exact: true })).toHaveCount(0)
+  await expect(page.getByRole(`button`, { name: `Done child`, exact: true })).toBeVisible()
 
-  await page.getByRole(`button`, { name: `Parent`, exact: true }).click()
-  await page.getByRole(`button`, { name: `More actions` }).click()
-  await page.getByRole(`menuitem`, { name: `Delete` }).click()
+  await openTask(page, `Parent`)
+  await page.getByTestId(`task-delete`).click()
   const question = page.getByTestId(`task-delete-dialog`)
   await expect(question.getByRole(`heading`, { name: `Delete this task and its 3 subtasks?` }))
     .toBeVisible()

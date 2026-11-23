@@ -1,4 +1,5 @@
 import type { JSX } from "preact"
+import { useEffect, useRef } from "preact/hooks"
 import { IconLens } from "@spy4x/preact-icons"
 import { Input } from "@spy4x/preact-ui/input"
 import { PageHeader } from "@spy4x/preact-ui/page-header"
@@ -23,6 +24,10 @@ export interface SearchScreenProps {
   autoFocus?: boolean
   onComplete: (task: Task, done: boolean) => void
   onOpen: (task: Task) => void
+  /** The page to go back to, by the arrow before the title or by Escape. */
+  back?: string
+  /** The app's router, for `back`. */
+  navigate?: (href: string) => void
 }
 
 /** One field and the matching tasks across all lists, grouped by list. */
@@ -33,10 +38,33 @@ export function SearchScreen(props: SearchScreenProps): JSX.Element {
     .filter((group) => group.tasks.length > 0)
   const total = groups.reduce((sum, group) => sum + group.tasks.length, 0)
   const searching = props.query.trim() !== ``
+  const { back, navigate } = props
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // The page this screen is on, reached through its own element: Escape anywhere goes back.
+    const page = box.current?.ownerDocument
+    if (!back || !navigate || !page) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== `Escape` || event.defaultPrevented) return
+      if (page.querySelector(`dialog[open], [role="dialog"]`)) return
+      event.preventDefault()
+      navigate(back)
+    }
+    page.addEventListener(`keydown`, onKeyDown)
+    return () => page.removeEventListener(`keydown`, onKeyDown)
+  }, [back, navigate])
 
   return (
-    <ScreenLayout header={<PageHeader title="Search" />}>
-      <div class="flex flex-col gap-4">
+    <ScreenLayout
+      header={
+        <PageHeader
+          title="Search"
+          back={back ? { href: back, label: `Back` } : undefined}
+          navigate={navigate}
+        />
+      }
+    >
+      <div ref={box} class="flex flex-col gap-4">
         <Input
           type="search"
           name="q"

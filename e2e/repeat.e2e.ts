@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 import { deleteList, readTask, type SeededList, seedTaskList } from "./fixtures/radicale.ts"
 import { signIn } from "./sign-in.ts"
+import { moreOptions, openTask } from "./task-ui.ts"
 
 let list: SeededList
 
@@ -13,7 +14,9 @@ test.afterEach(async () => await deleteList(list))
 test("a repeat on Monday and Thursday, ten times, survives a reload and is written for Tasks.org", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
+
+  await moreOptions(page)
 
   await page.getByLabel(`Repeat`, { exact: true }).selectOption({ label: `Weekly` })
   const days = page.getByRole(`group`, { name: `Days of the week` })
@@ -26,14 +29,14 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= globalThis.innerWidth))
     .toBe(true)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
 
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(
     `RRULE:FREQ=WEEKLY;COUNT=10;INTERVAL=1;BYDAY=MO,TH`,
   )
 
   await page.reload()
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
   await expect(page.getByLabel(`Repeat`, { exact: true })).toHaveValue(`2`)
   await expect(
     page.getByRole(`group`, { name: `Days of the week` }).getByRole(`button`, {
@@ -50,7 +53,7 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
     .focus()
   await page.keyboard.press(`Space`)
   await page.getByTestId(`task-save`).click()
-  await expect(page).toHaveURL(/\/lists\//)
+  await expect(page).toHaveURL(/\/$/) // Save returns to Today, where the task was opened.
   await expect.poll(async () => await readTask(list.taskUrl)).toContain(
     `RRULE:FREQ=WEEKLY;UNTIL=20301201;INTERVAL=1;BYDAY=MO,TH,FR`,
   )
@@ -59,7 +62,8 @@ test("a repeat on Monday and Thursday, ten times, survives a reload and is writt
 
 test("an end that is chosen but left empty stops the save with the browser's message", async ({ page }) => {
   await signIn(page)
-  await page.getByRole(`button`, { name: `Seeded errand`, exact: true }).click()
+  await openTask(page, `Seeded errand`)
+  await moreOptions(page)
   await page.getByLabel(`Repeat`, { exact: true }).selectOption({ label: `Daily` })
   await page.getByLabel(`Ends`).selectOption({ label: `On a date` })
   await page.getByTestId(`task-save`).click()
@@ -94,12 +98,12 @@ test.describe("a person far ahead of UTC", () => {
       await signIn(page)
       const slug = new URL(late.calendarUrl).pathname.split(`/`).filter(Boolean).at(-1)!
       await page.goto(`/lists/${encodeURIComponent(slug)}`)
-      const row = page.getByRole(`button`, { name: `Water the ferns`, exact: true })
-      await row.click()
+      await openTask(page, `Water the ferns`)
 
       // The choice appears with the repeat, and works from the keyboard like any radio group.
       const choice = page.getByRole(`group`, { name: `Count the next date` })
       await expect(choice).toHaveCount(0)
+      await moreOptions(page)
       await page.getByLabel(`Repeat`, { exact: true }).selectOption({ label: `Weekly` })
       await expect(choice.getByRole(`radio`, { name: `From the due date` })).toBeChecked()
       await choice.getByRole(`radio`, { name: `From the due date` }).focus()
@@ -123,7 +127,7 @@ test.describe("a person far ahead of UTC", () => {
       expect(onServer).not.toContain(`STATUS:COMPLETED`)
 
       // The task stays open in the list with the new date, at once and after a reload.
-      await row.click()
+      await openTask(page, `Water the ferns`)
       await expect(page.getByTestId(`task-due-date`)).toHaveValue(next)
       await page.reload()
       await expect(page.getByTestId(`task-due-date`)).toHaveValue(next)
